@@ -1,0 +1,154 @@
+  <application>
+      <!-- Generic information-->
+      <name>WYSIWYD_SIM</name>
+      <description>Application</description>
+      <version></version>
+
+      <authors>
+          <author email=""> author.name </author>
+      </authors>
+
+      <!-- Required modules -->
+      <!--<module>
+          <name>iCub_SIM</name>
+          <parameters></parameters>
+          <node>/icubsrv</node>
+          <stdio></stdio>
+          <prefix></prefix>
+      </module>
+        //-->
+
+      <module>
+          <name>objectsPropertiesCollector</name>
+          <parameters>--name OPC --empty</parameters>
+          <node>/icubsrv</node>
+          <stdio></stdio>
+          <prefix></prefix>
+      </module>
+
+      <module>
+          <name>referenceFrameHandler</name>
+          <parameters>--from /home/icub/wysiwyd/main/app/referenceFrameHandler/conf/config.ini</parameters>
+          <node>/icubsrv</node>
+          <stdio></stdio>
+          <prefix></prefix>
+      </module>
+
+      <module>
+          <name>reactable2opc</name>
+          <parameters></parameters>
+          <node>/icubsrv</node>
+          <stdio></stdio>
+          <prefix></prefix>
+      </module>
+
+      <module>
+          <name>pasar</name>
+          <parameters></parameters>
+          <node>/icubsrv</node>
+          <stdio></stdio>
+          <prefix></prefix>
+      </module>
+
+      <module>
+          <name>opcInspector</name>
+          <parameters></parameters>
+          <node>/icubsrv</node>
+          <stdio></stdio>
+          <prefix></prefix>
+      </module>
+
+      <module>
+          <name>guiUpdater</name>
+          <parameters></parameters>
+          <node>/icubsrv</node>
+          <stdio></stdio>
+          <prefix></prefix>
+      </module>
+
+       <module>
+        <name>iCubGui</name>
+        <parameters>--xpos 1500 --ypos 50 --width 370</parameters> 
+        <node>/icubsrv</node>
+        <tag>iCubGui</tag>
+      </module>
+
+       <module>
+        <name>autobiographicalMemory</name>
+        <parameters></parameters> 
+        <node>/icubsrv</node>
+        <tag></tag>
+      </module>
+
+      <!-- Embedded applications -->
+      <application>
+          <name></name>
+          <prefix></prefix>
+       </application>
+
+      <!-- Required connections -->
+      <connection>
+          <from></from>
+          <to></to>
+          <protocol></protocol>
+      </connection>
+
+      <connection>
+        <from>/wholeBodyDynamics/contacts:o</from>
+        <to>/iCubGui/forces</to>
+        <protocol>udp</protocol>
+      </connection>
+      <connection>
+        <from>/icubSim/head/state:o</from>
+        <to>/iCubGui/head:i</to>
+        <protocol>udp</protocol>
+      </connection>
+      <connection>
+        <from>/icubSim/inertial</from>
+        <to>/iCubGui/inertial:i</to>
+        <protocol>udp</protocol>
+      </connection>
+      <connection>
+        <from>/icubSim/left_arm/state:o</from>
+        <to>/iCubGui/left_arm:i</to>
+        <protocol>udp</protocol>
+      </connection>
+      <connection>
+        <from>/icubSim/right_arm/state:o</from>
+        <to>/iCubGui/right_arm:i</to>
+        <protocol>udp</protocol>
+      </connection>
+<!--
+       <connection>
+        <from>/icub/left_leg/state:o</from>
+        <to>/iCubGui/left_leg:i</to>
+        <protocol>udp</protocol>
+      </connection>
+      <connection>
+        <from>/icub/right_leg/state:o</from>
+        <to>/iCubGui/right_leg:i</to>
+        <protocol>udp</protocol>
+      </connection>
+//-->
+      <connection>
+        <from>/icubSim/torso/state:o</from>
+        <to>/iCubGui/torso:i</to>
+        <protocol>udp</protocol>
+      </connection>
+      <connection>
+        <from>/guiUpdater/gui:o</from>
+        <to>/iCubGui/objects</to>
+        <protocol>tcp</protocol>
+      </connection>
+        <connection>
+          <from>/guiUpdater/guiBase:o</from>
+          <to>/iCubGui/base:i</to>
+          <protocol>tcp</protocol>
+        </connection>
+        <connection>
+            <from>/reactable2opc/calibration:rpc</from>
+            <to>/referenceFrameHandler/rpc</to>
+            <protocol>tcp</protocol>
+        </connection>
+</application>
+
