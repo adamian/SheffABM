@@ -19,7 +19,7 @@ X = np.array(range(N))*0.14
 X=X[None,:].T
 Y = np.sin(X) + np.random.randn(*X.shape) * 0.05
 perm = np.random.permutation(X.shape[0])
-indTs = perm[1:Nts]
+indTs = perm[0:Nts]
 indTs.sort()
 indTr = perm[Nts:]
 indTr.sort()
@@ -44,7 +44,7 @@ a.store(observed=Ydict, inputs=X, Q=None, kernel=None, num_inducing=20)
 a.learn()
 ret = a.visualise()
 
-pred_mean, pred_var = a.model.predict(Xtest)#a.pattern_completion(Xtest)
+pred_mean, pred_var = a.pattern_completion(Xtest) # a.model.predict(Xtest)
 pb.figure()
 pb.plot(Xtest, Ytest, 'r-x')
 pb.plot(Xtest, pred_mean, 'b-x')

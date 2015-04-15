@@ -73,7 +73,25 @@ class LFM(object):
         pass
 
     def pattern_completion(self, test_data):
-        # TODO
-        pred_mean =[] # TODO
-        pred_variance = [] # TODO
+        if self.__type == 'bgplvm':
+            #tmp = self.model.infer_newX(test_data)[0]
+            #pred_mean = tmp.mean
+            #pred_variance = tmp.variance #np.zeros(pred_mean.shape)
+            tmp = self.model.infer_newX(test_data, optimize=False)[1]
+            tmp.optimize(max_iters=2000, messages=True)
+            pred_mean = tmp.X.mean
+            pred_variance = tmp.X.variance
+        elif self.__type == 'mrd':
+            pred_mean =[] # TODO
+            pred_variance = [] # TODO
+        elif self.__type == 'gp':
+            pred_mean, pred_variance = self.model.predict(test_data)
         return pred_mean, pred_variance
+
+    def _get_inducing(self):
+        # TODO
+        pass
+
+    def _get_latent(self):
+        # TODO
+        pass
