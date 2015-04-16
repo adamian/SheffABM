@@ -1,5 +1,14 @@
 # Copyright (c) 2015, Andreas Damianou
 
+""" 
+This demo implements a supervised learnin scenario, where observations
+are accompanied by inputs. So, we have pairs of inputs-observations,
+eg. note C -> frequency 98 etc. 
+"""
+
+""" 
+Import necessary libraries
+"""
 import matplotlib as mp
 # Use this backend for when the server updates plots through the X 
 mp.use('TkAgg')
@@ -12,6 +21,12 @@ import pods
 #from ABM import ABM
 import ABM
 
+"""
+Prepare some data. This is NOT needed in the final demo,
+since the data will come from the iCub through the
+drivers. So, the next section is to just test the code
+in standalone mode.
+"""
 data=dict()
 N=80
 Nts=20
@@ -33,17 +48,30 @@ Y = Y[indTr]
 # X = data['X']
 
 
+"""
+This needs to go to the code, since it's what happens after data collection
+"""
+# Normalise data (zero mean, std=1)
 Ymean = Y.mean(0)
 Y = Y - Ymean
 Ystd = Y.std(0)
 Y /= Ystd
 
+"""
+For the following, see demoOneView.py.
+The only difference here is that we also give inputs X to the store functionp
+and that we don't have labels associated with our data.
+"""
 Ydict = {'Y':Y}
 a=ABM.LFM()
 a.store(observed=Ydict, inputs=X, Q=None, kernel=None, num_inducing=20)
 a.learn()
 ret = a.visualise()
 
+"""
+In the supervised setting, pattern completion consists of giving new inputs
+and producing new outputs
+"""
 pred_mean, pred_var = a.pattern_completion(Xtest) # a.model.predict(Xtest)
 pb.figure()
 pb.plot(Xtest, Ytest, 'r-x')
