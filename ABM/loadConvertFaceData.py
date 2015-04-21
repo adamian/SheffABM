@@ -14,7 +14,7 @@ Data Dimensions:
 """
 
 # Overall data dir
-root_data_dir="D:/robotology/SheffABM/dataDump/faceImageData/"
+root_data_dir="../data/faceImageData"
 image_suffix=".ppm"
 participant_index=('Luke','Uriel','Michael')
 pose_index=('Straight','LR','UD')
@@ -25,6 +25,7 @@ pickled_save_data_name="Saved_face_Data"
 run_abm=True
 
 import matplotlib.pyplot as plt
+
 import os
 import cv2
 import numpy as np
@@ -114,7 +115,6 @@ for count_pose, current_pose in enumerate(pose_index):
 if save_data:
     saved_data = [img_data, img_label_data, participant_index, pose_index]
     pickle.dump( saved_data, open( os.path.join(root_data_dir,pickled_save_data_name+".pickle"), "wb" ) )
-
 
 if run_abm:
     
