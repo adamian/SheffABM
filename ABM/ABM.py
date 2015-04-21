@@ -1,5 +1,9 @@
 import GPy
 import numpy as np
+import matplotlib.cm as cm
+import itertools
+
+
 # try:
 #     from mpi4py import MPI
 # except:
@@ -68,7 +72,15 @@ class LFM(object):
         if self.__type == 'bgplvm':
             self.model = GPy.models.BayesianGPLVM(self.observed[self.observed.keys()[0]], self.Q, kernel=kernel, num_inducing=self.num_inducing)
         elif self.__type == 'mrd':
-            pass
+            # Create a list of observation spaces (aka views)
+            self.Ylist = []
+            self.namesList = []
+            for k in self.observed.keys():
+                self.Ylist = [self.Ylist, self.observed[k]]
+                self.namesList = [self.namesList, k]
+            self.Ylist[0]=self.Ylist[0][1]
+            self.namesList[0]=self.namesList[0][1]
+            self.model = GPy.models.MRD(self.Ylist, input_dim=self.Q, num_inducing=self.num_inducing, kernel=kernel, initx="PCA_concat", initz='permute')
         elif self.__type == 'gp':
             self.model = GPy.models.SparseGPRegression(self.inputs, self.observed[self.observed.keys()[0]], kernel=kernel, num_inducing=self.num_inducing)
         
@@ -101,7 +113,44 @@ class LFM(object):
                 ret = self.model.plot_latent()
         elif self.__type == 'gp':
             ret = self.model.plot()
+        if self.__type == 'mrd':
+            ret2 = self.model.plot_scales()
+
+        #if self.__type == 'mrd':
+        #    ret1 = self.model.X.plot("Latent Space 1D")
+        #    ret2 = self.model.plot_scales("MRD Scales")
+        
         return ret
+
+    def visualise_interactive(self, dimensions=(20,28), transpose=True, order='F', invert=False, scale=False, colgray=True, view=0):
+        """
+        Show the internal representation of the memory and allow the user to
+        interact with it to map samples/points from the compressed space to the
+        original output space
+        """
+        if self.__type == 'bgplvm':
+            ax = self.model.plot_latent(which_indices=(0, 1))
+            y = self.model.Y[0, :]
+            # dirty code here
+            if colorgray:
+                data_show = GPy.plotting.matplot_dep.visualize.image_show(y[None, :], dimensions=dimensions, transpose=transpose, order=order, invert=invert, scale=scale, cmap = cm.Greys_r)
+            else:
+                data_show = GPy.plotting.matplot_dep.visualize.image_show(y[None, :], dimensions=dimensions, transpose=transpose, order=order, invert=invert, scale=scale)
+            lvm = GPy.plotting.matplot_dep.visualize.lvm(self.model.X.mean[0, :].copy(), self.model, data_show, ax)
+            raw_input('Press enter to finish')
+        elif self.__type == 'mrd':
+            """
+            NOT TESTED!!!
+            """
+            ax = self.model.bgplvms[view].plot_latent(which_indices=(0, 1))
+            y = self.model.bgplvms[view].Y[0, :]
+            # dirty code here
+            if colorgray:
+                data_show = GPy.plotting.matplot_dep.visualize.image_show(y[None, :], dimensions=dimensions, transpose=transpose, order=order, invert=invert, scale=scale, cmap = cm.Greys_r)
+            else:
+                data_show = GPy.plotting.matplot_dep.visualize.image_show(y[None, :], dimensions=dimensions, transpose=transpose, order=order, invert=invert, scale=scale)
+            lvm = GPy.plotting.matplot_dep.visualize.lvm(self.model.bgplvms[view].X.mean[0, :].copy(), self.model.bgplvms[view], data_show, ax)
+            raw_input('Press enter to finish')
 
     def recall(self, locations):
         """
