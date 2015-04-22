@@ -5,7 +5,7 @@ Created on Sun Apr 19 16:00:20 2015
 @authors: uriel
 
 """
-
+yarp_running = False
 # Overall data dir
 root_data_dir="/home/uriel/Packages/dataDump/faceImageData"
 image_suffix=".ppm"
@@ -23,7 +23,8 @@ import cv2
 import numpy
 import sys
 import pickle
-#import yarp
+if yarp_running:
+    import yarp
 
 import matplotlib as mp
 # Use this backend for when the server updates plots through the X 
@@ -42,9 +43,13 @@ global imageInputBottle
 
 global imgWidth
 global imgHeight
+global imgWidthNew
+global imgHeightNew
 global Y
 global Ytest
 global X
+global L
+global Ltest
 global SAMObject
 
 
@@ -105,7 +110,7 @@ def readFaceData():
     set_x=int(data_image.shape[0])
     set_y=int(data_image.shape[1])
     no_rgb=int(data_image.shape[2])
-    no_pixels=set_x*set_y
+    no_pixels=imgWidthNew*imgHeightNew #set_x*set_y
     img_data=numpy.zeros([no_pixels, min_no_images, len(participant_index),len(pose_index)])
     img_label_data=numpy.zeros([no_pixels, min_no_images, len(participant_index),len(pose_index)],dtype=int)
     #cv2.imshow("test", data_image)
@@ -125,13 +130,14 @@ def readFaceData():
                     print "Found image with dimensions" + str(data_image.shape)
                     print "Image too big cutting to: x="+ str(set_x) + " y=" + str(set_y)
                     data_image=data_image[:set_x,:set_y]
+                data_image=cv2.resize(data_image, (imgWidthNew, imgHeightNew)) # New
                 data_image=cv2.cvtColor(data_image, cv2.COLOR_BGR2GRAY)         
                 img_data[:,current_image,count_participant,count_pose] = data_image.flatten()
                 # Labelling with participant            
                 img_label_data[:,current_image,count_participant,count_pose]=numpy.zeros(no_pixels,dtype=int)+count_participant
     Y=img_data
 
-def prepareFaceData():    
+def prepareFaceData(model='mrd'):    
     """--- Now Y has 4 dimensions: 
     1. Pixels
     2. Images
@@ -140,29 +146,58 @@ def prepareFaceData():
     """ 
     global Y
     global X
+    global L
+    global Ytest
+    global Ltest 
     K = len(participant_index)   
     # We can do differen scenarios.
     # Y = img_data[:,:,0,1] ; # Load one face, one pose . In this case, set also X=None 
-    ttt=Y[:,:,:,1]
-    Y=ttt.reshape(ttt.shape[0],K*ttt.shape[1]) 
+    ttt=Y[:,:,:,0]
+    ttt=numpy.transpose(ttt,(0,2,1))
+    Y=ttt.reshape(ttt.shape[0],ttt.shape[2]*ttt.shape[1]) 
     Y=Y.T
     N=Y.shape[0]
     L = numpy.zeros((N,1))
+    
     L[0::N/3]=0
     L[N/3:2*N/3:]=1
-    L[2*N/3::]=2    
-    X=None
-    
+    L[2*N/3::]=2
+
     #---TEMP
-    #Y=Y[0::3,:]
-    #----    
+    Ntr=100
+    Nts=Y.shape[0]-Ntr
+   
+    perm = numpy.random.permutation(Y.shape[0])
+    indTs = perm[0:Nts]
+    indTs.sort()
+    indTr = perm[Nts:Nts+Ntr]
+    indTr.sort()
+    Ytest = Y[indTs]
+    Ltest = L[indTs]
+    Y = Y[indTr]
+    L = L[indTr]
     
+    #---- 
+
     Ymean = Y.mean()
     Yn = Y - Ymean
     Ystd = Yn.std()
     Yn /= Ystd
-       
-    Y = {'Y':Yn,'L':L}
+
+    Lmean = L.mean()
+    Ln = L - Lmean
+    Lstd = Ln.std()
+    Ln /= Lstd
+    Ltestn = Ltest - Lmean
+    Ltestn /= Lstd
+
+    if model == 'mrd':    
+        X=None     
+        Y = {'Y':Yn,'L':L}
+    elif model == 'gp':
+        X=Y.copy()
+        Y = {'L':Ln.copy()+0.08*numpy.random.randn(Ln.shape[0],Ln.shape[1])}
+
 
 # training
 def prepareTraining():
@@ -184,10 +219,19 @@ def prepareTraining():
     else:
         kernel = None
 
-    SAMObject.store(observed=Y, inputs=X, Q=Q, kernel=kernel, num_inducing=40)
+    SAMObject.store(observed=Y, inputs=X, Q=Q, kernel=kernel, num_inducing=80)
+    #-- TEMP
+    SAMObject.model['.*rbf.variance'].constrain_bounded(0.8,100)
+    SAMObject.model['.*noise']=SAMObject.model.Y.var()/100
+    SAMObject.model['.*noise'].fix()
+    SAMObject.model.optimize(optimizer='scg',max_iters=100, messages=True)
+    
+
+    #---
+
     #SAMObject.add_labels(L.argmax(axis=1))
 
-    SAMObject.learn(optimizer='bfgs',max_iters=2, verbose=True)
+    SAMObject.learn(optimizer='bfgs',max_iters=2000, verbose=True)
 
 #    ret = SAMObject.visualise()
 
@@ -239,33 +283,53 @@ def readImagesFromCameras():
 
     print "-----------------"
 
-# initialise Yarp
-yarp.Network.init()
-
 
 imgWidth=200
 imgHeight=200
+imgWidthNew=50
+imgHeightNew=50
 
-
-print "Creating ports..."
-createPorts()
+if yarp_running:
+    # initialise Yarp
+    yarp.Network.init()
+            
+    print "Creating ports..."
+    createPorts()
 
 print "Reading Face Data"
 readFaceData()
 
 print "Creating Face scenario"
-prepareFaceData()
+prepareFaceData(model='mrd')
 
-print "Runnin training..."
-prepareTraining()
+#print "Runnin training..."
+#prepareTraining()
 
-while(1):
-    print "Reading image for testing..."
-    readImagesFromCameras()
-    print "Testing..."
-    testingImage()
+#print "Show training data"
+#import time
+#yy=numpy.reshape(SAMObject.model.Ylist[0],(SAMObject.model.Ylist[0].shape[0],imgHeightNew,imgWidthNew))
+#for i in range(SAMObject.model.Ylist[0].shape[0]):
+#    #pb.imshow(numpy.reshape(SAMObject.model.Ylist[0][i,:],(imgHeightNew,imgWidthNew)))
+#    pb.clf()
+#    pb.imshow(yy[i,:,:])    
+#    pb.title(participant_index[int(SAMObject.model.Ylist[1][i,:][0])])
+#    pb.draw()
+#    #pb.show()
+#    time.sleep(0.001)
+
+#print "Visualisation of results"
+#SAMObject.visualise()
+
+#print "Interactive visualisation of results"
+#SAMObject.visualise_interactive(dimensions=(imgWidthNew, imgHeightNew),view=0)
+
+#while(1):
+#    print "Reading image for testing..."
+#    readImagesFromCameras()
+#    print "Testing..."
+#    testingImage()
 
 
-print "Images process finish"
+#print "Images process finish"
 
 

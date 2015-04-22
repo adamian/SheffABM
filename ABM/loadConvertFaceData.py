@@ -110,6 +110,7 @@ for count_pose, current_pose in enumerate(pose_index):
             img_label_data[:,current_image,count_participant,count_pose]=np.zeros(no_pixels,dtype=int)+count_participant
 
 
+
 ### Save data
 if save_data:
     saved_data = [img_data, img_label_data, participant_index, pose_index]

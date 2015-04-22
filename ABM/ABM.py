@@ -81,11 +81,12 @@ class LFM(object):
             self.Ylist[0]=self.Ylist[0][1]
             self.namesList[0]=self.namesList[0][1]
             self.model = GPy.models.MRD(self.Ylist, input_dim=self.Q, num_inducing=self.num_inducing, kernel=kernel, initx="PCA_concat", initz='permute')
+            self.model['.*noise']=[yy.var() / 100. for yy in self.model.Ylist]
         elif self.__type == 'gp':
             self.model = GPy.models.SparseGPRegression(self.inputs, self.observed[self.observed.keys()[0]], kernel=kernel, num_inducing=self.num_inducing)
         
         self.model.data_labels = None
-    
+
     def add_labels(self, labels):
         """
         If observables are associated with labels, they can be added here.
@@ -96,10 +97,15 @@ class LFM(object):
         """
         self.model.data_labels = labels
 
-    def learn(self, optimizer='bfgs',max_iters=1000, verbose=True):
+    def learn(self, optimizer='bfgs',max_iters=1000, init_iters=300, verbose=True):
         """
         Learn the model (analogous to "forming synapses" after perveiving data).
         """
+        if self.__type == 'bgplvm' or self.__type == 'mrd':
+            self.model['.*noise'].fix()
+            self.model.optimize(optimizer, messages=verbose, max_iters=init_iters)
+            self.model['.*noise'].unfix()
+
         self.model.optimize(optimizer, messages=verbose, max_iters=max_iters)
 
     def visualise(self):
@@ -122,14 +128,14 @@ class LFM(object):
         
         return ret
 
-    def visualise_interactive(self, dimensions=(20,28), transpose=True, order='F', invert=False, scale=False, colgray=True, view=0):
+    def visualise_interactive(self, dimensions=(20,28), transpose=True, order='F', invert=False, scale=False, colorgray=True, view=0, which_indices=(0, 1)):
         """
         Show the internal representation of the memory and allow the user to
         interact with it to map samples/points from the compressed space to the
         original output space
         """
         if self.__type == 'bgplvm':
-            ax = self.model.plot_latent(which_indices=(0, 1))
+            ax = self.model.plot_latent(which_indices)
             y = self.model.Y[0, :]
             # dirty code here
             if colorgray:
@@ -142,7 +148,7 @@ class LFM(object):
             """
             NOT TESTED!!!
             """
-            ax = self.model.bgplvms[view].plot_latent(which_indices=(0, 1))
+            ax = self.model.bgplvms[view].plot_latent(which_indices)
             y = self.model.bgplvms[view].Y[0, :]
             # dirty code here
             if colorgray:
