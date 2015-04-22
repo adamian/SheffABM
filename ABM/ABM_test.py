@@ -219,12 +219,12 @@ def prepareTraining():
     else:
         kernel = None
 
-    SAMObject.store(observed=Y, inputs=X, Q=Q, kernel=kernel, num_inducing=80)
+    SAMObject.store(observed=Y, inputs=X, Q=Q, kernel=kernel, num_inducing=40)
     #-- TEMP
-    SAMObject.model['.*rbf.variance'].constrain_bounded(0.8,100)
-    SAMObject.model['.*noise']=SAMObject.model.Y.var()/100
-    SAMObject.model['.*noise'].fix()
-    SAMObject.model.optimize(optimizer='scg',max_iters=100, messages=True)
+    #SAMObject.model['.*rbf.variance'].constrain_bounded(0.8,100)
+    #SAMObject.model['.*noise']=SAMObject.model.Y.var()/100
+    #SAMObject.model['.*noise'].fix()
+    #SAMObject.model.optimize(optimizer='scg',max_iters=100, messages=True)
     
 
     #---
@@ -238,6 +238,33 @@ def prepareTraining():
 
 
 # testing
+def testDebug(i=None):
+    from scipy.spatial import distance
+    import operator
+    global Ytest
+    global Ltest
+    global SAMObject
+    
+    if i is None:
+        for i in range(Ytest.shape[0]):
+            mm,vv=SAMObject.pattern_completion(Ytest[i,:][None,:])
+            # find nearest neighbour of mm and SAMObject.model.X
+            dists = numpy.zeros((SAMObject.model.X.shape[0],1))
+            for j in range(dists.shape[0]):
+                dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
+            nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
+            print "I am " + str(vv.mean()) +" sure that " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
+    else:
+        mm,vv=SAMObject.pattern_completion(Ytest[i,:][None,:])
+        # find nearest neighbour of mm and SAMObject.model.X
+        dists = numpy.zeros((SAMObject.model.X.shape[0],1))
+        for j in range(dists.shape[0]):
+            dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
+        nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
+        print "I am " + str(vv.mean()) +" sure that " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
+
+
+
 def testingImage():
     global SAMObject
     global Ytest

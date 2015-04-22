@@ -19,7 +19,7 @@ SAM based on Latent Feature Models
 """
 class LFM(object):
     def __init__(self):
-        self.__type = []
+        self.type = []
         self.model = []
 
     def store(self,observed, inputs=None, Q=None, kernel=None, num_inducing=None):
@@ -54,24 +54,24 @@ class LFM(object):
             if self.Q is None:
                 self.Q = 2#self.D
             if self.__num_views == 1:
-                assert(self.__type == [] or self.__type == 'bgplvm')
-                self.__type = 'bgplvm'
+                assert(self.type == [] or self.type == 'bgplvm')
+                self.type = 'bgplvm'
             else:
-                assert(self.__type == [] or self.__type == 'mrd')
-                self.__type = 'mrd'
+                assert(self.type == [] or self.type == 'mrd')
+                self.type = 'mrd'
         else:
-            assert(self.__type == [] or self.__type == 'gp')
+            assert(self.type == [] or self.type == 'gp')
             assert(self.__num_views == 1)
             self.Q = inputs.shape[1]
-            self.__type = 'gp'
+            self.type = 'gp'
             self.inputs = inputs
 
         if kernel is None:
             kernel = GPy.kern.RBF(self.Q, ARD=True) + GPy.kern.Bias(self.Q) + GPy.kern.White(self.Q)
 
-        if self.__type == 'bgplvm':
+        if self.type == 'bgplvm':
             self.model = GPy.models.BayesianGPLVM(self.observed[self.observed.keys()[0]], self.Q, kernel=kernel, num_inducing=self.num_inducing)
-        elif self.__type == 'mrd':
+        elif self.type == 'mrd':
             # Create a list of observation spaces (aka views)
             self.Ylist = []
             self.namesList = []
@@ -82,7 +82,7 @@ class LFM(object):
             self.namesList[0]=self.namesList[0][1]
             self.model = GPy.models.MRD(self.Ylist, input_dim=self.Q, num_inducing=self.num_inducing, kernel=kernel, initx="PCA_concat", initz='permute')
             self.model['.*noise']=[yy.var() / 100. for yy in self.model.Ylist]
-        elif self.__type == 'gp':
+        elif self.type == 'gp':
             self.model = GPy.models.SparseGPRegression(self.inputs, self.observed[self.observed.keys()[0]], kernel=kernel, num_inducing=self.num_inducing)
         
         self.model.data_labels = None
@@ -101,7 +101,7 @@ class LFM(object):
         """
         Learn the model (analogous to "forming synapses" after perveiving data).
         """
-        if self.__type == 'bgplvm' or self.__type == 'mrd':
+        if self.type == 'bgplvm' or self.type == 'mrd':
             self.model['.*noise'].fix()
             self.model.optimize(optimizer, messages=verbose, max_iters=init_iters)
             self.model['.*noise'].unfix()
@@ -112,17 +112,17 @@ class LFM(object):
         """
         Show the internal representation of the memory
         """
-        if self.__type == 'bgplvm' or self.__type == 'mrd':
+        if self.type == 'bgplvm' or self.type == 'mrd':
             if self.model.data_labels is not None:
                 ret = self.model.plot_latent(labels=self.model.data_labels)
             else:
                 ret = self.model.plot_latent()
-        elif self.__type == 'gp':
+        elif self.type == 'gp':
             ret = self.model.plot()
-        if self.__type == 'mrd':
+        if self.type == 'mrd':
             ret2 = self.model.plot_scales()
 
-        #if self.__type == 'mrd':
+        #if self.type == 'mrd':
         #    ret1 = self.model.X.plot("Latent Space 1D")
         #    ret2 = self.model.plot_scales("MRD Scales")
         
@@ -134,7 +134,7 @@ class LFM(object):
         interact with it to map samples/points from the compressed space to the
         original output space
         """
-        if self.__type == 'bgplvm':
+        if self.type == 'bgplvm':
             ax = self.model.plot_latent(which_indices)
             y = self.model.Y[0, :]
             # dirty code here
@@ -144,7 +144,7 @@ class LFM(object):
                 data_show = GPy.plotting.matplot_dep.visualize.image_show(y[None, :], dimensions=dimensions, transpose=transpose, order=order, invert=invert, scale=scale)
             lvm = GPy.plotting.matplot_dep.visualize.lvm(self.model.X.mean[0, :].copy(), self.model, data_show, ax)
             raw_input('Press enter to finish')
-        elif self.__type == 'mrd':
+        elif self.type == 'mrd':
             """
             NOT TESTED!!!
             """
@@ -166,7 +166,7 @@ class LFM(object):
         # TODO
         pass
 
-    def pattern_completion(self, test_data):
+    def pattern_completion(self, test_data, view=0, verbose=False):
         """
         In the case of supervised learning, pattern completion means that we 
         give new inputs and infer their correspondin outputs. In the case of
@@ -175,18 +175,20 @@ class LFM(object):
         compressed representation of the new outputs in terms of the already
         formed "synapses".
         """
-        if self.__type == 'bgplvm':
+        if self.type == 'bgplvm':
             #tmp = self.model.infer_newX(test_data)[0]
             #pred_mean = tmp.mean
             #pred_variance = tmp.variance #np.zeros(pred_mean.shape)
-            tmp = self.model.infer_newX(test_data, optimize=False)[1]
-            tmp.optimize(max_iters=2000, messages=True)
+            tmp=self.model.bgplvms[0].infer_newX(test_data,optimize=False)[1]
+            tmp.optimize(max_iters=2000, messages=verbose)
             pred_mean = tmp.X.mean
             pred_variance = tmp.X.variance
-        elif self.__type == 'mrd':
-            pred_mean =[] # TODO
-            pred_variance = [] # TODO
-        elif self.__type == 'gp':
+        elif self.type == 'mrd':
+            tmp = self.model.bgplvms[view].infer_newX(test_data, optimize=False)[1]
+            tmp.optimize(max_iters=2000, messages=verbose)
+            pred_mean = tmp.X.mean
+            pred_variance = tmp.X.variance
+        elif self.type == 'gp':
             pred_mean, pred_variance = self.model.predict(test_data)
         return pred_mean, pred_variance
 
