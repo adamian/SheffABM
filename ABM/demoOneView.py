@@ -20,8 +20,8 @@ import GPy
 pb.ion()
 default_seed = 123344
 import pods
-#from ABM import ABM
-import ABM
+from ABM import ABM
+#import ABM
 
 """
 Prepare some data. This is NOT needed in the final demo,
@@ -29,13 +29,20 @@ since the data will come from the iCub through the
 drivers. So, the next section is to just test the code
 in standalone mode.
 """
-# data = pods.datasets.brendan_faces()
+
 Ntr = 100
 Nts = 50
 
+#-- Uncomment for brendan faces data
+#data = pods.datasets.brendan_faces()
+#Y = data['Y']
+#L = np.array(range(Y.shape[0]))
+#L = L[:,None]
+
+#-- Uncomment for oil data
 data = pods.datasets.oil()
 Y = data['X'] # Data
-L = data['Y'] # Labels
+L = data['Y'].argmax(axis=1) # Labels
 
 perm = np.random.permutation(Y.shape[0])
 indTs = perm[0:Nts]
@@ -90,7 +97,7 @@ a.store(observed=Y, inputs=None, Q=Q, kernel=None, num_inducing=40)
 # In this problem each of the observables (each row of Y) also has a label.
 # This can be added through the next line via L, where L is a N x K matrix,
 # where K is the total number of labels. 
-a.add_labels(L.argmax(axis=1))
+a.add_labels(L)
 
 # Learn from the data, (analogous to forming synapses)
 a.learn(optimizer='bfgs',max_iters=2000, verbose=True)
@@ -98,6 +105,9 @@ a.learn(optimizer='bfgs',max_iters=2000, verbose=True)
 # This is an important function: It visualises the internal state/representation
 #  of the memory.
 ret = a.visualise()
+
+# Only for images
+ret2= a.visualise_interactive(dimensions=(20,28))
 
 # Pattern completion. In this case, we give a new set of test observables 
 # (i.e. events not experienced before) and we want to infer the internal/compressed

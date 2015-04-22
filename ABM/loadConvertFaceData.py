@@ -14,8 +14,7 @@ Data Dimensions:
 """
 
 # Overall data dir
-#root_data_dir="D:/robotology/SheffABM/dataDump/faceImageData/"
-root_data_dir="/home/uriel/Packages/dataDump/faceImageData"
+root_data_dir="D:/robotology/SheffABM/dataDump/faceImageData/"
 image_suffix=".ppm"
 participant_index=('Luke','Uriel','Michael')
 pose_index=('Straight','LR','UD')
