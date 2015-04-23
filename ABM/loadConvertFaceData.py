@@ -14,7 +14,7 @@ Data Dimensions:
 """
 
 # Overall data dir
-root_data_dir="D:/robotology/SheffABM/dataDump/faceImageData/"
+root_data_dir="../data/faceImageData/"
 image_suffix=".ppm"
 participant_index=('Luke','Uriel','Michael')
 pose_index=('Straight','LR','UD')
@@ -229,6 +229,7 @@ if run_abm:
     #  of the memory.
     ret = a.visualise()
     
+    ret2=a.visualise_interactive()
     # Pattern completion. In this case, we give a new set of test observables 
     # (i.e. events not experienced before) and we want to infer the internal/compressed
     # representation of those. We can then perform inference in this compressed representation.
