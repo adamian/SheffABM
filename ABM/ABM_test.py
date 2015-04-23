@@ -7,7 +7,7 @@ Created on Sun Apr 19 16:00:20 2015
 """
 yarp_running = False
 # Overall data dir
-root_data_dir="/home/uriel/Packages/dataDump/faceImageData"
+root_data_dir="/home/andreas/Dropbox/_Postdoc/Software/github/SheffABM/dataDump/faceImageData"
 image_suffix=".ppm"
 participant_index=('Luke','Uriel','Michael')
 pose_index=('Straight','LR','UD')
@@ -260,7 +260,10 @@ def testDebug(i=None):
             for j in range(dists.shape[0]):
                 dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
             nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
-            print "I am " + str(vv.mean()) +" sure that " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
+            if SAMObject.type == 'mrd':
+                print "I am " + str(vv.mean()) +" sure that " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
+            elif SAMObject.type == 'bgplvm':
+                print "I am " + str(vv.mean()) +" sure that " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(L[nn,:])]
     else:
         mm,vv=SAMObject.pattern_completion(Ytest[i,:][None,:])
         # find nearest neighbour of mm and SAMObject.model.X
