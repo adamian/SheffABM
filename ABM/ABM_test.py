@@ -219,7 +219,7 @@ def prepareTraining():
     else:
         kernel = None
 
-    SAMObject.store(observed=Y, inputs=X, Q=Q, kernel=kernel, num_inducing=40)
+    SAMObject.store(observed=Y, inputs=X, Q=Q, kernel=kernel, num_inducing=20)
     #-- TEMP
     #SAMObject.model['.*rbf.variance'].constrain_bounded(0.8,100)
     #SAMObject.model['.*noise']=SAMObject.model.Y.var()/100
@@ -231,7 +231,7 @@ def prepareTraining():
 
     #SAMObject.add_labels(L.argmax(axis=1))
 
-    SAMObject.learn(optimizer='bfgs',max_iters=2000, verbose=True)
+    SAMObject.learn(optimizer='bfgs',max_iters=100, verbose=True)
 
 #    ret = SAMObject.visualise()
 
@@ -250,6 +250,10 @@ def testDebug(i=None):
             mm,vv=SAMObject.pattern_completion(Ytest[i,:][None,:])
             # find nearest neighbour of mm and SAMObject.model.X
             dists = numpy.zeros((SAMObject.model.X.shape[0],1))
+ 
+            print "MM (1)"
+            print mm[0].values
+         
             for j in range(dists.shape[0]):
                 dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
             nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
@@ -258,10 +262,14 @@ def testDebug(i=None):
         mm,vv=SAMObject.pattern_completion(Ytest[i,:][None,:])
         # find nearest neighbour of mm and SAMObject.model.X
         dists = numpy.zeros((SAMObject.model.X.shape[0],1))
-        for j in range(dists.shape[0]):
-            dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
-        nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
-        print "I am " + str(vv.mean()) +" sure that " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
+
+        print "LEN (2) "
+        print len(dists)
+
+#        for j in range(dists.shape[0]):
+#            dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
+#        nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
+#        print "I am " + str(vv.mean()) +" sure that " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
 
 
 
@@ -328,6 +336,12 @@ readFaceData()
 
 print "Creating Face scenario"
 prepareFaceData(model='mrd')
+
+print "Training"
+prepareTraining()
+
+print "Debug"
+testDebug()
 
 #print "Runnin training..."
 #prepareTraining()
