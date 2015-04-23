@@ -197,6 +197,9 @@ def prepareFaceData(model='mrd'):
     elif model == 'gp':
         X=Y.copy()
         Y = {'L':Ln.copy()+0.08*numpy.random.randn(Ln.shape[0],Ln.shape[1])}
+    elif model == 'bgplvm':
+        X=None     
+        Y = {'Y':Yn}
 
 
 # training

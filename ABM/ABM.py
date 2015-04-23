@@ -179,7 +179,7 @@ class LFM(object):
             #tmp = self.model.infer_newX(test_data)[0]
             #pred_mean = tmp.mean
             #pred_variance = tmp.variance #np.zeros(pred_mean.shape)
-            tmp=self.model.bgplvms[0].infer_newX(test_data,optimize=False)[1]
+            tmp=self.model.infer_newX(test_data,optimize=False)[1]
             tmp.optimize(max_iters=2000, messages=verbose)
             pred_mean = tmp.X.mean
             pred_variance = tmp.X.variance
