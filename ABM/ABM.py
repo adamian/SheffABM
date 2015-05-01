@@ -105,7 +105,8 @@ class LFM(object):
             self.model['.*noise'].fix()
             self.model.optimize(optimizer, messages=verbose, max_iters=init_iters)
             self.model['.*noise'].unfix()
-
+            self.model['.*noise'].constrain_positive()\
+        
         self.model.optimize(optimizer, messages=verbose, max_iters=max_iters)
 
     def visualise(self):

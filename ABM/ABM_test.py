@@ -2,20 +2,25 @@
 """
 Created on Sun Apr 19 16:00:20 2015
 
-@authors: uriel
+@authors: uriel, luke, andreas
 
 """
+
+#------------------- CONFIGURATION --------------
 yarp_running = False
 # Overall data dir
 root_data_dir="/home/andreas/Dropbox/_Postdoc/Software/github/SheffABM/dataDump/faceImageData"
 image_suffix=".ppm"
 participant_index=('Luke','Uriel','Michael')
 pose_index=('Straight','LR','UD')
+Ntr=100 # Use a subset of the data for training (and leave the rest for testing)
 
 save_data=False
 pickled_save_data_name="Saved_face_Data"
 
 run_abm=True
+#---------------------------------------------------------------------------
+
 
 import matplotlib.pyplot as plt
 import os
@@ -143,12 +148,28 @@ def prepareFaceData(model='mrd'):
     2. Images
     3. Person
     4. Movement (Static. up/down. left / right)     
+
+    We can prepare the face data using different scenarios about what to be perceived.
+    In each scenario, a different LFM is used. We have:
+    - gp scenario, where we regress from images to labels (inputs are images, outputs are labels)
+    - bgplvm scenario, where we are only perceiving images as outputs (no inputs, no labels)
+    - mrd scenario, where we have no inputs, but images and labels form two different views of the output space.
+
+    The store module of the LFM automatically sees the structure of the assumed perceived data and 
+    decides on the LFM backbone to be used.
+
+    ! Important: The global variable Y is changed in this section. From the multi-dim. matrix of all
+    modalities, it turns into the training matrix of image data and then again it turns into the 
+    dictionary used for the LFM.
     """ 
     global Y
     global X
     global L
     global Ytest
     global Ltest 
+    global Ytestn
+    global Ltestn
+
     K = len(participant_index)   
     # We can do differen scenarios.
     # Y = img_data[:,:,0,1] ; # Load one face, one pose . In this case, set also X=None 
@@ -163,8 +184,6 @@ def prepareFaceData(model='mrd'):
     L[N/3:2*N/3:]=1
     L[2*N/3::]=2
 
-    #---TEMP
-    Ntr=100
     Nts=Y.shape[0]-Ntr
    
     perm = numpy.random.permutation(Y.shape[0])
@@ -177,13 +196,16 @@ def prepareFaceData(model='mrd'):
     Y = Y[indTr]
     L = L[indTr]
     
-    #---- 
-
+    # Center data to zero mean and 1 std
     Ymean = Y.mean()
     Yn = Y - Ymean
     Ystd = Yn.std()
     Yn /= Ystd
+    # Normalise test data similarly to training data
+    Ytestn = Ytest - Ymean
+    Ytestn /= Ystd
 
+    # As above but for the labels
     Lmean = L.mean()
     Ln = L - Lmean
     Lstd = Ln.std()
@@ -203,13 +225,11 @@ def prepareFaceData(model='mrd'):
 
 
 # training
-def prepareTraining():
+def prepareTraining(learn=True):
     global SAMObject
     global Y
     global X
-    
-
-    
+        
     if X is not None:
         Q = X.shape[1]
     else:
@@ -222,7 +242,7 @@ def prepareTraining():
     else:
         kernel = None
 
-    SAMObject.store(observed=Y, inputs=X, Q=Q, kernel=kernel, num_inducing=20)
+    SAMObject.store(observed=Y, inputs=X, Q=Q, kernel=kernel, num_inducing=40)
     #-- TEMP
     #SAMObject.model['.*rbf.variance'].constrain_bounded(0.8,100)
     #SAMObject.model['.*noise']=SAMObject.model.Y.var()/100
@@ -233,8 +253,8 @@ def prepareTraining():
     #---
 
     #SAMObject.add_labels(L.argmax(axis=1))
-
-    SAMObject.learn(optimizer='bfgs',max_iters=100, verbose=True)
+    if learn:
+        SAMObject.learn(optimizer='scg',max_iters=100, verbose=True)
 
 #    ret = SAMObject.visualise()
 
@@ -244,13 +264,13 @@ def prepareTraining():
 def testDebug(i=None):
     from scipy.spatial import distance
     import operator
-    global Ytest
+    global Ytestn
     global Ltest
     global SAMObject
     
     if i is None:
-        for i in range(Ytest.shape[0]):
-            mm,vv=SAMObject.pattern_completion(Ytest[i,:][None,:])
+        for i in range(Ytestn.shape[0]):
+            mm,vv=SAMObject.pattern_completion(Ytestn[i,:][None,:])
             # find nearest neighbour of mm and SAMObject.model.X
             dists = numpy.zeros((SAMObject.model.X.shape[0],1))
  
@@ -261,29 +281,32 @@ def testDebug(i=None):
                 dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
             nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
             if SAMObject.type == 'mrd':
-                print "I am " + str(vv.mean()) +" sure that " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
+                print "With " + str(vv.mean()) +" prob. error " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
             elif SAMObject.type == 'bgplvm':
-                print "I am " + str(vv.mean()) +" sure that " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(L[nn,:])]
+                print "With " + str(vv.mean()) +" prob. error " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(L[nn,:])]
     else:
-        mm,vv=SAMObject.pattern_completion(Ytest[i,:][None,:])
+        mm,vv=SAMObject.pattern_completion(Ytestn[i,:][None,:])
         # find nearest neighbour of mm and SAMObject.model.X
         dists = numpy.zeros((SAMObject.model.X.shape[0],1))
 
-        print "LEN (2) "
-        print len(dists)
-
-#        for j in range(dists.shape[0]):
-#            dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
-#        nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
-#        print "I am " + str(vv.mean()) +" sure that " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
+        print "MM (1)"
+        print mm[0].values
+     
+        for j in range(dists.shape[0]):
+            dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
+        nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
+        if SAMObject.type == 'mrd':
+            print "With " + str(vv.mean()) +" prob. error " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
+        elif SAMObject.type == 'bgplvm':
+            print "With " + str(vv.mean()) +" prob. error " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(L[nn,:])]
 
 
 
 def testingImage():
     global SAMObject
-    global Ytest
+    global Ytestn
     
-    pred_mean, pred_var = SAMObject.pattern_completion(Ytest)
+    pred_mean, pred_var = SAMObject.pattern_completion(Ytestn)
     print pred_mean
     print pred_var
     # Visualise the predictive point estimates for the test data
@@ -349,20 +372,19 @@ prepareTraining()
 print "Debug"
 testDebug()
 
-#print "Runnin training..."
-#prepareTraining()
-
-#print "Show training data"
-#import time
-#yy=numpy.reshape(SAMObject.model.Ylist[0],(SAMObject.model.Ylist[0].shape[0],imgHeightNew,imgWidthNew))
-#for i in range(SAMObject.model.Ylist[0].shape[0]):
-#    #pb.imshow(numpy.reshape(SAMObject.model.Ylist[0][i,:],(imgHeightNew,imgWidthNew)))
-#    pb.clf()
-#    pb.imshow(yy[i,:,:])    
-#    pb.title(participant_index[int(SAMObject.model.Ylist[1][i,:][0])])
-#    pb.draw()
-#    #pb.show()
-#    time.sleep(0.001)
+"""
+print "Show training data"
+import time
+yy=numpy.reshape(SAMObject.model.Ylist[0],(SAMObject.model.Ylist[0].shape[0],imgHeightNew,imgWidthNew))
+for i in range(SAMObject.model.Ylist[0].shape[0]):
+    #pb.imshow(numpy.reshape(SAMObject.model.Ylist[0][i,:],(imgHeightNew,imgWidthNew)))
+    pb.clf()
+    pb.imshow(yy[i,:,:])    
+    pb.title(participant_index[int(SAMObject.model.Ylist[1][i,:][0])])
+    pb.draw()
+    #pb.show()
+    time.sleep(0.001)
+"""
 
 #print "Visualisation of results"
 #SAMObject.visualise()
