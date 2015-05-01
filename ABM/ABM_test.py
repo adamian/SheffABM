@@ -61,6 +61,7 @@ global SAMObject
 # Read Face Data
 def readFaceData():
     global Y
+    global L
 
     if not os.path.exists(root_data_dir):
         print "CANNOT FIND:" + root_data_dir
@@ -141,6 +142,7 @@ def readFaceData():
                 # Labelling with participant            
                 img_label_data[:,current_image,count_participant,count_pose]=numpy.zeros(no_pixels,dtype=int)+count_participant
     Y=img_data
+    L=img_label_data
 
 def prepareFaceData(model='mrd'):    
     """--- Now Y has 4 dimensions: 
@@ -170,19 +172,29 @@ def prepareFaceData(model='mrd'):
     global Ytestn
     global Ltestn
 
+    #--- Config (TODO: move higher up)
+    motion=1
+    #---
+
     K = len(participant_index)   
     # We can do differen scenarios.
     # Y = img_data[:,:,0,1] ; # Load one face, one pose . In this case, set also X=None 
-    ttt=Y[:,:,:,1]
+    ttt=Y[:,:,:,motion]
     ttt=numpy.transpose(ttt,(0,2,1))
     Y=ttt.reshape(ttt.shape[0],ttt.shape[2]*ttt.shape[1]) 
     Y=Y.T
     N=Y.shape[0]
-    L = numpy.zeros((N,1))
-    
-    L[0::N/3]=0
-    L[N/3:2*N/3:]=1
-    L[2*N/3::]=2
+
+    ttt=L[:,:,:,motion]
+    ttt=numpy.transpose(ttt,(0,2,1))
+    L=ttt.reshape(ttt.shape[0],ttt.shape[2]*ttt.shape[1]) 
+    L=L.T
+    L=L[:,:1]
+
+    # L = numpy.zeros((N,1))
+    # L[0::N/3]=0
+    # L[N/3:2*N/3:]=1
+    # L[2*N/3::]=2
 
     Nts=Y.shape[0]-Ntr
    
