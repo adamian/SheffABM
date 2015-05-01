@@ -13,7 +13,7 @@ root_data_dir="/home/andreas/Dropbox/_Postdoc/Software/github/SheffABM/dataDump/
 image_suffix=".ppm"
 participant_index=('Luke','Uriel','Michael')
 pose_index=('Straight','LR','UD')
-Ntr=100 # Use a subset of the data for training (and leave the rest for testing)
+Ntr=20 # Use a subset of the data for training (and leave the rest for testing)
 
 save_data=False
 pickled_save_data_name="Saved_face_Data"
@@ -173,7 +173,7 @@ def prepareFaceData(model='mrd'):
     K = len(participant_index)   
     # We can do differen scenarios.
     # Y = img_data[:,:,0,1] ; # Load one face, one pose . In this case, set also X=None 
-    ttt=Y[:,:,:,0]
+    ttt=Y[:,:,:,1]
     ttt=numpy.transpose(ttt,(0,2,1))
     Y=ttt.reshape(ttt.shape[0],ttt.shape[2]*ttt.shape[1]) 
     Y=Y.T
@@ -242,7 +242,7 @@ def prepareTraining(learn=True):
     else:
         kernel = None
 
-    SAMObject.store(observed=Y, inputs=X, Q=Q, kernel=kernel, num_inducing=40)
+    SAMObject.store(observed=Y, inputs=X, Q=Q, kernel=kernel, num_inducing=5)
     #-- TEMP
     #SAMObject.model['.*rbf.variance'].constrain_bounded(0.8,100)
     #SAMObject.model['.*noise']=SAMObject.model.Y.var()/100
@@ -274,8 +274,7 @@ def testDebug(i=None):
             # find nearest neighbour of mm and SAMObject.model.X
             dists = numpy.zeros((SAMObject.model.X.shape[0],1))
  
-            print "MM (1)"
-            print mm[0].values
+            # print mm[0].values
          
             for j in range(dists.shape[0]):
                 dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
