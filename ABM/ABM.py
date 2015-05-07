@@ -2,7 +2,7 @@ import GPy
 import numpy as np
 import matplotlib.cm as cm
 import itertools
-
+import cPickle as pickle
 
 # try:
 #     from mpi4py import MPI
@@ -200,3 +200,25 @@ class LFM(object):
     def _get_latent(self):
         # TODO
         pass
+
+
+"""
+Helper functions for saving and loading the SAMObject.
+For the moment, these are quite naive functions which dump the whole object as a
+serialized sequence of bytes, into a txt file.
+For the future, we can make them "smarter" by not having to save information e.g. about
+the data or about the object functions, but just save the parameters of the trained model.
+"""
+def save_model(mm, fileName='m_serialized.txt'):
+    #mPruned = mm.getstate() # TODO (store less stuff)
+    output = open(fileName, 'wb')
+    #pickle.dump(mPruned, output)
+    pickle.dump(mm, output)
+    output.close()
+
+def load_model(fileName='m_serialized.txt'):
+    mm = pickle.load(open(fileName,'r'))
+    return mm
+
+
+

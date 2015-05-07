@@ -383,6 +383,12 @@ prepareTraining()
 print "Debug"
 testDebug()
 
+#print "Saving SAMObject"
+#ABM.save_model(SAMObject, "saved_SAMObject.txt")
+
+#print "Loading SAMOBject"
+#SAMObject2 = ABM.load_model("saved_SAMObject.txt")
+
 """
 print "Show training data"
 import time
