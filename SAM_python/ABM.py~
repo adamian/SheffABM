@@ -194,13 +194,10 @@ class LFM(object):
             pred_mean, pred_variance = self.model.predict(test_data)
         if (self.type == 'mrd' or self.type == 'bgplvm') and visualiseInfo is not None:
             ax = visualiseInfo['ax']
-            inds0, inds1=dredplots.most_significant_input_dimensions(self.model, None)
-            pp=ax.plot(pred_mean[:,inds0], pred_mean[:,inds1], 'om', markersize=12, mew=12)
-            pb.draw()
-        else:
-            pp=None
+            inds0, inds1=dredplots.most_significan_input_dimensions(self.model, None)
+            pb.plot(pred_mean[:,inds0], pred_mean[:,inds1, 'xm', markersize=12)
 	    
-        return pred_mean, pred_variance, pp
+        return pred_mean, pred_variance
 
     def _get_inducing(self):
         # TODO

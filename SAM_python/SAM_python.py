@@ -1,34 +1,35 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sun Apr 19 16:00:20 2015
+Created on 5 May 2015
 
 @authors: uriel, luke, andreas
 
 """
 
 #------------------- CONFIGURATION --------------
-yarp_running = False
+yarp_running = True
 # Overall data dir
 root_data_dir="/home/icub/dataDump/faceImageData_1_05_2015"
 image_suffix=".ppm"
 participant_index=('Luke','Uriel','Michael','Andreas')
 pose_index=('Straight','LR','Natural') # 'UD')
-Ntr=50 # Use a subset of the data for training (and leave the rest for testing)
+Ntr=100 # Use a subset of the data for training (and leave the rest for testing)
 
 save_data=False
 pickled_save_data_name="Saved_face_Data"
 
-run_abm=True
+pose_selection = 0 # Select a pose to train and test.... e.g. LR = 1
 
-pose_selection = 1 # Select a pose to train and test.... e.g. LR = 1
+run_abm=True
 
 # Globals for model
 global model_type
 global model_num_inducing
 global model_num_iterations
 model_type = 'bgplvm'
-model_num_inducing = 40
-model_num_iterations = 300
+model_num_inducing = 5
+model_num_iterations = 10
+
 #---------------------------------------------------------------------------
 
 
@@ -38,8 +39,7 @@ import cv2
 import numpy
 import sys
 import pickle
-if yarp_running:
-    import yarp
+import yarp
 
 import matplotlib as mp
 # Use this backend for when the server updates plots through the X 
@@ -49,12 +49,17 @@ import GPy
 # To display figures once they're called
 pb.ion()
 default_seed = 123344
-import ABM
+#import ABM
+from ABM import ABM
 import time
 
 global imageDataInputPort
 global imageModeInputPort
+global outputFacePrection
 global imageInputBottle
+global speakStatusPort
+global speakStatusOutBottle
+global speakStatusInBottle
 
 global imgWidth
 global imgHeight
@@ -66,6 +71,61 @@ global X
 global L
 global Ltest
 global SAMObject
+global commands
+global predict
+global Ystd
+global Ymean
+
+global imageArray
+global yarpImage
+global imageFlatten
+
+global pp
+
+class imageDataProcessor(yarp.PortReader):
+    
+    def read(self, connection):
+        global imageDataInputPort
+        global imageInputBottle
+        print "In dataProcessor.read"
+        if not(connection.isValid()):
+            print "Connection shutting down"
+            return False
+        
+        print "callback 1"
+        #bottle_in = yarp.Bottle()
+        bottle_in = yarp.Port()
+        
+        print "Trying to read from connection"
+        
+        ok = bottle_in.read(connection)
+#        imageDataInputPort.read(connection)
+
+        print "callback 2"
+
+        #imageArray=cv2.resize(imageArray,(imgHeightNew,imgWidthNew))
+
+        #print "callback 3"
+
+        #imageFlatten = imageArray.flatten()
+
+        #print "callback 4"
+        
+        if not(ok):
+            print "Failed to read input"
+            return False
+
+        print "callback 3"
+
+#        print "Bottle_In size: ", bottle_in.size()
+
+        #if( bottle_in.size() > 0 ):
+        #    imageInputBottle = bottle_in
+        #else:
+        #    imageInputBottle.clear()
+
+        #for i in range(imgWidth*imgHeight):
+        #    imageInputBottle.addInt(int(imageFlatten[i]))
 
 
 # Read Face Data
@@ -154,6 +214,7 @@ def readFaceData():
     Y=img_data
     L=img_label_data
 
+
 def prepareFaceData(model='mrd'):    
     """--- Now Y has 4 dimensions: 
     1. Pixels
@@ -181,10 +242,12 @@ def prepareFaceData(model='mrd'):
     global Ltest 
     global Ytestn
     global Ltestn
+    global Ymean
+    global Ystd
     global data_labels
-    
+
     #--- Config (TODO: move higher up)
-    #pose_selection=1
+#    motion=0
     #---
 
     K = len(participant_index)   
@@ -201,11 +264,6 @@ def prepareFaceData(model='mrd'):
     L=ttt.reshape(ttt.shape[0],ttt.shape[2]*ttt.shape[1]) 
     L=L.T
     L=L[:,:1]
-
-    # L = numpy.zeros((N,1))
-    # L[0::N/3]=0
-    # L[N/3:2*N/3:]=1
-    # L[2*N/3::]=2
 
     Nts=Y.shape[0]-Ntr
    
@@ -249,9 +307,11 @@ def prepareFaceData(model='mrd'):
         Y = {'Y':Yn}
         data_labels = L.copy()
 
+    #print "====================== Y shape in training ", Y['Y'].shape()
+
 
 # training
-def prepareTraining(learn=True):
+def prepareTraining():
     global SAMObject
     global Y
     global X
@@ -272,97 +332,105 @@ def prepareTraining(learn=True):
         kernel = None
 
     SAMObject.store(observed=Y, inputs=X, Q=Q, kernel=kernel, num_inducing=model_num_inducing)
-    #-- TEMP
-    #SAMObject.model['.*rbf.variance'].constrain_bounded(0.8,100)
-    #SAMObject.model['.*noise']=SAMObject.model.Y.var()/100
-    #SAMObject.model['.*noise'].fix()
-    #SAMObject.model.optimize(optimizer='scg',max_iters=100, messages=True)
-    
-
-    #---
     if data_labels is not None:
         SAMObject.add_labels(data_labels)
-    if learn:
-        SAMObject.learn(optimizer='scg',max_iters=model_num_iterations, verbose=True)
-
-#    ret = SAMObject.visualise()
-
+    SAMObject.learn(optimizer='scg',max_iters=model_num_iterations, verbose=True)
 
 
 # testing
-def testDebug(i=None):
+def testingImage(testFace, visualiseInfo=None):
     from scipy.spatial import distance
     import operator
-    global Ytestn
+    global Ytest
     global Ltest
     global SAMObject
+    global pp
+
+#    print "PREDICT debug 1"
+
+    #print "====================== testFace shape in testing ",  testFace.shape
+
+    #print "IMAGE TESTING: ", numpy.shape(testFace)
+
+    mm,vv,pp=SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
+
+#    print "PREDICT debug 2"
+
+    # find nearest neighbour of mm and SAMObject.model.X
+    dists = numpy.zeros((SAMObject.model.X.shape[0],1))
+
+#    print "PREDICT debug 3"
+
+    # print mm[0].values
+
+    facePredictionBottle = yarp.Bottle()
     
-    ax = SAMObject.visualise()
-    visualiseInfo=dict()
-    visualiseInfo['ax']=ax
-    if i is None:
-        for i in range(Ytestn.shape[0]):
-            mm,vv,pp=SAMObject.pattern_completion(Ytestn[i,:][None,:],visualiseInfo=visualiseInfo)
-            # find nearest neighbour of mm and SAMObject.model.X
-            dists = numpy.zeros((SAMObject.model.X.shape[0],1))
- 
-            # print mm[0].values
-         
-            for j in range(dists.shape[0]):
-                dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
-            nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
-            if SAMObject.type == 'mrd':
-                print "With " + str(vv.mean()) +" prob. error " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
-            elif SAMObject.type == 'bgplvm':
-                print "With " + str(vv.mean()) +" prob. error " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(L[nn,:])]
-            time.sleep(1)
-            l = pp.pop(0)
-            l.remove()
-            pb.draw()
-            del l
-    else:
-        mm,vv,pp=SAMObject.pattern_completion(Ytestn[i,:][None,:],visualiseInfo=visualiseInfo)
-        # find nearest neighbour of mm and SAMObject.model.X
-        dists = numpy.zeros((SAMObject.model.X.shape[0],1))
+    for j in range(dists.shape[0]):
+        dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
+    nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
+    if SAMObject.type == 'mrd':
+        print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
+        facePredictionBottle.addString("Hello " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])])
+    elif SAMObject.type == 'bgplvm':
+        print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(L[nn,:])]
+        facePredictionBottle.addString("Hello " + participant_index[int(L[nn,:])])
 
-        print "MM (1)"
-        print mm[0].values
-     
-        for j in range(dists.shape[0]):
-            dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
-        nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
-        if SAMObject.type == 'mrd':
-            print "With " + str(vv.mean()) +" prob. error " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
-        elif SAMObject.type == 'bgplvm':
-            print "With " + str(vv.mean()) +" prob. error " +participant_index[int(Ltest[i,:])] +" is " + participant_index[int(L[nn,:])]
+    speakStatusPort.write(speakStatusOutBottle, speakStatusInBottle)
+
+    print "======== iSpeak status: ", speakStatusInBottle.get(0).asString(), " ==========="
+
+    if( speakStatusInBottle.get(0).asString() == "quiet"):
+        outputFacePrection.write(facePredictionBottle)
+
+    facePredictionBottle.clear()
+
+#    time.sleep(2)
 
 
 
-
-def testingImage():
-    global SAMObject
-    global Ytestn
-    
-    pred_mean, pred_var = SAMObject.pattern_completion(Ytestn)
-    print pred_mean
-    print pred_var
-    # Visualise the predictive point estimates for the test data
-    pb.plot(pred_mean[:,0],pred_mean[:,1],'bx')
 
 
 # create ports
 def createPorts():
     global imageDataInputPort
     global imageModeInputPort
+    global outputFacePrection
+    global speakStatusPort
+    global speakStatusBottle
     global imageInputBottle
+    global speakStatusOutBottle
+    global speakStatusInBottle
 
     imageDataInputPort = yarp.Port()
-    imageDataInputPort.open("/sam/abm/imageData:i")
-#    imageModeInputPort.open("/sam/raw/imageMode:i")
+    imageDataInputPort.open("/sam/imageData:i")
+
+    outputFacePrection = yarp.Port()
+    outputFacePrection.open("/sam/facePrediction:o")
+
+    speakStatusPort = yarp.RpcClient();
+    speakStatusPort.open("/sam/speakStatus:i")
+
+    speakStatusOutBottle = yarp.Bottle()
+    speakStatusOutBottle.addString("stat")
+
+    speakStatusInBottle = yarp.Bottle()
 
     imageInputBottle = yarp.Bottle()
 
-    return True
+
+
+def createImageArrays():
+    global imageArray
+    global yarpImage
+    global imgWidth
+    global imgHeight  
+    
+
+    imageArray = numpy.zeros((imgHeight, imgWidth, 3), dtype=numpy.uint8)
+    yarpImage = yarp.ImageRgb()
+    yarpImage.resize(imgWidth,imgHeight)
+    yarpImage.setExternal(imageArray, imageArray.shape[1], imageArray.shape[0])
+
 
 
 def readImagesFromCameras():
@@ -370,77 +438,119 @@ def readImagesFromCameras():
     global imgHeight
     global imageInputBottle
     global Ytest
+    global predict
+    global yarpImage
+    global imageArray
+    global Ystd
+    global Ymean
+
+    predict = True
+
+#    print "READ IMAGE DEBUG 1"
+    imageDataInputPort.read(yarpImage)
+    # here image has to be resized
+    #plt.imshow(imageArray)
+
+#    print "READ IMAGE DEBUG 2"
+    imageArrayOld=cv2.resize(imageArray,(imgHeightNew,imgWidthNew))
+    imageArrayGray=cv2.cvtColor(imageArrayOld, cv2.COLOR_BGR2GRAY)         
+
+
+#    print "READ IMAGE DEBUG 3"
+    #imageFlatten_testing = numpy.zeros((imgHeightNew*imgWidthNew,1))
+
+    #Ytest = numpy.zeros(imgHeightNew*imgWidthNew)
+    imageFlatten_testing = imageArrayGray.flatten()
+    imageFlatten_testing = imageFlatten_testing - Ymean
+    imageFlatten_testing = imageFlatten_testing/Ystd
+    #imageFlatten_testing = imageFlatten_testing/imageFlatten_testing.std()
+    
+#    print "READ IMAGE DEBUG 4"
+    #Ytest = numpy.zeros((imageFlatten.size()))
+    #Ytest = imageFlatten
+
+    #print "Size (readImagesFromCameras function): ", Ytest.size
+
+
+    #for i in range(imageInputBottle.size()):
+    #    Ytest[i] = imageInputBottle.get(i).asInt();
+
+    #print "READ IMAGE DEBUG 5"
+    #for i in range(imageFlatten.size()):
+    #    Ytest[i] = imageFlatten[i]
+
+
+    imageFlatten_testing = imageFlatten_testing[:,None].T
+
+#    print "READ IMAGE CAMERAS: ", numpy.shape(imageFlatten_testing)
+
+    #L = numpy.zeros(numpy.shape(imageFlatten_testing))
+
+    #temp = {'Y':imageFlatten_testing,'L':L}
+
+    #print "READ IMAGE DEBUG 6"
+    #if( Ytest.size > 0 ):
+    #    Ytest = Ytest[:,None].T
+    ##    predict = True
+    #    print "Ytest content: ", Ytest
+
 
     imageInputBottle.clear()
-    imageDataInputPort.read(imageInputBottle)
 
-    Ytest = numpy.zeros(shape=(imageInputBottle.size()))
+    return imageFlatten_testing
 
-    for i in range(imageInputBottle.size()):
-        Ytest[i] = imageInputBottle.get(i).asInt();
-    
-    Ytest = Ytest[:,None].T
-    print Ytest.shape
 
-    print "-----------------"
 
+# initialise Yarp
+yarp.Network.init()
 
 imgWidth=200
 imgHeight=200
-imgWidthNew=200#50
-imgHeightNew=200#50
+imgWidthNew=200
+imgHeightNew=200
 
-if yarp_running:
-    # initialise Yarp
-    yarp.Network.init()
-            
-    print "Creating ports..."
-    createPorts()
+predict = False
 
-print "Reading Face Data"
+#port_read = imageDataProcessor()
+
+print "Creating ports..."
+createPorts()
+
+print "Creating image arrays..."
+createImageArrays()
+
+print "Reading Face Data..."
 readFaceData()
 
-print "Creating Face scenario"
+print "Creating Face scenario..."
 prepareFaceData(model=model_type)
 
-print "Training"
+print "Training..."
 prepareTraining()
 
-print "Debug"
-testDebug()
+print "Waiting for connection with imageDataInputPort..."
+#while( not(yarp.Network.isConnected("/sam/faceTracker:o","/sam/imageData:i")) ):
+while( not(yarp.Network.isConnected("/faceTrackerImg:o","/sam/imageData:i")) ):
+    pass
 
-#print "Saving SAMObject"
-#ABM.save_model(SAMObject, "saved_SAMObject.txt")
+print "Connection ready"
+#imageDataInputPort.setReader(port_read)
 
-#print "Loading SAMOBject"
-#SAMObject2 = ABM.load_model("saved_SAMObject.txt")
+# This is for visualising the mapping of the test face back to the internal memory
+ax = SAMObject.visualise()
+visualiseInfo=dict()
+visualiseInfo['ax']=ax
 
-"""
-print "Show training data"
-yy=numpy.reshape(SAMObject.model.Ylist[0],(SAMObject.model.Ylist[0].shape[0],imgHeightNew,imgWidthNew))
-for i in range(SAMObject.model.Ylist[0].shape[0]):
-    #pb.imshow(numpy.reshape(SAMObject.model.Ylist[0][i,:],(imgHeightNew,imgWidthNew)))
-    pb.clf()
-    pb.imshow(yy[i,:,:])    
-    pb.title(participant_index[int(SAMObject.model.Ylist[1][i,:][0])])
+while 1:
+    if not(imageDataInputPort == None):
+        testFace = readImagesFromCameras()
+        if( predict ):
+            testingImage(testFace, visualiseInfo)
+
+
+    time.sleep(1.5)
+    # Delete the newly added point in the internal memory representation
+    l = pp.pop(0)
+    l.remove()
     pb.draw()
-    #pb.show()
-    time.sleep(0.001)
-"""
-
-#print "Visualisation of results"
-#SAMObject.visualise()
-
-#print "Interactive visualisation of results"
-#SAMObject.visualise_interactive(dimensions=(imgWidthNew, imgHeightNew),view=0)
-
-#while(1):
-#    print "Reading image for testing..."
-#    readImagesFromCameras()
-#    print "Testing..."
-#    testingImage()
-
-
-#print "Images process finish"
-
-
+    del l
