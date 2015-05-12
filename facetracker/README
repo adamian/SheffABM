@@ -1,0 +1,22 @@
+webcamToYarp:
+
+webcamToYarp takes only one argument which is the name of the port that will output the image data. It captures an image
+from the webcam, converts it into a yarp image and sends it as a PixelRGB yarp image over the specified port
+e.g ./webcamToYarp /webcamOut
+
+faceTracking:
+
+faceTracking takes an input image coming into its input port /inputPort and identifies the presence of all faces within the image
+then outputs the coordinates for each face over its coordinate port /coordinatePort and also outputs an image with all the faces 
+resized to a 200x200 resolution and concatenated horizontally with each other over the output image port /outputImagePort. It also
+takes arguments as to on what hardware the computation will take place either 'GPU' or 'CPU' without the ' and the final argument
+specifies wether the incoming image is an rgb image or a bayer image. For an rgb image leave the 5th argument empty like so:
+
+./faceTrack /inputPort /coordinatePort /outputImagePort GPU
+
+otherwise to specify a Bayer image input:
+
+./faceTrack /inputPort /coordinatePort /outputImagePort GPU Bayer
+
+Note: So far the code only works reliably on the GPU so always include GPU in the argument list. 
+Furthermore ports can be given any name, the ones provided are as an example

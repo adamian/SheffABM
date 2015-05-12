@@ -11,14 +11,14 @@ yarp_running = True
 # Overall data dir
 root_data_dir="/home/icub/dataDump/faceImageData_1_05_2015"
 image_suffix=".ppm"
-participant_index=('Luke','Uriel','Michael','Andreas')
+participant_index=('Luke','Uriel','Andreas')#'Michael','Andreas')
 pose_index=('Straight','LR','Natural') # 'UD')
 Ntr=100 # Use a subset of the data for training (and leave the rest for testing)
 
 save_data=False
 pickled_save_data_name="Saved_face_Data"
-
-pose_selection = 0 # Select a pose to train and test.... e.g. LR = 1
+#### Set pose selection to -1 to use all poses....
+pose_selection = 2 # 0 # Select a pose to train and test.... e.g. LR = 1
 
 run_abm=True
 
@@ -174,6 +174,8 @@ def readFaceData():
         data_file_database[participant_index[0]][pose_index[0]][0][2]))[:,:,(2,1,0)] # Convert BGR to RGB
 
     # Data size
+    print "Found minimum number of images:" + str(min_no_images)
+    print "Image count:", data_file_count
     print "Found image with dimensions" + str(data_image.shape)
     imgplot = plt.imshow(data_image)#[:,:,(2,1,0)]) # convert BGR to RGB
 
@@ -252,14 +254,24 @@ def prepareFaceData(model='mrd'):
 
     K = len(participant_index)   
     # We can do differen scenarios.
-    # Y = img_data[:,:,0,1] ; # Load one face, one pose . In this case, set also X=None 
-    ttt=Y[:,:,:,pose_selection]
+    # Y = img_data[:,:,0,1] ; # Load one face, one pose . In this case, set also X=None
+
+	# Take all poses if pose selection ==-1
+    if pose_selection == -1:
+        ttt=numpy.transpose(Y,(0,1,3,2))
+        ttt=ttt.reshape((ttt.shape[0],ttt.shape[1]*ttt.shape[2],ttt.shape[3])) 
+    else:
+		ttt=Y[:,:,:,pose_selection]
     ttt=numpy.transpose(ttt,(0,2,1))
     Y=ttt.reshape(ttt.shape[0],ttt.shape[2]*ttt.shape[1]) 
     Y=Y.T
     N=Y.shape[0]
 
-    ttt=L[:,:,:,pose_selection]
+    if pose_selection == -1:
+        ttt=numpy.transpose(L,(0,1,3,2))
+        ttt=ttt.reshape((ttt.shape[0],ttt.shape[1]*ttt.shape[2],ttt.shape[3]))
+    else:
+		ttt=L[:,:,:,pose_selection]
     ttt=numpy.transpose(ttt,(0,2,1))
     L=ttt.reshape(ttt.shape[0],ttt.shape[2]*ttt.shape[1]) 
     L=L.T
