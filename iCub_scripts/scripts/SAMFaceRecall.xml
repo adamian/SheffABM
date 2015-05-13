@@ -75,4 +75,9 @@
     <to>/iSpeak/rpc</to>
     <protocol>tcp</protocol>
   </connection>
+  <connection>
+    <from>/sam/syncPort:o</from>
+    <to>/faceTracker/syncPort:i</to>
+    <protocol>tcp</protocol>
+  </connection>
 </application>
