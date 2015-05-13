@@ -15,7 +15,7 @@ root_data_dir="/home/icub/dataDump/faceImageData_13_05_2015"#"/home/icub/dataDum
 image_suffix=".ppm"
 participant_index=('Luke','Uriel','Andreas')#'Michael','Andreas')
 pose_index=['A'] #('Straight','LR','Natural') # 'UD')
-Ntr=300 # Use a subset of the data for training (and leave the rest for testing)
+Ntr=200 # Use a subset of the data for training (and leave the rest for testing)
 
 save_data=False
 pickled_save_data_name="Saved_face_Data"
@@ -31,8 +31,8 @@ global model_num_iterations
 global model_init_iterations
 global model_type
 model_type = 'bgplvm'
-model_num_inducing = 50
-model_num_iterations = 1000
+model_num_inducing = 20
+model_num_iterations = 0
 model_init_iterations = 300
 #---------------------------------------------------------------------------
 
@@ -53,10 +53,13 @@ import GPy
 # To display figures once they're called
 pb.ion()
 default_seed = 123344
+numpy.random.seed(seed=default_seed)
 #import ABM
 from ABM import ABM
 import time
 import matplotlib.cm as cm
+from scipy.spatial import distance
+import operator
 
 global imageDataInputPort
 global imageModeInputPort
@@ -80,7 +83,9 @@ global commands
 global predict
 global Ystd
 global Ymean
-
+global Ytestn
+global Ltest
+global L
 global imageArray
 global yarpImage
 global imageFlatten
@@ -362,8 +367,6 @@ def prepareTraining():
 
 # testing for new images
 def testingImage(testFace, visualiseInfo=None):
-    from scipy.spatial import distance
-    import operator
     global Ytest
     global Ltest
     global SAMObject
@@ -419,7 +422,69 @@ def testingImage(testFace, visualiseInfo=None):
 
 #    time.sleep(2)
 
+# testing in pre-stored test data - FOR DEBUG
+def testDebug(SAMObject, Ytestn, Ltest, L, i=None):
+    ax = SAMObject.visualise()
+    visualiseInfo=dict()
+    visualiseInfo['ax']=ax
+    if i is None:
+        Nstar = Ytestn.shape[0]
+        success_arr = numpy.repeat(False, Nstar)
+        uncert_arr = numpy.repeat(-numpy.inf, Nstar)
+        for i in range(Nstar):
+            mm,vv,pp=SAMObject.pattern_completion(Ytestn[i,:][None,:],visualiseInfo=visualiseInfo)
+            uncert_arr[i] = vv
+            # find nearest neighbour of mm and SAMObject.model.X
+            dists = numpy.zeros((SAMObject.model.X.shape[0],1))
+ 
+            # print mm[0].values
+         
+            for j in range(dists.shape[0]):
+                dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
+            nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
+            label_true = int(Ltest[i,:])
+            if SAMObject.type == 'mrd':
+                label_pred = int(SAMObject.model.bgplvms[1].Y[nn,:])
+            elif SAMObject.type == 'bgplvm':
+                label_pred = int(L[nn,:])
+            success_arr = (label_pred == label_true)
+            print "With " + str(vv.mean()) +" prob. error " +participant_index[label_true] +" is " + participant_index[label_pred]
+            time.sleep(1)
+            l = pp.pop(0)
+            l.remove()
+            pb.draw()
+            del l
+        return success_arr, uncert_arr
+    else:
+        mm,vv,pp=SAMObject.pattern_completion(Ytestn[i,:][None,:],visualiseInfo=visualiseInfo)
+        # find nearest neighbour of mm and SAMObject.model.X
+        dists = numpy.zeros((SAMObject.model.X.shape[0],1))
 
+        print "MM (1)"
+        print mm[0].values
+     
+        for j in range(dists.shape[0]):
+            dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
+        nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
+        label_true = int(Ltest[i,:])
+        if SAMObject.type == 'mrd':
+            label_pred = int(SAMObject.model.bgplvms[1].Y[nn,:])
+        elif SAMObject.type == 'bgplvm':
+            label_pred = int(L[nn,:])
+        print "With " + str(vv.mean()) +" prob. error " +participant_index[label_true] +" is " + participant_index[label_pred]
+
+
+def optUncertaintyThreshold(YTestn, Ln, L):
+    global SAMObject
+    # Get error rates for the test data
+    success_tr_arr, uncertainty_tr_arr = testDebug(SAMObject, Ytestn, Ltest, L, i=None)
+    # Get error rates for the training data (ie reconstruction)
+    success_ts_arr, uncertainty_ts_arr = testDebug(SAMObject, SAMObject.recall(-1), L, L, i=None)
+    success_tr_ind = numpy.where(success_tr_arr == True)
+    success_ts_ind = numpy.where(success_ts_ind == True)
+    mean_suc_unc = numpy.average(np.hstack((uncertainty_ts_arr[succes_ts_ind,:].mean(), uncertainty_tr_arr[succes_tr_ind,:].mean())), axis=0, weights=[0.1,0.9])
+
+    # TODO
 
 
 
@@ -587,7 +652,7 @@ else:
 	SAMObject = ABM.load_model(fname)
 
 print "Optimising uncertainty threshold..."
-uncertaintyThreshold(YTestn)
+optUncertaintyThreshold(YTestn, Ln, L)
 
 print "Waiting for connection with imageDataInputPort..."
 #while( not(yarp.Network.isConnected("/sam/faceTracker:o","/sam/imageData:i")) ):

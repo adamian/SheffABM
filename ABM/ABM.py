@@ -167,6 +167,8 @@ class LFM(object):
         given "training" data.
         Input is the index of the stored event (TODO: make it more generic)
         """
+        if locations == -1:
+            locations = range(self.N)
         if self.type == 'bgplvm' or self.type == 'gp':
             return self.model.Y[locations,:].values
         elif self.type == 'mrd':
