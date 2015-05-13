@@ -279,6 +279,7 @@ int main(int argc, char** argv)
                             Bottle *syncBottleIn = syncPort.read();
                             if( syncBottleIn->toString().c_str() == "sam_ready" )
     							imageOut.write();
+
                             syncBottleIn->clear();
 
 							

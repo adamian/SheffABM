@@ -572,6 +572,7 @@ while 1:
             testingImage(testFace, visualiseInfo)
 
         syncPort.write("sam_ready");
+        print "+++++++++++++++ syncPort: sam_ready +++++++++++++++++++"
 
 
     time.sleep(1.5)
