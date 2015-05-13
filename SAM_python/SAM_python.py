@@ -82,6 +82,8 @@ global imageFlatten
 
 global pp
 
+global syncPort
+
 class imageDataProcessor(yarp.PortReader):
     
     def read(self, connection):
@@ -412,6 +414,7 @@ def createPorts():
     global imageInputBottle
     global speakStatusOutBottle
     global speakStatusInBottle
+    global syncPort
 
     imageDataInputPort = yarp.Port()
     imageDataInputPort.open("/sam/imageData:i")
@@ -430,6 +433,9 @@ def createPorts():
     imageInputBottle = yarp.Bottle()
 
 
+    syncPort = yarp.Port()
+    syncPort.open("/sam/syncPort:o");
+
 
 def createImageArrays():
     global imageArray
@@ -440,7 +446,7 @@ def createImageArrays():
 
     imageArray = numpy.zeros((imgHeight, imgWidth, 3), dtype=numpy.uint8)
     yarpImage = yarp.ImageRgb()
-    yarpImage.resize(imgWidth,imgHeight)
+    yarpImage.resize(imgWidthNew,imgWidthNew)
     yarpImage.setExternal(imageArray, imageArray.shape[1], imageArray.shape[0])
 
 
@@ -459,6 +465,7 @@ def readImagesFromCameras():
     predict = True
 
 #    print "READ IMAGE DEBUG 1"
+    yarpImage.zeros(imgWidthNew,imgWidthNew)
     imageDataInputPort.read(yarpImage)
     # here image has to be resized
     #plt.imshow(imageArray)
@@ -545,8 +552,13 @@ print "Waiting for connection with imageDataInputPort..."
 while( not(yarp.Network.isConnected("/faceTrackerImg:o","/sam/imageData:i")) ):
     pass
 
+while( not(yarp.Network.isConnected("/sam/syncPort:o","/faceTracker/syncPort:i")) ):
+    pass
+
 print "Connection ready"
 #imageDataInputPort.setReader(port_read)
+
+syncPort.write("sam_ready");
 
 # This is for visualising the mapping of the test face back to the internal memory
 ax = SAMObject.visualise()
@@ -558,6 +570,8 @@ while 1:
         testFace = readImagesFromCameras()
         if( predict ):
             testingImage(testFace, visualiseInfo)
+
+        syncPort.write("sam_ready");
 
 
     time.sleep(1.5)
