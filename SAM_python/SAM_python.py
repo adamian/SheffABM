@@ -7,18 +7,20 @@ Created on 5 May 2015
 """
 
 #------------------- CONFIGURATION --------------
+experiment_number=2
+save_model=True
 yarp_running = True
 # Overall data dir
-root_data_dir="/home/icub/dataDump/faceImageData_1_05_2015"
+root_data_dir="/home/icub/dataDump/faceImageData_13_05_2015"#"/home/icub/dataDump/faceImageData_1_05_2015"
 image_suffix=".ppm"
 participant_index=('Luke','Uriel','Andreas')#'Michael','Andreas')
-pose_index=('Straight','LR','Natural') # 'UD')
-Ntr=100 # Use a subset of the data for training (and leave the rest for testing)
+pose_index=['A'] #('Straight','LR','Natural') # 'UD')
+Ntr=300 # Use a subset of the data for training (and leave the rest for testing)
 
 save_data=False
 pickled_save_data_name="Saved_face_Data"
 #### Set pose selection to -1 to use all poses....
-pose_selection = 2 # 0 # Select a pose to train and test.... e.g. LR = 1
+pose_selection = 0 # 0 # Select a pose to train and test.... e.g. LR = 1
 
 run_abm=True
 
@@ -26,10 +28,12 @@ run_abm=True
 global model_type
 global model_num_inducing
 global model_num_iterations
+global model_init_iterations
+global model_type
 model_type = 'bgplvm'
-model_num_inducing = 5
-model_num_iterations = 10
-
+model_num_inducing = 50
+model_num_iterations = 1000
+model_init_iterations = 300
 #---------------------------------------------------------------------------
 
 
@@ -52,6 +56,7 @@ default_seed = 123344
 #import ABM
 from ABM import ABM
 import time
+import matplotlib.cm as cm
 
 global imageDataInputPort
 global imageModeInputPort
@@ -83,6 +88,7 @@ global imageFlatten
 global pp
 
 global syncPort
+global syncPortBottle
 
 class imageDataProcessor(yarp.PortReader):
     
@@ -179,7 +185,7 @@ def readFaceData():
     print "Found minimum number of images:" + str(min_no_images)
     print "Image count:", data_file_count
     print "Found image with dimensions" + str(data_image.shape)
-    imgplot = plt.imshow(data_image)#[:,:,(2,1,0)]) # convert BGR to RGB
+#    imgplot = plt.imshow(data_image)#[:,:,(2,1,0)]) # convert BGR to RGB
 
     # Load all images....
     #Data Dimensions:
@@ -331,6 +337,7 @@ def prepareTraining():
     global X
     global model_num_inducing
     global model_num_iterations
+    global model_init_iterations
     global data_labels
     
     if X is not None:
@@ -344,14 +351,16 @@ def prepareTraining():
         kernel = GPy.kern.RBF(Q, ARD=False) + GPy.kern.Bias(Q) + GPy.kern.White(Q)
     else:
         kernel = None
-
+    # Simulate the function of storing a collection of events
     SAMObject.store(observed=Y, inputs=X, Q=Q, kernel=kernel, num_inducing=model_num_inducing)
+    # If data are associated with labels (e.g. face identities), associate them with the event collection
     if data_labels is not None:
         SAMObject.add_labels(data_labels)
-    SAMObject.learn(optimizer='scg',max_iters=model_num_iterations, verbose=True)
+    # Simulate the function of learning from stored memories, e.g. while sleeping (consolidation).
+    SAMObject.learn(optimizer='scg',max_iters=model_num_iterations, init_iters=model_init_iterations, verbose=True)
 
 
-# testing
+# testing for new images
 def testingImage(testFace, visualiseInfo=None):
     from scipy.spatial import distance
     import operator
@@ -365,9 +374,10 @@ def testingImage(testFace, visualiseInfo=None):
     #print "====================== testFace shape in testing ",  testFace.shape
 
     #print "IMAGE TESTING: ", numpy.shape(testFace)
-
+    
+    # Returns the predictive mean, the predictive variance and the axis (pp) of the latent space backwards mapping.
     mm,vv,pp=SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
-
+    fig_nn = visualiseInfo['fig_nn']
 #    print "PREDICT debug 2"
 
     # find nearest neighbour of mm and SAMObject.model.X
@@ -388,7 +398,16 @@ def testingImage(testFace, visualiseInfo=None):
     elif SAMObject.type == 'bgplvm':
         print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(L[nn,:])]
         facePredictionBottle.addString("Hello " + participant_index[int(L[nn,:])])
-
+    
+    # Plot the training NN of the test image (the NN is found in the INTERNAl, compressed (latent) memory space!!!)
+    if fig_nn is not None:
+        fig_nn.clf()
+        pl_nn = fig_nn.add_subplot(111)
+        pl_nn.imshow(numpy.reshape(SAMObject.recall(nn),(imgHeightNew, imgWidthNew)))
+        pb.title('Training NN')
+        pb.show()
+        pb.draw()
+        #pb.waitforbuttonpress(0.2)
     speakStatusPort.write(speakStatusOutBottle, speakStatusInBottle)
 
     print "======== iSpeak status: ", speakStatusInBottle.get(0).asString(), " ==========="
@@ -415,6 +434,7 @@ def createPorts():
     global speakStatusOutBottle
     global speakStatusInBottle
     global syncPort
+    global syncPortBottle
 
     imageDataInputPort = yarp.Port()
     imageDataInputPort.open("/sam/imageData:i")
@@ -436,6 +456,10 @@ def createPorts():
     syncPort = yarp.Port()
     syncPort.open("/sam/syncPort:o");
 
+    syncPortBottle = yarp.Bottle()
+    syncPortBottle.addString("sam_ready")
+
+
 
 def createImageArrays():
     global imageArray
@@ -446,6 +470,7 @@ def createImageArrays():
 
     imageArray = numpy.zeros((imgHeight, imgWidth, 3), dtype=numpy.uint8)
     yarpImage = yarp.ImageRgb()
+#    yarpImage = yarp.BufferedPortImageRgb()
     yarpImage.resize(imgWidthNew,imgWidthNew)
     yarpImage.setExternal(imageArray, imageArray.shape[1], imageArray.shape[0])
 
@@ -465,7 +490,7 @@ def readImagesFromCameras():
     predict = True
 
 #    print "READ IMAGE DEBUG 1"
-    yarpImage.zeros(imgWidthNew,imgWidthNew)
+#    yarpImage.zeros(imgWidthNew,imgWidthNew)
     imageDataInputPort.read(yarpImage)
     # here image has to be resized
     #plt.imshow(imageArray)
@@ -474,6 +499,9 @@ def readImagesFromCameras():
     imageArrayOld=cv2.resize(imageArray,(imgHeightNew,imgWidthNew))
     imageArrayGray=cv2.cvtColor(imageArrayOld, cv2.COLOR_BGR2GRAY)         
 
+    plt.figure(0)
+    plt.imshow(imageArrayGray)
+    plt.show()
 
 #    print "READ IMAGE DEBUG 3"
     #imageFlatten_testing = numpy.zeros((imgHeightNew*imgWidthNew,1))
@@ -527,6 +555,7 @@ imgWidth=200
 imgHeight=200
 imgWidthNew=200
 imgHeightNew=200
+fname = 'm_' + model_type + '_exp' + str(experiment_number) + '.pickle'
 
 predict = False
 
@@ -544,38 +573,60 @@ readFaceData()
 print "Creating Face scenario..."
 prepareFaceData(model=model_type)
 
-print "Training..."
-prepareTraining()
+import os.path
+
+if not os.path.isfile(fname) :
+	print "Training..."
+	prepareTraining()
+	
+	print "Saving SAMObject"
+	if save_model:
+		ABM.save_model(SAMObject, fname)
+else:
+	print "Loading SAMOBject"
+	SAMObject = ABM.load_model(fname)
+
+print "Optimising uncertainty threshold..."
+uncertaintyThreshold(YTestn, Ln)
 
 print "Waiting for connection with imageDataInputPort..."
 #while( not(yarp.Network.isConnected("/sam/faceTracker:o","/sam/imageData:i")) ):
 while( not(yarp.Network.isConnected("/faceTrackerImg:o","/sam/imageData:i")) ):
     pass
 
-while( not(yarp.Network.isConnected("/sam/syncPort:o","/faceTracker/syncPort:i")) ):
-    pass
+#while( not(yarp.Network.isConnected("/sam/syncPort:o","/faceTracker/syncPort:i")) ):
+#    pass
 
 print "Connection ready"
 #imageDataInputPort.setReader(port_read)
-
-syncPort.write("sam_ready");
 
 # This is for visualising the mapping of the test face back to the internal memory
 ax = SAMObject.visualise()
 visualiseInfo=dict()
 visualiseInfo['ax']=ax
+ytmp = SAMObject.recall(0)
+ytmp = numpy.reshape(ytmp,(imgHeightNew,imgWidthNew))
+fig_nn = pb.figure()
+pb.title('Training NN')
+pl_nn = fig_nn.add_subplot(111)
+ax_nn = pl_nn.imshow(ytmp, cmap=cm.Greys_r)
+pb.draw()
+pb.show()
+visualiseInfo['fig_nn']=fig_nn
+
 
 while 1:
     if not(imageDataInputPort == None):
+#        syncPort.write(syncPortBottle)
+#        print "+++++++++++++++ syncPort: sam_ready +++++++++++++++++++"
+
         testFace = readImagesFromCameras()
         if( predict ):
             testingImage(testFace, visualiseInfo)
-
-        syncPort.write("sam_ready");
-        print "+++++++++++++++ syncPort: sam_ready +++++++++++++++++++"
+            predict=False
 
 
-    time.sleep(1.5)
+    time.sleep(3)
     # Delete the newly added point in the internal memory representation
     l = pp.pop(0)
     l.remove()

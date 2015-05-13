@@ -4,6 +4,7 @@ import matplotlib.cm as cm
 import itertools
 import pylab as pb
 from GPy.plotting.matplot_dep import dim_reduction_plots as dredplots
+import cPickle as pickle
 
 # try:
 #     from mpi4py import MPI
@@ -164,9 +165,12 @@ class LFM(object):
         """
         Recall stored events. This is closely related to performing pattern pattern_completion
         given "training" data.
+        Input is the index of the stored event (TODO: make it more generic)
         """
-        # TODO
-        pass
+        if self.type == 'bgplvm' or self.type == 'gp':
+            return self.model.Y[locations,:].values
+        elif self.type == 'mrd':
+            return self.model.bgplvms[0].Y[locations,:].values
 
     def pattern_completion(self, test_data, view=0, verbose=False, visualiseInfo=None):
         """
@@ -195,7 +199,7 @@ class LFM(object):
         if (self.type == 'mrd' or self.type == 'bgplvm') and visualiseInfo is not None:
             ax = visualiseInfo['ax']
             inds0, inds1=dredplots.most_significant_input_dimensions(self.model, None)
-            pp=ax.plot(pred_mean[:,inds0], pred_mean[:,inds1], 'om', markersize=12, mew=12)
+            pp=ax.plot(pred_mean[:,inds0], pred_mean[:,inds1], 'om', markersize=11, mew=11)
             pb.draw()
         else:
             pp=None
@@ -209,3 +213,25 @@ class LFM(object):
     def _get_latent(self):
         # TODO
         pass
+
+
+
+"""
+Helper functions for saving and loading the SAMObject.
+For the moment, these are quite naive functions which dump the whole object as a
+serialized sequence of bytes, into a txt file.
+For the future, we can make them "smarter" by not having to save information e.g. about
+the data or about the object functions, but just save the parameters of the trained model.
+"""
+def save_model(mm, fileName='m_serialized.txt'):
+    #mPruned = mm.getstate() # TODO (store less stuff)
+    output = open(fileName, 'wb')
+    #pickle.dump(mPruned, output)
+    pickle.dump(mm, output)
+    output.close()
+
+def load_model(fileName='m_serialized.txt'):
+    mm = pickle.load(open(fileName,'r'))
+    return mm
+
+

@@ -91,7 +91,7 @@ int main(int argc, char** argv)
 	BufferedPort< ImageOf<PixelRgb> > imageOut;
 
 	Port gazePort;	//x and y position for gaze controller
-    BufferedPort<Bottle> syncPort;
+    Port syncPort;
 
 	
 	bool inOpen = faceTrack.open(imageInPort.c_str());
@@ -99,9 +99,14 @@ int main(int argc, char** argv)
 	bool imageOutOpen = imageOut.open(imageOutPort.c_str());
 
 	bool gazeOut = gazePort.open("/gazePositionControl:o");
-	bool syncPortIn = syncPort.open("/faceTracker/synPort:i");
+	bool syncPortIn = syncPort.open("/faceTracker/syncPort:i");
 
-	if(!inOpen | !outOpen | !imageOutOpen | !gazeOut | !syncPortIn )
+    Bottle syncBottleIn, syncBottleOut;
+
+	syncBottleOut.clear();
+	syncBottleOut.addString("stat");
+
+	if(!inOpen | !outOpen | !imageOutOpen | !gazeOut )
 	{
 		cout << "Could not open ports. Exiting" << endl;
 		return -3;
@@ -276,11 +281,16 @@ int main(int argc, char** argv)
 
 							CVtoYarp(allFaces,faceImages);
 
-                            Bottle *syncBottleIn = syncPort.read();
-                            if( syncBottleIn->toString().c_str() == "sam_ready" )
-    							imageOut.write();
+//							syncPort.write(syncBottleOut, syncBottleIn);
+//                            syncBottleIn = syncPort.read(false);
+//							cout << "SYNC BOTTLE: " << syncBottleIn.get(0).asString() << endl;
+//                            if( syncBottleIn.toString().c_str() == "sam_ready" )
+//							{
+//								cout << "SENDING IMAGE TO SAM_PYTHON" << endl;
+							imageOut.write();
+//							}
 
-                            syncBottleIn->clear();
+//                            syncBottleIn->clear();
 
 							
 							//if(facesOld[biggestFace].area() != 0)
