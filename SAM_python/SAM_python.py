@@ -504,6 +504,9 @@ def createPorts():
     imageDataInputPort = yarp.Port()
     imageDataInputPort.open("/sam/imageData:i")
 
+#    imageDataInputPort = yarp.BufferedPortImageRgb()
+#    imageDataInputPort.open("/sam/imageData:i");
+
     outputFacePrection = yarp.Port()
     outputFacePrection.open("/sam/facePrediction:o")
 
@@ -518,11 +521,11 @@ def createPorts():
     imageInputBottle = yarp.Bottle()
 
 
-    syncPort = yarp.Port()
-    syncPort.open("/sam/syncPort:o");
+#    syncPort = yarp.Port()
+#    syncPort.open("/sam/syncPort:o");
 
-    syncPortBottle = yarp.Bottle()
-    syncPortBottle.addString("sam_ready")
+#    syncPortBottle = yarp.Bottle()
+#    syncPortBottle.addString("sam_ready")
 
 
 
@@ -535,7 +538,6 @@ def createImageArrays():
 
     imageArray = numpy.zeros((imgHeight, imgWidth, 3), dtype=numpy.uint8)
     yarpImage = yarp.ImageRgb()
-#    yarpImage = yarp.BufferedPortImageRgb()
     yarpImage.resize(imgWidthNew,imgWidthNew)
     yarpImage.setExternal(imageArray, imageArray.shape[1], imageArray.shape[0])
 
@@ -555,7 +557,7 @@ def readImagesFromCameras():
     predict = True
 
 #    print "READ IMAGE DEBUG 1"
-#    yarpImage.zeros(imgWidthNew,imgWidthNew)
+    yarpImage.zeros(imgWidthNew,imgWidthNew)
     imageDataInputPort.read(yarpImage)
     # here image has to be resized
     #plt.imshow(imageArray)

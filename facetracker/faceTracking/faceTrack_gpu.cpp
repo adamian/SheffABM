@@ -1,4 +1,5 @@
 #include "faceTrack_gpu.h"
+#include <opencv/cv.h>
 
 using namespace yarp::os;
 using namespace yarp::sig;
@@ -279,7 +280,33 @@ int main(int argc, char** argv)
 //								cv::imshow("wholeImage",captureFrame_cpuRect);
 							}
 
+//							CVtoYarp(allFaces,faceImages);
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////			
+/*
+							int segX1 = 1;
+							int segY1 = 1;
+							int segX2 = allFaces.cols;
+							int segY2 = allFaces.rows;
+							CvRect rectROI = cvRect(segX1, segY1, segX2, segY2);
+							Mat bgModel, fgModel;
+							Mat result;
+
+							grabCut(allFaces, result, rectROI, bgModel, fgModel, 1, cv::GC_INIT_WITH_RECT);
+
+							cv::rectangle(allFaces, rectROI, cv::Scalar(255,255,255), 1);
+							cv::compare(result, cv::GC_PR_FGD, result, cv::CMP_EQ);
+							Mat foreground(allFaces.size(), CV_8UC3, cv::Scalar(255,255,255));
+							allFaces.copyTo(foreground, result);
+
+							cv::namedWindow("Segmented image");
+							cv::imshow("Segmented image", foreground);
+*/
+///////////////////////////////////////////////////////////////////////////////////////////////////////			
+
 							CVtoYarp(allFaces,faceImages);
+
 
 //							syncPort.write(syncBottleOut, syncBottleIn);
 //                            syncBottleIn = syncPort.read(false);
@@ -343,7 +370,7 @@ int main(int argc, char** argv)
 			}
 			else
 			{
-				for(int i=0;i<=50;i++)
+				for(int i=0;i<=1;i++)
 				{ 
 					ImageOf<PixelRgb> *yarpImage = faceTrack.read();  // read an image
 					if (yarpImage!=NULL) 
