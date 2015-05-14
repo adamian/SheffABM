@@ -72,7 +72,15 @@ class LFM(object):
             kernel = GPy.kern.RBF(self.Q, ARD=True) + GPy.kern.Bias(self.Q) + GPy.kern.White(self.Q)
 
         if self.type == 'bgplvm':
-            self.model = GPy.models.BayesianGPLVM(self.observed[self.observed.keys()[0]], self.Q, kernel=kernel, num_inducing=self.num_inducing)
+            try:
+                self.model = GPy.models.BayesianGPLVM(self.observed[self.observed.keys()[0]], self.Q, kernel=kernel, num_inducing=self.num_inducing)
+            except ValueError:
+                Ytmp = self.observed[self.observed.keys()[0]]
+                print "Initialisation with PCA failed. Initialising with PPCA..."
+                Xr = GPy.util.linalg.ppca(Ytmp, self.Q, 2000)[0]
+                Xr -= Xr.mean(0)
+                Xr /= Xr.std(0)
+                self.model = GPy.models.BayesianGPLVM(Ytmp, self.Q, kernel=kernel, num_inducing=self.num_inducing, X=Xr)
         elif self.type == 'mrd':
             # Create a list of observation spaces (aka views)
             self.Ylist = []
@@ -82,12 +90,30 @@ class LFM(object):
                 self.namesList = [self.namesList, k]
             self.Ylist[0]=self.Ylist[0][1]
             self.namesList[0]=self.namesList[0][1]
-            self.model = GPy.models.MRD(self.Ylist, input_dim=self.Q, num_inducing=self.num_inducing, kernel=kernel, initx="PCA_concat", initz='permute')
+            try:
+                self.model = GPy.models.MRD(self.Ylist, input_dim=self.Q, num_inducing=self.num_inducing, kernel=kernel, initx="PCA_single", initz='permute')
+            except ValueError:
+                print "Initialisation with PCA failed. Initialising with PPCA..."
+                from GPy.util.initialization import initialize_latent
+                Xr = np.zeros((self.Ylist[0].shape[0], self.Q))
+                for qs, Y in zip(np.array_split(np.arange(self.Q), len(self.Ylist)), self.Ylist):
+                    try:
+                        x,frcs = initialize_latent('PCA', len(qs), Y)
+                    except ValueError:
+                        x = GPy.util.linalg.ppca(Y, len(qs), 2000)[0]
+                    Xr[:, qs] = x
+                Xr -= Xr.mean()
+                Xr /= Xr.std()
+                self.model = GPy.models.MRD(self.Ylist, input_dim=self.Q, num_inducing=self.num_inducing, kernel=kernel, initx="PCA_single", initz='permute', X=Xr)
             self.model['.*noise']=[yy.var() / 100. for yy in self.model.Ylist]
         elif self.type == 'gp':
             self.model = GPy.models.SparseGPRegression(self.inputs, self.observed[self.observed.keys()[0]], kernel=kernel, num_inducing=self.num_inducing)
         
         self.model.data_labels = None
+
+    def _init_latents():
+        from GPy.util.initialization import initialize_latent
+        X, fracs = initialize_latent(init, input_dim, Y)
 
     def add_labels(self, labels):
         """
