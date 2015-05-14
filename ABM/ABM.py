@@ -104,6 +104,7 @@ class LFM(object):
                     pcaFailed = True
                     print "Initialisation with PCA failed. Initialising with PPCA..."
             elif init_X == 'PPCA' or pcaFailed:
+                print "Initialising with PPCA..."
                 from GPy.util.initialization import initialize_latent
                 Xr = np.zeros((self.Ylist[0].shape[0], self.Q))
                 for qs, Y in zip(np.array_split(np.arange(self.Q), len(self.Ylist)), self.Ylist):

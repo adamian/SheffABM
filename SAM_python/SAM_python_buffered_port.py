@@ -7,7 +7,7 @@ Created on 5 May 2015
 """
 
 #------------------- CONFIGURATION --------------
-experiment_number=2
+experiment_number=4
 save_model=True
 yarp_running = True
 # Overall data dir
@@ -15,7 +15,7 @@ root_data_dir="/home/icub/dataDump/faceImageData_13_05_2015"#"/home/icub/dataDum
 image_suffix=".ppm"
 participant_index=('Luke','Uriel','Andreas')#'Michael','Andreas')
 pose_index=['A'] #('Straight','LR','Natural') # 'UD')
-Ntr=200 # Use a subset of the data for training (and leave the rest for testing)
+Ntr=300 # Use a subset of the data for training (and leave the rest for testing)
 
 save_data=False
 pickled_save_data_name="Saved_face_Data"
@@ -30,10 +30,10 @@ global model_num_inducing
 global model_num_iterations
 global model_init_iterations
 global model_type
-model_type = 'bgplvm'
-model_num_inducing = 20
-model_num_iterations = 0
-model_init_iterations = 300
+model_type = 'mrd'
+model_num_inducing = 35
+model_num_iterations = 100
+model_init_iterations = 800
 #---------------------------------------------------------------------------
 
 
@@ -349,7 +349,7 @@ def prepareTraining():
     if X is not None:
         Q = X.shape[1]
     else:
-        Q=10
+        Q=2
 
     # Instantiate object
     SAMObject=ABM.LFM()
@@ -398,6 +398,9 @@ def testingImage(testFace, visualiseInfo=None):
     nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
     if SAMObject.type == 'mrd':
         print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
+        #if vv > 1e-4: ##################### CHANGE THE THRESHOLD BY OPTIMISING IT
+        #    facePredictionBottle.addString("I do not know you.")
+        #else:
         facePredictionBottle.addString("Hello " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])])
     elif SAMObject.type == 'bgplvm':
         print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(L[nn,:])]
@@ -630,8 +633,8 @@ yarp.Network.init()
 
 imgWidth=200
 imgHeight=200
-imgWidthNew=200
-imgHeightNew=200
+imgWidthNew=150
+imgHeightNew=150
 fname = 'm_' + model_type + '_exp' + str(experiment_number) + '.pickle'
 
 predict = False
@@ -652,16 +655,17 @@ prepareFaceData(model=model_type)
 
 import os.path
 
-if not os.path.isfile(fname) :
-	print "Training..."
-	prepareTraining()
-	
-	print "Saving SAMObject"
-	if save_model:
-		ABM.save_model(SAMObject, fname)
-else:
-	print "Loading SAMOBject"
-	SAMObject = ABM.load_model(fname)
+#if not os.path.isfile(fname) :
+#	print "Training..."
+#	prepareTraining()
+#	
+#	print "Saving SAMObject"
+#	if save_model:
+#		ABM.save_model(SAMObject, fname)
+#else:
+#	print "Loading SAMOBject"
+#	SAMObject = ABM.load_model(fname)
+SAMObject = ABM.load_model('m_good2.pickle') #######TMP
 
 print "Optimising uncertainty threshold..."
 #optUncertaintyThreshold(YTestn, Ln, L)

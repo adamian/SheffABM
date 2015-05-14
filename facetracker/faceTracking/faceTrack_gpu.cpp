@@ -184,6 +184,8 @@ int main(int argc, char** argv)
 							captureFrame_cpu.copyTo(captureFrame_cpuRect);
 							cout << noFaces << endl;
 							std::vector<cv::Mat> faceVec;
+							
+							noFaces = 1;
 
 							Mat vecSizes = cv::Mat::zeros(noFaces,1,CV_16UC1);
 							Mat allFaces(faceSize,1,CV_8UC3,count);
@@ -237,6 +239,9 @@ int main(int argc, char** argv)
 								//required for rectangle faces in full image view
 								Point pt1(facesOld[i].x + facesOld[i].width, facesOld[i].y + facesOld[i].height);
 								Point pt2(facesOld[i].x, facesOld[i].y);
+									
+								//Point pt1(facesOld[i].x + facesOld[i].width - 10, facesOld[i].y + facesOld[i].height + 10);
+								//Point pt2(facesOld[i].x, facesOld[i].y);
 									
 								cv::rectangle(captureFrame_cpuRect,pt1,pt2,cvScalar(0,255,0,0),1,8,0); 
 								
@@ -370,7 +375,7 @@ int main(int argc, char** argv)
 			}
 			else
 			{
-				for(int i=0;i<=1;i++)
+				for(int i=0;i<=0;i++)
 				{ 
 					ImageOf<PixelRgb> *yarpImage = faceTrack.read();  // read an image
 					if (yarpImage!=NULL) 
