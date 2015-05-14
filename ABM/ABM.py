@@ -24,7 +24,7 @@ class LFM(object):
         self.type = []
         self.model = []
 
-    def store(self,observed, inputs=None, Q=None, kernel=None, num_inducing=None):
+    def store(self,observed, inputs=None, Q=None, kernel=None, num_inducing=None, init_X='PCA'):
         """
         Store events.
         ARG: obserbved: A N x D matrix, where N is the number of points and D the number
@@ -72,15 +72,21 @@ class LFM(object):
             kernel = GPy.kern.RBF(self.Q, ARD=True) + GPy.kern.Bias(self.Q) + GPy.kern.White(self.Q)
 
         if self.type == 'bgplvm':
-            try:
-                self.model = GPy.models.BayesianGPLVM(self.observed[self.observed.keys()[0]], self.Q, kernel=kernel, num_inducing=self.num_inducing)
-            except ValueError:
-                Ytmp = self.observed[self.observed.keys()[0]]
-                print "Initialisation with PCA failed. Initialising with PPCA..."
+            Ytmp = self.observed[self.observed.keys()[0]]
+            pcaFailed = False
+            if init_X == 'PCA':
+                try:
+                    self.model = GPy.models.BayesianGPLVM(Ytmp, self.Q, kernel=kernel, num_inducing=self.num_inducing)
+                except ValueError:
+                    pcaFailed = True
+                    print "Initialisation with PCA failed. Initialising with PPCA..."
+            elif init_X == 'PPCA' or pcaFailed:
+                print "Initialising with PPCA..."
                 Xr = GPy.util.linalg.ppca(Ytmp, self.Q, 2000)[0]
                 Xr -= Xr.mean(0)
                 Xr /= Xr.std(0)
                 self.model = GPy.models.BayesianGPLVM(Ytmp, self.Q, kernel=kernel, num_inducing=self.num_inducing, X=Xr)
+            self.model['.*noise']=Ytmp.var() / 100.
         elif self.type == 'mrd':
             # Create a list of observation spaces (aka views)
             self.Ylist = []
@@ -90,10 +96,14 @@ class LFM(object):
                 self.namesList = [self.namesList, k]
             self.Ylist[0]=self.Ylist[0][1]
             self.namesList[0]=self.namesList[0][1]
-            try:
-                self.model = GPy.models.MRD(self.Ylist, input_dim=self.Q, num_inducing=self.num_inducing, kernel=kernel, initx="PCA_single", initz='permute')
-            except ValueError:
-                print "Initialisation with PCA failed. Initialising with PPCA..."
+            pcaFailed=False
+            if init_X == 'PCA':
+                try:
+                    self.model = GPy.models.MRD(self.Ylist, input_dim=self.Q, num_inducing=self.num_inducing, kernel=kernel, initx="PCA_single", initz='permute')
+                except ValueError:
+                    pcaFailed = True
+                    print "Initialisation with PCA failed. Initialising with PPCA..."
+            elif init_X == 'PPCA' or pcaFailed:
                 from GPy.util.initialization import initialize_latent
                 Xr = np.zeros((self.Ylist[0].shape[0], self.Q))
                 for qs, Y in zip(np.array_split(np.arange(self.Q), len(self.Ylist)), self.Ylist):
@@ -111,9 +121,9 @@ class LFM(object):
         
         self.model.data_labels = None
 
-    def _init_latents():
-        from GPy.util.initialization import initialize_latent
-        X, fracs = initialize_latent(init, input_dim, Y)
+    #def _init_latents():
+    #    from GPy.util.initialization import initialize_latent
+    #    X, fracs = initialize_latent(init, input_dim, Y)
 
     def add_labels(self, labels):
         """
@@ -133,7 +143,7 @@ class LFM(object):
             self.model['.*noise'].fix()
             self.model.optimize(optimizer, messages=verbose, max_iters=init_iters)
             self.model['.*noise'].unfix()
-            self.model['.*noise'].constrain_positive()\
+            self.model['.*noise'].constrain_positive()
         
         self.model.optimize(optimizer, messages=verbose, max_iters=max_iters)
 
