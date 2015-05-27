@@ -298,9 +298,10 @@ def save_pruned_model(mm, fileName='m_pruned'):
     output.close()
 
 def load_pruned_model(fileName='m_pruned'):
-    SAMObjPruned = pickle.load(open(fileName+'.pickle','r'))
+    SAMObjPruned = pickle.load(open(fileName + '.pickle','rb'))
     SAMObject=LFM()
-    with open(SAMObjPruned['modelPath'], 'r') as f:
+    with open(SAMObjPruned['modelPath'], 'rb') as f:
+        print "Loading file: " + str(f)
         SAMObject.model = pickle.load(f)
     # TODO: The following is supposed to update the model, but maybe not. Change...
     SAMObject.model.update_toggle()
