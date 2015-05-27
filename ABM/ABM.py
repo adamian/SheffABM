@@ -23,6 +23,13 @@ class LFM(object):
     def __init__(self):
         self.type = []
         self.model = []
+        self.observed = None
+        self.inputs=None
+        self.__num_views=None
+        self.Q=None
+        self.N=None
+        self.num_inducing=None
+        self.namesList=None
 
     def store(self,observed, inputs=None, Q=None, kernel=None, num_inducing=None, init_X='PCA'):
         """
@@ -272,5 +279,42 @@ def save_model(mm, fileName='m_serialized.txt'):
 def load_model(fileName='m_serialized.txt'):
     mm = pickle.load(open(fileName,'r'))
     return mm
+
+def save_pruned_model(mm, fileName='m_pruned'):
+    SAMObjPruned=dict()
+    SAMObjPruned['type'] = mm.type
+    # SAMObjPruned['observed'] = mm.observed # REMOVE
+    # SAMObjPruned['inputs'] = mm.inputs
+#    SAMObjPruned['__num_views'] = mm.__num_views
+    SAMObjPruned['__num_views'] = None
+    SAMObjPruned['Q'] = mm.Q
+    SAMObjPruned['N'] = mm.N
+    SAMObjPruned['num_inducing'] = mm.num_inducing
+    SAMObjPruned['namesList'] = mm.namesList
+    SAMObjPruned['modelPath'] = fileName + '_model.pickle'
+    mm.model.pickle(SAMObjPruned['modelPath'])
+    output = open(fileName+'.pickle', 'wb')
+    pickle.dump(SAMObjPruned, output)
+    output.close()
+
+def load_pruned_model(fileName='m_pruned'):
+    SAMObjPruned = pickle.load(open(fileName+'.pickle','r'))
+    SAMObject=LFM()
+    with open(SAMObjPruned['modelPath'], 'r') as f:
+        SAMObject.model = pickle.load(f)
+    # TODO: The following is supposed to update the model, but maybe not. Change...
+    SAMObject.model.update_toggle()
+    SAMObject.model.update_toggle()
+    
+    SAMObject.type = SAMObjPruned['type'] 
+    # SAMObject.observed = SAMObjPruned['observed'] 
+    # SAMObject.inputs = SAMObjPruned['inputs'] 
+    SAMObject.__num_views = SAMObjPruned['__num_views'] 
+    SAMObject.Q = SAMObjPruned['Q'] 
+    SAMObject.N = SAMObjPruned['N'] 
+    SAMObject.num_inducing = SAMObjPruned['num_inducing'] 
+    SAMObject.namesList = SAMObjPruned['namesList'] 
+
+    return SAMObject
 
 

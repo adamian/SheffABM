@@ -401,10 +401,19 @@ def testingImage(testFace, visualiseInfo=None):
         #if vv > 1e-4: ##################### CHANGE THE THRESHOLD BY OPTIMISING IT
         #    facePredictionBottle.addString("I do not know you.")
         #else:
-        facePredictionBottle.addString("Hello " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])])
+        #facePredictionBottle.addString("Hello " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])])
+        textStringOut=participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
     elif SAMObject.type == 'bgplvm':
         print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(L[nn,:])]
-        facePredictionBottle.addString("Hello " + participant_index[int(L[nn,:])])
+        #facePredictionBottle.addString("Hello " + participant_index[int(L[nn,:])])
+        textStringOut=participant_index[int(L[nn,:])]
+    
+    # If confidence is higher enough (low error)
+    if (vv.mean()<0.00012):
+        facePredictionBottle.addString("Hello " + textStringOut)
+    # Otherwise ask for updated name... (TODO: add in updated name)
+    else:
+        facePredictionBottle.addString("I think you are " + textStringOut + " but im not sure, please confirm?")        
     
     # Plot the training NN of the test image (the NN is found in the INTERNAl, compressed (latent) memory space!!!)
     if fig_nn is not None:
@@ -412,7 +421,7 @@ def testingImage(testFace, visualiseInfo=None):
         pb.title('Training NN')
         fig_nn.clf()
         pl_nn = fig_nn.add_subplot(111)
-        pl_nn.imshow(numpy.reshape(SAMObject.recall(nn),(imgHeightNew, imgWidthNew)))
+        pl_nn.imshow(numpy.reshape(SAMObject.recall(nn),(imgHeightNew, imgWidthNew)), cmap=cm.Greys_r)
         pb.title('Training NN')
         pb.show()
         pb.draw()
@@ -579,7 +588,7 @@ def readImagesFromCameras():
 
     plt.figure(10)
     plt.title('Image received')
-    plt.imshow(imageArrayGray)
+    plt.imshow(imageArrayGray, cmap=cm.Greys_r)
     plt.show()
     plt.waitforbuttonpress(0.1)
 
@@ -635,7 +644,7 @@ imgWidth=200
 imgHeight=200
 imgWidthNew=150
 imgHeightNew=150
-fname = 'm_' + model_type + '_exp' + str(experiment_number) + '.pickle'
+fname = 'm_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
 
 predict = False
 
@@ -655,17 +664,17 @@ prepareFaceData(model=model_type)
 
 import os.path
 
-#if not os.path.isfile(fname) :
-#	print "Training..."
-#	prepareTraining()
-#	
-#	print "Saving SAMObject"
-#	if save_model:
-#		ABM.save_model(SAMObject, fname)
-#else:
-#	print "Loading SAMOBject"
-#	SAMObject = ABM.load_model(fname)
-SAMObject = ABM.load_model('m_good2.pickle') #######TMP
+if not os.path.isfile(fname+ '.pickle') :
+	print "Training..."
+	prepareTraining()
+	
+	print "Saving SAMObject"
+	if save_model:
+		ABM.save_pruned_model(SAMObject, fname)
+else:
+	print "Loading SAMOBject"
+	SAMObject = ABM.load_pruned_model(fname) #ABM.load_model(fname)
+#SAMObject = ABM.load_model('m_good2.pickle') #######TMP
 
 print "Optimising uncertainty threshold..."
 #optUncertaintyThreshold(YTestn, Ln, L)
@@ -696,20 +705,30 @@ pb.show()
 visualiseInfo['fig_nn']=fig_nn
 
 
+
 while 1:
-    if not(imageDataInputPort == None):
-#        syncPort.write(syncPortBottle)
-#        print "+++++++++++++++ syncPort: sam_ready +++++++++++++++++++"
+    try:
+        if not(imageDataInputPort == None):
+    #        syncPort.write(syncPortBottle)
+    #        print "+++++++++++++++ syncPort: sam_ready +++++++++++++++++++"
 
-        testFace = readImagesFromCameras()
-        if( predict ):
-            testingImage(testFace, visualiseInfo)
-            predict=False
+            testFace = readImagesFromCameras()
+            if( predict ):
+                testingImage(testFace, visualiseInfo)
+                predict=False
 
 
-    time.sleep(1)
-    # Delete the newly added point in the internal memory representation
-    l = pp.pop(0)
-    l.remove()
-    pb.draw()
-    del l
+        time.sleep(1)
+        # Delete the newly added point in the internal memory representation
+        l = pp.pop(0)
+        l.remove()
+        pb.draw()
+        del l
+
+    except KeyboardInterrupt:
+        print 'Interrupted'
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
+

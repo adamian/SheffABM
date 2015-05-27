@@ -240,8 +240,8 @@ int main(int argc, char** argv)
 								Point pt1(facesOld[i].x + facesOld[i].width, facesOld[i].y + facesOld[i].height);
 								Point pt2(facesOld[i].x, facesOld[i].y);
 									
-								//Point pt1(facesOld[i].x + facesOld[i].width - 10, facesOld[i].y + facesOld[i].height + 10);
-								//Point pt2(facesOld[i].x, facesOld[i].y);
+								//Point pt1(facesOld[i].x + facesOld[i].width - 100, facesOld[i].y + facesOld[i].height - 100);
+								//Point pt2(facesOld[i].x + 100, facesOld[i].y + 100);
 									
 								cv::rectangle(captureFrame_cpuRect,pt1,pt2,cvScalar(0,255,0,0),1,8,0); 
 								
