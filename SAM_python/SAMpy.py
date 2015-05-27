@@ -8,18 +8,19 @@ Created on 26 May 2015
 """
 
 import matplotlib.pyplot as plt
-import matplotlib as mp
+#import matplotlib as mp
 import pylab as pb
 import sys
-import pickle
+#import pickle
 import numpy
 import os
 import yarp
 import cv2
-import time
+import GPy
+#import time
 from scipy.spatial import distance
 import operator
-#from ABM import ABM
+from ABM import ABM
 
 
 
@@ -27,11 +28,13 @@ class SAMpy:
 
     def __init__(self, isYarpRunning = False, imgH = 200, imgW = 200, imgHNew = 200, imgWNew = 200):
         print "initiating object"
-
+        
+        self.SAMObject=ABM.LFM()
         self.imgHeight = imgH
         self.imgWidth = imgW
         self.imgHeightNew = imgHNew
         self.imgWidthNew = imgWNew
+        self.image_suffix=".ppm"
 
         self.Y = None
         self.L = None
@@ -47,10 +50,9 @@ class SAMpy:
         self.data_labels = None
 
         self.SAMObject = None
-        model_num_inducing = 0
-        model_num_iterations = 0
-        model_init_iterations = 0
-
+        self.model_num_inducing = 0
+        self.model_num_iterations = 0
+        self.model_init_iterations = 0
 
         if( isYarpRunning == True ):
             yarp.Network.init()
@@ -112,7 +114,7 @@ class SAMpy:
                     for file in os.listdir(current_data_dir):
 	                    #parts = re.split("[-,\.]", file)
                         fileName, fileExtension = os.path.splitext(file)
-                        if fileExtension==image_suffix: # Check for image file
+                        if fileExtension==self.image_suffix: # Check for image file
                             file_ttt=numpy.empty(1, dtype=[('orig_file_id','i2'),('file_id','i2'),('img_fname','a100')])
                             file_ttt['orig_file_id'][0]=int(fileName)
                             file_ttt['img_fname'][0]=file
@@ -147,8 +149,8 @@ class SAMpy:
 	    #4. Movement (Static. up/down. left / right) 
         set_x=int(data_image.shape[0])
         set_y=int(data_image.shape[1])
-        no_rgb=int(data_image.shape[2])
-        no_pixels=imgWidthNew*imgHeightNew #set_x*set_y
+        #no_rgb=int(data_image.shape[2])
+        no_pixels=self.imgWidthNew*self.imgHeightNew #set_x*set_y
         img_data=numpy.zeros([no_pixels, min_no_images, len(participant_index),len(pose_index)])
         img_label_data=numpy.zeros([no_pixels, min_no_images, len(participant_index),len(pose_index)],dtype=int)
 	    #cv2.imshow("test", data_image)
@@ -168,7 +170,7 @@ class SAMpy:
                         print "Found image with dimensions" + str(data_image.shape)
                         print "Image too big cutting to: x="+ str(set_x) + " y=" + str(set_y)
                         data_image=data_image[:set_x,:set_y]
-                    data_image=cv2.resize(data_image, (imgWidthNew, imgHeightNew)) # New
+                    data_image=cv2.resize(data_image, (self.imgWidthNew, self.imgHeightNew)) # New
                     data_image=cv2.cvtColor(data_image, cv2.COLOR_BGR2GRAY)         
                     img_data[:,current_image,count_participant,count_pose] = data_image.flatten()
 	                # Labelling with participant            
@@ -216,7 +218,7 @@ class SAMpy:
         ttt=numpy.transpose(ttt,(0,2,1))
         self.Y=ttt.reshape(ttt.shape[0],ttt.shape[2]*ttt.shape[1]) 
         self.Y=self.Y.T
-        N=self.Y.shape[0]
+        #N=self.Y.shape[0]
 
         if pose_selection == -1:
             ttt=numpy.transpose(self.L,(0,1,3,2))
@@ -271,21 +273,20 @@ class SAMpy:
             self.data_labels = self.L.copy()
 
 
-    def training(self, modelNumInducing, modelNumIterations, modelInitIterations, fname):
+    def training(self, modelNumInducing, modelNumIterations, modelInitIterations, fname, save_model):
         self.model_num_inducing = modelNumInducing
         self.model_num_iterations = modelNumIterations
         self.model_init_iterations = modelInitIterations
     
         if not os.path.isfile(fname):
-	        print "Training..."
-    
+            print "Training..."    
             if self.X is not None:
                 Q = self.X.shape[1]
             else:
                 Q=10
 
             # Instantiate object
-            self.SAMObject=ABM.LFM()
+            #self.SAMObject=ABM.LFM()
             if Q > 100:
                 kernel = GPy.kern.RBF(Q, ARD=False) + GPy.kern.Bias(Q) + GPy.kern.White(Q)
             else:
@@ -298,57 +299,59 @@ class SAMpy:
             # Simulate the function of learning from stored memories, e.g. while sleeping (consolidation).
             self.SAMObject.learn(optimizer='scg',max_iters=self.model_num_iterations, init_iters=self.model_init_iterations, verbose=True)
 	
-	        print "Saving SAMObject"
-	        if save_model:
-		        ABM.save_model(self.SAMObject, fname)
+            print "Saving SAMObject"
+            if save_model:
+                ABM.save_model(self.SAMObject, fname)
         else:
 	        print "Loading SAMOBject"
 	        self.SAMObject = ABM.load_model(fname)
 
     # testing for new images
     def testing(self, testFace, visualiseInfo=None):
-        # Returns the predictive mean, the predictive variance and the axis (pp) of the latent space backwards mapping.
-        mm,vv,pp=SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
-        fig_nn = visualiseInfo['fig_nn']
-
+        # Returns the predictive mean, the predictive variance and the axis (pp) of the latent space backwards mapping.            
+        mm,vv,pp=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
+                
         # find nearest neighbour of mm and SAMObject.model.X
-        dists = numpy.zeros((SAMObject.model.X.shape[0],1))
+        dists = numpy.zeros((self.SAMObject.model.X.shape[0],1))
 
         facePredictionBottle = yarp.Bottle()
     
         for j in range(dists.shape[0]):
-            dists[j,:] = distance.euclidean(SAMObject.model.X.mean[j,:], mm[0].values)
+            dists[j,:] = distance.euclidean(self.SAMObject.model.X.mean[j,:], mm[0].values)
         nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
-        if SAMObject.type == 'mrd':
-            print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])]
-            facePredictionBottle.addString("Hello " + participant_index[int(SAMObject.model.bgplvms[1].Y[nn,:])])
-        elif SAMObject.type == 'bgplvm':
-            print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(L[nn,:])]
-            facePredictionBottle.addString("Hello " + participant_index[int(L[nn,:])])
+        if self.SAMObject.type == 'mrd':
+            print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
+            facePredictionBottle.addString("Hello " + participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])])
+        elif self.SAMObject.type == 'bgplvm':
+            print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(self.L[nn,:])]
+            facePredictionBottle.addString("Hello " + participant_index[int(self.L[nn,:])])
     
         # Plot the training NN of the test image (the NN is found in the INTERNAl, compressed (latent) memory space!!!)
-        if fig_nn is not None:
+        if visualiseInfo is not None:
+            fig_nn = visualiseInfo['fig_nn']
             fig_nn = pb.figure(11)
             pb.title('Training NN')
             fig_nn.clf()
             pl_nn = fig_nn.add_subplot(111)
-            pl_nn.imshow(numpy.reshape(SAMObject.recall(nn),(imgHeightNew, imgWidthNew)))
+            pl_nn.imshow(numpy.reshape(self.SAMObject.recall(nn),(self.imgHeightNew, self.imgWidthNew)))
             pb.title('Training NN')
             pb.show()
             pb.draw()
-            #pb.waitforbuttonpress(0.2)
-        speakStatusPort.write(speakStatusOutBottle, speakStatusInBottle)
+            pb.waitforbuttonpress(0.1)
+            
+        self.speakStatusPort.write(self.speakStatusOutBottle, self.speakStatusInBottle)
 
-        print "======== iSpeak status: ", speakStatusInBottle.get(0).asString(), " ==========="
+        print "======== iSpeak status: ", self.speakStatusInBottle.get(0).asString(), " ==========="
 
-        if( speakStatusInBottle.get(0).asString() == "quiet"):
-            outputFacePrection.write(facePredictionBottle)
+        if( self.speakStatusInBottle.get(0).asString() == "quiet"):
+            self.outputFacePrection.write(facePredictionBottle)
 
         facePredictionBottle.clear()
 
+        return pp
 
     def readImageFromCamera(self):
-        self.newImage = imageDataInputPort.read()
+        self.newImage = self.imageDataInputPort.read()
         self.yarpImage.copy(self.newImage)
 
         imageArrayOld=cv2.resize(self.imageArray,(self.imgHeightNew,self.imgWidthNew))
@@ -361,8 +364,8 @@ class SAMpy:
         plt.waitforbuttonpress(0.1)
 
         imageFlatten_testing = imageArrayGray.flatten()
-        imageFlatten_testing = imageFlatten_testing - Ymean
-        imageFlatten_testing = imageFlatten_testing/Ystd
+        imageFlatten_testing = imageFlatten_testing - self.Ymean
+        imageFlatten_testing = imageFlatten_testing/self.Ystd
 
         imageFlatten_testing = imageFlatten_testing[:,None].T
 
@@ -374,10 +377,15 @@ class SAMpy:
 # Main program
 
 mySAMpy = SAMpy(True)
+experiment_number = 3
+#root_data_dir="/home/uriel/Downloads/dataDump"
+#participant_index=('Luke','Uriel','Michael')
 
-root_data_dir="/home/uriel/Downloads/dataDump"
-participant_index=('Luke','Uriel','Michael')
-pose_index=['A']
+root_data_dir="D:/robotology/SheffABM/data/faceImageData"
+participant_index=('Luke','Uriel','Michael')#,'Andreas')
+pose_index=('Straight','LR', 'UD')
+
+#pose_index=['A']
 model_type = 'mrd'
 pose_selection = 0
 Ntr = 200
@@ -386,10 +394,35 @@ model_num_iterations = 0
 model_init_iterations = 300
 fname = 'm_' + model_type + '_exp' + str(experiment_number) + '.pickle'
 
+save_model=True
+### Visualise GP nearest neighbour matching
+visualise_output=True
+
 mySAMpy.readFaceData(root_data_dir, participant_index, pose_index)
 mySAMpy.prepareFaceData(model_type, Ntr, pose_selection)
-mySAMpy.training(model_num_inducing, model_num_iterations, model_init_iterations, fname)
+mySAMpy.training(model_num_inducing, model_num_iterations, model_init_iterations, fname, save_model)
+
+if visualise_output: 
+    # This is for visualising the mapping of the test face back to the internal memory
+    ax = mySAMpy.SAMObject.visualise()
+    visualiseInfo=dict()
+    visualiseInfo['ax']=ax
+    ytmp = mySAMpy.SAMObject.recall(0)
+    ytmp = numpy.reshape(ytmp,(mySAMpy.imgHeightNew,mySAMpy.imgWidthNew))
+    fig_nn = pb.figure()
+    pb.title('Training NN')
+    pl_nn = fig_nn.add_subplot(111)
+    ax_nn = pl_nn.imshow(ytmp, cmap=plt.cm.Greys_r)
+    pb.draw()
+    pb.show()
+    visualiseInfo['fig_nn']=fig_nn
+else:
+    visualiseInfo=None
 
 while( True ):
     testFace = mySAMpy.readImageFromCamera()
-    mySAMpy.testing(testFace, None)
+    pp = mySAMpy.testing(testFace, visualiseInfo)
+    l = pp.pop(0)
+    l.remove()
+    pb.draw()
+    del l
