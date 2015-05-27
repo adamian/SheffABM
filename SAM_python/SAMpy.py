@@ -17,19 +17,17 @@ import os
 import yarp
 import cv2
 import GPy
-#import time
+import time
 from scipy.spatial import distance
 import operator
 from ABM import ABM
-
-
 
 class SAMpy:
 
     def __init__(self, isYarpRunning = False, imgH = 200, imgW = 200, imgHNew = 200, imgWNew = 200):
         print "initiating object"
-        
-        self.SAMObject=ABM.LFM()
+    
+        self.SAMObject=ABM.LFM()        
         self.imgHeight = imgH
         self.imgWidth = imgW
         self.imgHeightNew = imgHNew
@@ -49,7 +47,7 @@ class SAMpy:
         self.Ln = None
         self.data_labels = None
 
-        self.SAMObject = None
+        #self.SAMObject = None
         self.model_num_inducing = 0
         self.model_num_iterations = 0
         self.model_init_iterations = 0
@@ -278,12 +276,12 @@ class SAMpy:
         self.model_num_iterations = modelNumIterations
         self.model_init_iterations = modelInitIterations
     
-        if not os.path.isfile(fname):
+        if not os.path.isfile(fname + '.pickle'):
             print "Training..."    
             if self.X is not None:
                 Q = self.X.shape[1]
             else:
-                Q=10
+                Q=2
 
             # Instantiate object
             #self.SAMObject=ABM.LFM()
@@ -301,10 +299,10 @@ class SAMpy:
 	
             print "Saving SAMObject"
             if save_model:
-                ABM.save_model(self.SAMObject, fname)
+                ABM.save_pruned_model(self.SAMObject, fname)
         else:
 	        print "Loading SAMOBject"
-	        self.SAMObject = ABM.load_model(fname)
+	        self.SAMObject = ABM.load_pruned_model(fname)
 
     # testing for new images
     def testing(self, testFace, visualiseInfo=None):
@@ -321,11 +319,19 @@ class SAMpy:
         nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
         if self.SAMObject.type == 'mrd':
             print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
-            facePredictionBottle.addString("Hello " + participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])])
+            #facePredictionBottle.addString("Hello " + participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])])
+            textStringOut=participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
+
         elif self.SAMObject.type == 'bgplvm':
             print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(self.L[nn,:])]
-            facePredictionBottle.addString("Hello " + participant_index[int(self.L[nn,:])])
-    
+            #facePredictionBottle.addString("Hello " + participant_index[int(self.L[nn,:])])
+            textStringOut=participant_index[int(self.L[nn,:])]
+        if (vv.mean()<0.00012):
+            facePredictionBottle.addString("Hello " + textStringOut)
+            # Otherwise ask for updated name... (TODO: add in updated name)
+        else:
+            facePredictionBottle.addString("I think you are " + textStringOut + " but im not sure, please confirm?")        
+     
         # Plot the training NN of the test image (the NN is found in the INTERNAl, compressed (latent) memory space!!!)
         if visualiseInfo is not None:
             fig_nn = visualiseInfo['fig_nn']
@@ -333,7 +339,7 @@ class SAMpy:
             pb.title('Training NN')
             fig_nn.clf()
             pl_nn = fig_nn.add_subplot(111)
-            pl_nn.imshow(numpy.reshape(self.SAMObject.recall(nn),(self.imgHeightNew, self.imgWidthNew)))
+            pl_nn.imshow(numpy.reshape(self.SAMObject.recall(nn),(self.imgHeightNew, self.imgWidthNew)), cmap=plt.cm.Greys_r)
             pb.title('Training NN')
             pb.show()
             pb.draw()
@@ -351,7 +357,15 @@ class SAMpy:
         return pp
 
     def readImageFromCamera(self):
-        self.newImage = self.imageDataInputPort.read()
+        try:
+            self.newImage = self.imageDataInputPort.read()
+        except KeyboardInterrupt:
+            print 'Interrupted'
+            try:
+                sys.exit(0)
+            except SystemExit:
+                os._exit(0)
+                
         self.yarpImage.copy(self.newImage)
 
         imageArrayOld=cv2.resize(self.imageArray,(self.imgHeightNew,self.imgWidthNew))
@@ -359,7 +373,7 @@ class SAMpy:
 
         plt.figure(10)
         plt.title('Image received')
-        plt.imshow(imageArrayGray)
+        plt.imshow(imageArrayGray,cmap=plt.cm.Greys_r)
         plt.show()
         plt.waitforbuttonpress(0.1)
 
@@ -392,7 +406,7 @@ Ntr = 200
 model_num_inducing = 20
 model_num_iterations = 0
 model_init_iterations = 300
-fname = 'm_' + model_type + '_exp' + str(experiment_number) + '.pickle'
+fname = 'm_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
 
 save_model=True
 ### Visualise GP nearest neighbour matching
@@ -420,9 +434,17 @@ else:
     visualiseInfo=None
 
 while( True ):
-    testFace = mySAMpy.readImageFromCamera()
-    pp = mySAMpy.testing(testFace, visualiseInfo)
-    l = pp.pop(0)
-    l.remove()
-    pb.draw()
-    del l
+    try:
+        testFace = mySAMpy.readImageFromCamera()
+        pp = mySAMpy.testing(testFace, visualiseInfo)
+        time.sleep(0.5)
+        l = pp.pop(0)
+        l.remove()
+        pb.draw()
+        del l
+    except KeyboardInterrupt:
+        print 'Interrupted'
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
