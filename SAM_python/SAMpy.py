@@ -1,11 +1,16 @@
 #!/usr/bin/python
-    # -*- coding: utf-8 -*-
-"""
+
+""""""""""""""""""""""""""""""""""""""""""""""
+The University of Sheffield
+WYSIWYD Project
+
+SAMpy class for implementation of ABM module
+
 Created on 26 May 2015
 
-@authors: uriel, luke, andreas
+@authors: Uriel, Luke, Andreas
 
-"""
+""""""""""""""""""""""""""""""""""""""""""""""
 
 import matplotlib.pyplot as plt
 #import matplotlib as mp
@@ -22,11 +27,23 @@ from scipy.spatial import distance
 import operator
 from ABM import ABM
 
+
+""""""""""""""""
+Class developed for the implementation of the face recognition task in real-time mode.
+""""""""""""""""
+
 class SAMpy:
 
+""""""""""""""""
+Initilization of the SAM class
+Inputs:
+    - isYarprunning: specifies if yarp is used (True) or not(False)
+    - imgH, imgW: original image width and height
+    - imgHNewm imgWNew: width and height values to resize the image
+
+Outputs: None
+""""""""""""""""
     def __init__(self, isYarpRunning = False, imgH = 200, imgW = 200, imgHNew = 200, imgWNew = 200):
-        print "initiating object"
-    
         self.SAMObject=ABM.LFM()        
         self.imgHeight = imgH
         self.imgWidth = imgW
@@ -48,7 +65,6 @@ class SAMpy:
         self.data_labels = None
         self.participant_index = None
 
-        #self.SAMObject = None
         self.model_num_inducing = 0
         self.model_num_iterations = 0
         self.model_init_iterations = 0
@@ -60,8 +76,12 @@ class SAMpy:
             self.createImageArrays()
 
 
+""""""""""""""""
+Methods to create the ports for reading images from iCub eyes
+Inputs: None
+Outputs: None
+""""""""""""""""
     def createPorts(self):
-        print "create ports"
         self.imageDataInputPort = yarp.BufferedPortImageRgb()
         self.outputFacePrection = yarp.Port()
         self.speakStatusPort = yarp.RpcClient();
@@ -69,7 +89,11 @@ class SAMpy:
         self.speakStatusInBottle = yarp.Bottle()
         self.imageInputBottle = yarp.Bottle()
 
-
+""""""""""""""""
+Method to open the ports. It waits until the ports are connected
+Inputs: None
+Outputs: None
+""""""""""""""""
     def openPorts(self):
         print "open ports"
         self.imageDataInputPort.open("/sam/imageData:i");
@@ -81,8 +105,11 @@ class SAMpy:
         while( not(yarp.Network.isConnected("/faceTrackerImg:o","/sam/imageData:i")) ):
             pass
 
-
-
+""""""""""""""""
+Method to prepare the arrays to receive the RBG images from yarp
+Inputs: None
+Outputs: None
+""""""""""""""""
     def createImageArrays(self):
         self.imageArray = numpy.zeros((self.imgHeight, self.imgWidth, 3), dtype=numpy.uint8)
         self.newImage = yarp.ImageRgb()
@@ -90,7 +117,16 @@ class SAMpy:
         self.yarpImage.resize(self.imgWidthNew,self.imgWidthNew)
         self.yarpImage.setExternal(self.imageArray, self.imageArray.shape[1], self.imageArray.shape[0])
 
+""""""""""""""""
+Method to read face data previously collected to be used in the traning phase.
+Here the loaded data is preprocessed to have the correct image size and one face per image.
+Inputs:
+    - root_data_dir: location of face data
+    - participant_inde: array of participants names
+    - pose_index: array of poses from the face data collected
 
+Outputs: None
+""""""""""""""""
     def readFaceData(self, root_data_dir, participant_index, pose_index):
         self.Y
         self.L
@@ -179,7 +215,15 @@ class SAMpy:
         self.Y=img_data
         self.L=img_label_data
 
+""""""""""""""""
+Method to process some important features from the face data required for the classification model such as mean and variance.
+Inputs:
+    - model: type of model used for the ABM object
+    - Ntr: Number of training samples
+    - pose_selection: participants pose used for training of the ABM object
 
+Outputs: None
+""""""""""""""""
     def prepareFaceData(self, model='mrd', Ntr = 50, pose_selection = 0):    
         """--- Now Y has 4 dimensions: 
         1. Pixels
@@ -200,14 +244,6 @@ class SAMpy:
         modalities, it turns into the training matrix of image data and then again it turns into the 
         dictionary used for the LFM.
         """ 
-
-        #--- Config (TODO: move higher up)
-    #    motion=0
-        #---
-
-        #K = len(participant_index)   
-        # We can do differen scenarios.
-        # Y = img_data[:,:,0,1] ; # Load one face, one pose . In this case, set also X=None
 
     	# Take all poses if pose selection ==-1
         if pose_selection == -1:
@@ -272,7 +308,17 @@ class SAMpy:
             self.Y = {'Y':self.Yn}
             self.data_labels = self.L.copy()
 
+""""""""""""""""
+Method to train, store and load the learned model to be use for the face recognition task
+Inputs:
+    - modelNumInducing:
+    - modelNumIterations:
+    - modelInitIterations:
+    - fname: file name to store/load the learned model
+    - save_model: enable/disable to save the model
 
+Outputs: None
+""""""""""""""""
     def training(self, modelNumInducing, modelNumIterations, modelInitIterations, fname, save_model):
         self.model_num_inducing = modelNumInducing
         self.model_num_iterations = modelNumIterations
@@ -285,8 +331,6 @@ class SAMpy:
             else:
                 Q=2
 
-            # Instantiate object
-            #self.SAMObject=ABM.LFM()
             if Q > 100:
                 kernel = GPy.kern.RBF(Q, ARD=False) + GPy.kern.Bias(Q) + GPy.kern.White(Q)
             else:
@@ -306,7 +350,15 @@ class SAMpy:
 	        print "Loading SAMOBject"
 	        self.SAMObject = ABM.load_pruned_model(fname)
 
-    # testing for new images
+""""""""""""""""
+Method to test the learned model with faces read from the iCub eyes in real-time
+Inputs:
+    - testFace: image from iCub eyes to be recognized
+    - visualiseInfo: enable/disable the result from the testing process
+
+Outputs:
+    - pp: the axis of the latent space backwards mapping
+""""""""""""""""
     def testing(self, testFace, visualiseInfo=None):
         # Returns the predictive mean, the predictive variance and the axis (pp) of the latent space backwards mapping.            
         mm,vv,pp=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
@@ -321,12 +373,10 @@ class SAMpy:
         nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
         if self.SAMObject.type == 'mrd':
             print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
-            #facePredictionBottle.addString("Hello " + self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])])
             textStringOut=self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
 
         elif self.SAMObject.type == 'bgplvm':
             print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.L[nn,:])]
-            #facePredictionBottle.addString("Hello " + self.participant_index[int(self.L[nn,:])])
             textStringOut=self.participant_index[int(self.L[nn,:])]
         if (vv.mean()<0.00012):
             facePredictionBottle.addString("Hello " + textStringOut)
@@ -349,8 +399,6 @@ class SAMpy:
             
         self.speakStatusPort.write(self.speakStatusOutBottle, self.speakStatusInBottle)
 
-        print "======== iSpeak status: ", self.speakStatusInBottle.get(0).asString(), " ==========="
-
         if( self.speakStatusInBottle.get(0).asString() == "quiet"):
             self.outputFacePrection.write(facePredictionBottle)
 
@@ -358,6 +406,12 @@ class SAMpy:
 
         return pp
 
+""""""""""""""""
+Method to read images from the iCub eyes used for the face recognition task
+Inputs: None
+Outputs:
+    - imageFlatten_testing: image from iCub eyes in row format for testing by the ABM model
+""""""""""""""""
     def readImageFromCamera(self):
         while(True):
             try:
