@@ -46,6 +46,7 @@ class SAMpy:
         self.Yn = None
         self.Ln = None
         self.data_labels = None
+        self.participant_index = None
 
         #self.SAMObject = None
         self.model_num_inducing = 0
@@ -93,6 +94,7 @@ class SAMpy:
     def readFaceData(self, root_data_dir, participant_index, pose_index):
         self.Y
         self.L
+        self.participant_index = participant_index
 
         if not os.path.exists(root_data_dir):
             print "CANNOT FIND:" + root_data_dir
@@ -100,9 +102,9 @@ class SAMpy:
             print "PATH FOUND"
 
 	    ## Find and build index of available images.......
-        data_file_count=numpy.zeros([len(participant_index),len(pose_index)])
+        data_file_count=numpy.zeros([len(self.participant_index),len(pose_index)])
         data_file_database={}
-        for count_participant, current_participant in enumerate(participant_index):
+        for count_participant, current_participant in enumerate(self.participant_index):
             data_file_database_part={}
             for count_pose, current_pose in enumerate(pose_index):
                 current_data_dir=os.path.join(root_data_dir,current_participant+current_pose)
@@ -122,7 +124,7 @@ class SAMpy:
                     data_file_database_p=numpy.sort(data_file_database_p,order=['orig_file_id'])  
                 data_file_database_part[pose_index[count_pose]]=data_file_database_p
                 data_file_count[count_participant,count_pose]=len(data_file_database_p)
-            data_file_database[participant_index[count_participant]]=data_file_database_part
+            data_file_database[self.participant_index[count_participant]]=data_file_database_part
 
 	    # To access use both dictionaries data_file_database['Luke']['LR']
 	    # Cutting indexes to smllest number of available files -> Using file count
@@ -130,8 +132,8 @@ class SAMpy:
 
 	    # Load image data into array......
 	    # Load first image to get sizes....
-        data_image=cv2.imread(os.path.join(root_data_dir,participant_index[0]+pose_index[0]+"/"+
-            data_file_database[participant_index[0]][pose_index[0]][0][2]))[:,:,(2,1,0)] # Convert BGR to RGB
+        data_image=cv2.imread(os.path.join(root_data_dir,self.participant_index[0]+pose_index[0]+"/"+
+            data_file_database[self.participant_index[0]][pose_index[0]][0][2]))[:,:,(2,1,0)] # Convert BGR to RGB
 
 	    # Data size
         print "Found minimum number of images:" + str(min_no_images)
@@ -149,15 +151,15 @@ class SAMpy:
         set_y=int(data_image.shape[1])
         #no_rgb=int(data_image.shape[2])
         no_pixels=self.imgWidthNew*self.imgHeightNew #set_x*set_y
-        img_data=numpy.zeros([no_pixels, min_no_images, len(participant_index),len(pose_index)])
-        img_label_data=numpy.zeros([no_pixels, min_no_images, len(participant_index),len(pose_index)],dtype=int)
+        img_data=numpy.zeros([no_pixels, min_no_images, len(self.participant_index),len(pose_index)])
+        img_label_data=numpy.zeros([no_pixels, min_no_images, len(self.participant_index),len(pose_index)],dtype=int)
 	    #cv2.imshow("test", data_image)
 	    #cv2.waitKey(50)              
         for count_pose, current_pose in enumerate(pose_index):
-            for count_participant, current_participant in enumerate(participant_index):
+            for count_participant, current_participant in enumerate(self.participant_index):
                 for current_image in range(min_no_images): 
-                    current_image_path=os.path.join(os.path.join(root_data_dir,participant_index[count_participant]+pose_index[count_pose]+"/"+
-                        data_file_database[participant_index[count_participant]][pose_index[count_pose]][current_image][2]))
+                    current_image_path=os.path.join(os.path.join(root_data_dir,self.participant_index[count_participant]+pose_index[count_pose]+"/"+
+                        data_file_database[self.participant_index[count_participant]][pose_index[count_pose]][current_image][2]))
                     data_image=cv2.imread(current_image_path)
 	                # Check image is the same size if not... cut or reject
                     if data_image.shape[0]<set_x or data_image.shape[1]<set_y:
@@ -318,14 +320,14 @@ class SAMpy:
             dists[j,:] = distance.euclidean(self.SAMObject.model.X.mean[j,:], mm[0].values)
         nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
         if self.SAMObject.type == 'mrd':
-            print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
-            #facePredictionBottle.addString("Hello " + participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])])
-            textStringOut=participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
+            print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
+            #facePredictionBottle.addString("Hello " + self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])])
+            textStringOut=self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
 
         elif self.SAMObject.type == 'bgplvm':
-            print "With " + str(vv.mean()) +" prob. error the new image is " + participant_index[int(self.L[nn,:])]
-            #facePredictionBottle.addString("Hello " + participant_index[int(self.L[nn,:])])
-            textStringOut=participant_index[int(self.L[nn,:])]
+            print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.L[nn,:])]
+            #facePredictionBottle.addString("Hello " + self.participant_index[int(self.L[nn,:])])
+            textStringOut=self.participant_index[int(self.L[nn,:])]
         if (vv.mean()<0.00012):
             facePredictionBottle.addString("Hello " + textStringOut)
             # Otherwise ask for updated name... (TODO: add in updated name)
@@ -357,95 +359,38 @@ class SAMpy:
         return pp
 
     def readImageFromCamera(self):
-        try:
-            self.newImage = self.imageDataInputPort.read()
-        except KeyboardInterrupt:
-            print 'Interrupted'
+        while(True):
             try:
-                sys.exit(0)
-            except SystemExit:
-                os._exit(0)
+                self.newImage = self.imageDataInputPort.read(False)
+            except KeyboardInterrupt:
+                print 'Interrupted'
+                try:
+                    sys.exit(0)
+                except SystemExit:
+                    os._exit(0)
+
+            if not( self.newImage == None ):
+                self.yarpImage.copy(self.newImage)
+
+                imageArrayOld=cv2.resize(self.imageArray,(self.imgHeightNew,self.imgWidthNew))
+                imageArrayGray=cv2.cvtColor(imageArrayOld, cv2.COLOR_BGR2GRAY)
+
+                plt.figure(10)
+                plt.title('Image received')
+                plt.imshow(imageArrayGray,cmap=plt.cm.Greys_r)
+                plt.show()
+                plt.waitforbuttonpress(0.1)
+
+                imageFlatten_testing = imageArrayGray.flatten()
+                imageFlatten_testing = imageFlatten_testing - self.Ymean
+                imageFlatten_testing = imageFlatten_testing/self.Ystd#
+
+                imageFlatten_testing = imageFlatten_testing[:,None].T
                 
-        self.yarpImage.copy(self.newImage)
-
-        imageArrayOld=cv2.resize(self.imageArray,(self.imgHeightNew,self.imgWidthNew))
-        imageArrayGray=cv2.cvtColor(imageArrayOld, cv2.COLOR_BGR2GRAY)
-
-        plt.figure(10)
-        plt.title('Image received')
-        plt.imshow(imageArrayGray,cmap=plt.cm.Greys_r)
-        plt.show()
-        plt.waitforbuttonpress(0.1)
-
-        imageFlatten_testing = imageArrayGray.flatten()
-        imageFlatten_testing = imageFlatten_testing - self.Ymean
-        imageFlatten_testing = imageFlatten_testing/self.Ystd
-
-        imageFlatten_testing = imageFlatten_testing[:,None].T
+                break
 
         return imageFlatten_testing
 
 
 
-#####################################################################################
-# Main program
 
-mySAMpy = SAMpy(True)
-experiment_number = 10
-#root_data_dir="/home/uriel/Downloads/dataDump"
-#participant_index=('Luke','Uriel','Michael')
-
-root_data_dir="/home/icub/dataDump/faceImageData_13_05_2015"
-image_suffix=".ppm"
-participant_index=('Luke','Uriel','Andreas')#'Michael','Andreas')
-pose_index=['A'] #('Straight','LR','Natural') # 'UD')
-Ntr=300 # Use a subset of the data for training (and leave the rest for testing)
-
-#pose_index=['A']
-pose_selection = 0
-model_type = 'mrd'
-model_num_inducing = 35
-model_num_iterations = 100
-model_init_iterations = 800
-fname = 'm_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
-
-save_model=True
-### Visualise GP nearest neighbour matching
-visualise_output=True
-
-mySAMpy.readFaceData(root_data_dir, participant_index, pose_index)
-mySAMpy.prepareFaceData(model_type, Ntr, pose_selection)
-mySAMpy.training(model_num_inducing, model_num_iterations, model_init_iterations, fname, save_model)
-
-if visualise_output: 
-    # This is for visualising the mapping of the test face back to the internal memory
-    ax = mySAMpy.SAMObject.visualise()
-    visualiseInfo=dict()
-    visualiseInfo['ax']=ax
-    ytmp = mySAMpy.SAMObject.recall(0)
-    ytmp = numpy.reshape(ytmp,(mySAMpy.imgHeightNew,mySAMpy.imgWidthNew))
-    fig_nn = pb.figure()
-    pb.title('Training NN')
-    pl_nn = fig_nn.add_subplot(111)
-    ax_nn = pl_nn.imshow(ytmp, cmap=plt.cm.Greys_r)
-    pb.draw()
-    pb.show()
-    visualiseInfo['fig_nn']=fig_nn
-else:
-    visualiseInfo=None
-
-while( True ):
-    try:
-        testFace = mySAMpy.readImageFromCamera()
-        pp = mySAMpy.testing(testFace, visualiseInfo)
-        time.sleep(0.5)
-        l = pp.pop(0)
-        l.remove()
-        pb.draw()
-        del l
-    except KeyboardInterrupt:
-        print 'Interrupted'
-        try:
-            sys.exit(0)
-        except SystemExit:
-            os._exit(0)
