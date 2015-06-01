@@ -8,7 +8,7 @@ Example of implementation of SAMpy class
 
 Created on 29 May 2015
 
-@authors: Uriel, Luke, Andreas
+@authors: Uriel Martinez, Luke Boorman, Andreas Damianou
 
 """"""""""""""""""""""""""""""""""""""""""""""
 
