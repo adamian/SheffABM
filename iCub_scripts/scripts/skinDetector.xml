@@ -1,58 +1,63 @@
 <application>
-  <name>Facetracker App</name>
- <!-- <module>
+  <name>skinDetector App</name>
+<!--  <module>
     <name>webcamToYarp</name>
     <parameters>/webcamOut</parameters>
     <node>localhost</node>
-  </module> //-->
+  </module> 
   <module>
-  <name>faceTrack</name>
+    <name>faceTrack</name>
     <parameters>/faceTrackerImg:i /faceTracker:coordinatePort:o /faceTrackerImg:o GPU</parameters>
+    <node>localhost</node>
+  </module> //--> 
+  <module>
+  <name>skinDetector</name>
+    <parameters>/skinImage:i /skinVector:o /skinImage:o</parameters>
     <node>localhost</node>
   </module>
   <module>
   <name>yarpview</name>
-    <parameters>--name /faceImgView:i</parameters>
+    <parameters>--name /skinImgView:i</parameters>
     <node>localhost</node>
   </module>
   <module>
   <name>yarp</name>
+    <parameters>read /readSkinInfo:i</parameters>
+    <node>localhost</node>
+  </module>
+<!-->  <module>
+    <name>yarp</name>
     <parameters>read /readFaceInfo:i</parameters>
     <node>localhost</node>
-  </module>
-  <module>
-  <name>yarpdatadumper</name>
-    <parameters>--name /faceImgDump --type image --dir ./dataDump/faceImageData --downsample 2</parameters>
-    <node>localhost</node>
-  </module>
- <!-- <connection>
+  </module> //-->
+<!-->  <connection>
     <from>/webcamOut</from>
-    <to>/inputPort</to>
+    <to>/skinImage:i</to>
     <protocol>udp</protocol>
-  </connection> //-->
+  </connection>
   <connection>
     <from>/icub/cam/left</from>
     <to>/faceTrackerImg:i</to>
     <protocol>udp</protocol>
   </connection>
-  <connection>
-    <from>/faceTrackerImg:o</from>
-    <to>/faceImgView:i</to>
-    <protocol>udp</protocol>
-  </connection>
-  <connection>
+    <connection>
     <from>/faceTracker:coordinatePort:o</from>
     <to>/readFaceInfo:i</to>
     <protocol>udp</protocol>
-  </connection>
+  </connection> //-->
   <connection>
     <from>/faceTrackerImg:o</from>
-    <to>/faceImgDump</to>
+    <to>/skinImage:i</to>
     <protocol>udp</protocol>
   </connection>
   <connection>
-    <from>/gazePositionControl:o</from>
-    <to>/iKinGazeCtrl/mono:i</to>
+    <from>/skinImage:o</from>
+    <to>/skinImgView:i</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/skinVector:o</from>
+    <to>/readSkinInfo:i</to>
     <protocol>udp</protocol>
   </connection>
 </application>

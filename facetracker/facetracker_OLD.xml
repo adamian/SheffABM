@@ -3,27 +3,27 @@
  <!-- <module>
     <name>webcamToYarp</name>
     <parameters>/webcamOut</parameters>
-    <node>localhost</node>
+    <node>/icubTracker</node>
   </module> //-->
   <module>
   <name>faceTrack</name>
     <parameters>/faceTrackerImg:i /faceTracker:coordinatePort:o /faceTrackerImg:o GPU</parameters>
-    <node>localhost</node>
+    <node>/icubTracker</node>
   </module>
   <module>
   <name>yarpview</name>
     <parameters>--name /faceImgView:i</parameters>
-    <node>localhost</node>
+    <node>/icubTracker</node>
   </module>
   <module>
   <name>yarp</name>
     <parameters>read /readFaceInfo:i</parameters>
-    <node>localhost</node>
+    <node>/icubTracker</node>
   </module>
   <module>
   <name>yarpdatadumper</name>
     <parameters>--name /faceImgDump --type image --dir ./dataDump/faceImageData --downsample 2</parameters>
-    <node>localhost</node>
+    <node>/icubTracker</node>
   </module>
  <!-- <connection>
     <from>/webcamOut</from>
@@ -48,11 +48,6 @@
   <connection>
     <from>/faceTrackerImg:o</from>
     <to>/faceImgDump</to>
-    <protocol>udp</protocol>
-  </connection>
-  <connection>
-    <from>/gazePositionControl:o</from>
-    <to>/iKinGazeCtrl/mono:i</to>
     <protocol>udp</protocol>
   </connection>
 </application>
