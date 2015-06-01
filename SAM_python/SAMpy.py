@@ -330,7 +330,7 @@ class SAMpy:
             facePredictionBottle.addString("Hello " + textStringOut)
             # Otherwise ask for updated name... (TODO: add in updated name)
         else:
-            facePredictionBottle.addString("I think you are " + textStringOut + " but im not sure, please confirm?")        
+            facePredictionBottle.addString("I think you are " + textStringOut + " but I am not sure, please confirm?")        
      
         # Plot the training NN of the test image (the NN is found in the INTERNAl, compressed (latent) memory space!!!)
         if visualiseInfo is not None:
@@ -391,21 +391,22 @@ class SAMpy:
 # Main program
 
 mySAMpy = SAMpy(True)
-experiment_number = 3
+experiment_number = 10
 #root_data_dir="/home/uriel/Downloads/dataDump"
 #participant_index=('Luke','Uriel','Michael')
 
-root_data_dir="D:/robotology/SheffABM/data/faceImageData"
-participant_index=('Luke','Uriel','Michael')#,'Andreas')
-pose_index=('Straight','LR', 'UD')
+root_data_dir="/home/icub/dataDump/faceImageData_13_05_2015"
+image_suffix=".ppm"
+participant_index=('Luke','Uriel','Andreas')#'Michael','Andreas')
+pose_index=['A'] #('Straight','LR','Natural') # 'UD')
+Ntr=300 # Use a subset of the data for training (and leave the rest for testing)
 
 #pose_index=['A']
-model_type = 'mrd'
 pose_selection = 0
-Ntr = 200
-model_num_inducing = 20
-model_num_iterations = 0
-model_init_iterations = 300
+model_type = 'mrd'
+model_num_inducing = 35
+model_num_iterations = 100
+model_init_iterations = 800
 fname = 'm_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
 
 save_model=True
