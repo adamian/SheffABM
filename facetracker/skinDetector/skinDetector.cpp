@@ -1,14 +1,7 @@
 #include <stdio.h>
-//#include <opencv/cv.h>
-//#include <opencv/cvaux.h>
-//#include <opencv/highgui.h>
 #include <yarp/sig/all.h>
 #include <yarp/os/all.h>
 #include <yarp/dev/all.h>
-//#include <opencv2/objdetect/objdetect.hpp>
-//#include <opencv2/highgui/highgui.hpp>
-//#include <opencv2/imgproc/imgproc.hpp>
-//#include "OpenCVGrabber.h"
 #include <opencv2\opencv.hpp>
 
 using namespace yarp::os;
@@ -21,23 +14,42 @@ using namespace std;
 using std::cout;
 
 void CVtoYarp(cv::Mat MatImage, ImageOf<PixelRgb> & yarpImage);
+Mat cannySegmentation(Mat img0, int minPixelSize);
 
+bool singleRegionChoice = 0; // On = Find single largest region of skin
+bool verboseOutput = 0; // Turn on to show image processing steps
 
+int minPixelSize=400; // Minimum pixel size for keeping skin regions!
 
-/*--------------- SKIN SEGMENTATION ---------------*/
+/*--------------- SKIN SEGMENTATION ---------------
+
+Run as: "skinDetector singleRegionChoice /imageIn /info /imageOut" 
+
+singleRegionChoice: single=1 (default), all regions returned=0 (depends on minPixelSize, =0 is all returned)
+
+Ports:
+1. /ImageIn (RGB Yarp image sent) default=/skinImage:i
+2. /info (Skin centre x,y and skin found =0/1) default=/skinVector:o
+3. /imageOut (Returned image segmnted with skin) default=/skinImage:o
+
+*/
 int main(int argc, char** argv)
 {
 	std::string imageInPort;
 	std::string vectorOutPort;
 	std::string imageOutPort;
 
-	int imgBlurPixels=3;//15; // Number of pixels to smooth over for final thresholding
-	int imgMorphPixels=7; //9; // Number pixels to do morphing over Erode dilate etc....
-	if(argc >= 3)
+	int imgBlurPixels=7;//7, 15; // Number of pixels to smooth over for final thresholding
+	int imgMorphPixels=3; //7, 9; // Number pixels to do morphing over Erode dilate etc....
+	
+	// 1st Argument, Choose method Adaptive threshold =0 (default) or Binary = 1 
+	if (argc>=1) singleRegionChoice = int(argv[1]);
+
+	if(argc >= 4)
 	{
-		imageInPort = argv[1];
-		vectorOutPort = argv[2];
-		imageOutPort = argv[3];
+		imageInPort = argv[2];
+		vectorOutPort = argv[3];
+		imageOutPort = argv[4];
 	}
 	else
 	{
@@ -65,7 +77,7 @@ int main(int argc, char** argv)
 	int outCount = faceTrack.getOutputCount();
 	bool inStatus = true;
 	int step = 0;
-	RNG rng(12345);
+	//RNG rng(12345);
 	//VideoCapture cap(0);
 
 	//if(!cap.isOpened()){
@@ -83,7 +95,7 @@ int main(int argc, char** argv)
 				faceTrack.open(imageInPort.c_str());
 			}
 			cout << "Awaiting input and output connections" << endl;
-			//waitKey(poll);
+			waitKey(500); // Wait here to reduce CPU usage 0.5s
 		}
 		else
 		{
@@ -93,13 +105,17 @@ int main(int argc, char** argv)
 				step = yarpImage->getRowSize() + yarpImage->getPadding();
 				Mat captureframe(yarpImage->height(),yarpImage->width(),CV_8UC3,yarpImage->getRawImage(),step);
 				cout << yarpImage->height() << " " << yarpImage->width() << endl;
+				// Forcing resize to 640x480 -> all thresholds / pixel filters configured for this size..... 
+				resize(captureframe,captureframe,Size(640,480));
+				cout << "WARNING: resizing images to 640x480 for processing config" << endl;
 				// CHANGED HERE TO BGR
 				cvtColor(captureframe, captureframe, CV_RGB2BGR);
-				imshow("Raw_Yarp_Video",captureframe);
-				//frame = captureframe;
+				if (verboseOutput)	imshow("Raw Yarp Video (A)",captureframe);
 				/* THRESHOLD ON HSV*/
+				// HSV data -> used to find skin
 				cvtColor(captureframe, frame, CV_BGR2HSV);
-				GaussianBlur(frame, frame, Size(7,7), 1, 1);
+				//cvtColor(captureframe, frame, CV_BGR2HLS);
+				GaussianBlur(frame, frame, Size(imgBlurPixels,imgBlurPixels), 1, 1);
 				//medianBlur(frame, frame, 15);
 				for(int r=0; r<frame.rows; ++r){
 					for(int c=0; c<frame.cols; ++c) 
@@ -108,105 +124,94 @@ int main(int argc, char** argv)
 						else for(int i=0; i<3; ++i)	frame(r,c)[i] = 0;
 				}
 
+				if (verboseOutput)	imshow("Skin HSV (B)",frame);
 				/* BGR CONVERSION AND THRESHOLD */
 				Mat1b frame_gray;
 				cvtColor(frame, frame, CV_HSV2BGR);
 				cvtColor(frame, frame_gray, CV_BGR2GRAY);
-
-				//threshold(frame_gray, frame_gray, 20, 255, CV_THRESH_BINARY);
-				//imshow("Threshold_Binary", frame_gray);
-				//morphologyEx(frame_gray, frame_gray, CV_MOP_ERODE, Mat1b(2,2,1), Point(-1, -1), 3);
-				//imshow("Morph_Erode_2_2", frame_gray);
-				//morphologyEx(frame_gray, frame_gray, CV_MOP_OPEN, Mat1b(5,5,1), Point(-1, -1), 1);
-				//imshow("Morph_Open_5_5", frame_gray);
-				//morphologyEx(frame_gray, frame_gray, CV_MOP_CLOSE, Mat1b(15,15,1), Point(-1, -1), 1);
-				//imshow("Morph_Close_15_15", frame_gray);
-				//medianBlur(frame_gray, frame_gray, imgBlurPixels);
-
-				threshold(frame_gray, frame_gray, 20, 255, CV_THRESH_BINARY);
-				imshow("Threshold_Binary", frame_gray);
-				morphologyEx(frame_gray, frame_gray, CV_MOP_ERODE, Mat1b(2,2,1), Point(-1, -1), 3);
-				imshow("Morph_Erode_2_2", frame_gray);
-				morphologyEx(frame_gray, frame_gray, CV_MOP_DILATE, Mat1b(5,5,1), Point(-1, -1), 3);
-				imshow("Morph_Dilate_5_5", frame_gray);
-				morphologyEx(frame_gray, frame_gray, CV_MOP_OPEN, Mat1b(3,3,1), Point(-1, -1), 1);
-				imshow("Morph_Open_3_3", frame_gray);
-
-				//distanceTransform(frame_gray,frame_ttt3,CV_DIST_L2,5);
-				////threshold(frame_ttt, frame_ttt, 20, 255, CV_THRESH_BINARY);
-				//imshow("Distance_Transform", frame_ttt3);
-
-
-				/// Detect edges using canny
-				int thresh = 100;
-				Mat canny_output;
-				vector<vector<Point> > contours;
-				vector<Vec4i> hierarchy;
 				
-				Canny( frame_gray, canny_output, thresh, thresh*2, 3 );
-				/// Find contours
-				findContours( canny_output, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
+				
 
-				/// Draw contours
-				Mat drawing = Mat::zeros( canny_output.size(), CV_8UC3 );
-				for( int i = 0; i< contours.size(); i++ )
+				// Adaptive thresholding techni
+				// 1. Threshold data to find main areas of skin
+				adaptiveThreshold(frame_gray,frame_gray,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY_INV,9,1);
+				if (verboseOutput)	imshow("Adaptive_threshold (D1)",frame_gray);
+				// 2. Fill in thresholded areas
+				morphologyEx(frame_gray, frame_gray, CV_MOP_CLOSE, Mat1b(imgMorphPixels,imgMorphPixels,1), Point(-1, -1), 2);
+				// Select single largest region from image, if singleRegionChoice is selected (1)
+				if (singleRegionChoice)
 				{
-				   Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
-				   drawContours( drawing, contours, i, color, 2, 8, hierarchy, 0, Point() );
+				frame_gray = cannySegmentation(frame_gray, -1);
+				}
+				else // Detect each separate block and remove blobs smaller than a few pixels
+				{
+				frame_gray = cannySegmentation(frame_gray, minPixelSize);
 				}
 
-				/// Show in a window
-				namedWindow( "Contours", CV_WINDOW_AUTOSIZE );
-				imshow( "Contours", drawing );
-
-
-
-				
-				// Do Morphology...............
-				morphologyEx(frame_gray, frame_gray, CV_MOP_CLOSE, Mat1b(9,9,1), Point(-1, -1), 1);
-				imshow("Morph_Close_9_9", frame_gray);
-				medianBlur(frame_gray, frame_gray, imgBlurPixels);
-				imshow("Threshold_full", frame_gray);
-
-				// Compare thresholding techniques
-
-				Mat1b frame_ttt;
-				Mat frame_ttt2;
-				cvtColor(frame, frame_ttt, CV_BGR2GRAY);
-				GaussianBlur(frame_ttt,frame_ttt, Size(imgBlurPixels,imgBlurPixels),0,0);
-				adaptiveThreshold(frame_ttt,frame_ttt,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY_INV,7,1);
-				imshow("Adaptive_threshold",frame_ttt);
-				morphologyEx(frame_ttt, frame_ttt, CV_MOP_CLOSE, Mat1b(imgMorphPixels,imgMorphPixels,1), Point(-1, -1), 4);
-				imshow("Adaptive_threshold_morph_close",frame_ttt);
-
-				cvtColor(frame, frame, CV_BGR2HSV);
-				//resize(frame, frame, Size(), 0.5, 0.5);
-				// HSV data -> used to find skin
-				imshow("Video",frame);
-
-				// Apply threshold using binary mask to original data
-				//captureframe.copyTo(frame_ttt2,frame_ttt);
-				//imshow("Skin_only",frame_ttt2);
-
-				captureframe.copyTo(frame_ttt2,frame_gray);
-				imshow("Skin_only",frame_ttt2);
-
-
-				//############ Test watershed
-				//Mat markers(frame.rows,frame.cols,CV_32FC1);
-				//watershed(frame,markers);
-
-				//imshow("Watershed",markers);
+				// Just return skin
+				Mat frame_skin;
+				captureframe.copyTo(frame_skin,frame_gray);  // Copy captureframe data to frame_skin, using mask from frame_ttt
+				if (verboseOutput)	imshow("Skin segmented",frame_skin);
 
 				//#################################################################
-				//cvtColor(frame,captureframe,CV_BGR2RGB);
 				// Send image to yarp out port
 				ImageOf<PixelRgb>& frameOut = imageOut.prepare();
-				CVtoYarp(frame_ttt2,frameOut);
+				CVtoYarp(frame_skin,frameOut);
 				imageOut.write();
 				
 				waitKey(1);
 			}
 		}
 	}
+}
+
+
+Mat cannySegmentation(Mat img0, int minPixelSize)
+{
+	// Segments items in gray image (img0)
+	// minPixelSize=
+	// -1, returns largest region only
+	// pixels, threshold for removing smaller regions, with less than minPixelSize pixels
+	// 0, returns all detected segments
+
+    Mat img1;
+    
+	// apply your filter
+    Canny(img0, img1, 100, 200, 3); //100, 200, 3);
+
+    // find the contours
+    vector< vector<Point> > contours;
+    findContours(img1, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+
+    // Mask for segmented regiond
+    Mat mask = Mat::zeros(img1.rows, img1.cols, CV_8UC1);
+
+    vector<double> areas(contours.size());
+
+	if (minPixelSize==-1)
+	{ // Case of taking largest region
+		for(int i = 0; i < contours.size(); i++)
+			areas[i] = contourArea(Mat(contours[i]));
+		double max;
+		Point maxPosition;
+		minMaxLoc(Mat(areas),0,&max,0,&maxPosition);
+		drawContours(mask, contours, maxPosition.y, Scalar(1), CV_FILLED);
+	}
+	else
+	{ // Case for using minimum pixel size
+		for (int i = 0; i < contours.size(); i++)
+		{
+			if (contourArea(Mat(contours[i]))>minPixelSize)
+			drawContours(mask, contours, i, Scalar(1), CV_FILLED);
+
+		}
+	}
+    // normalize so imwrite(...)/imshow(...) shows the mask correctly!
+    normalize(mask.clone(), mask, 0.0, 255.0, CV_MINMAX, CV_8UC1);
+
+    // show the images
+    if (verboseOutput)	imshow("Canny: Img in", img0);
+    if (verboseOutput)	imshow("Canny: Mask", mask);
+    if (verboseOutput)	imshow("Canny Output", img1);
+    return mask;
 }
