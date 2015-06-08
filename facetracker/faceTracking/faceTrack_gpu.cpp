@@ -12,6 +12,10 @@ using namespace cv::gpu;
 
 void CVtoYarp(cv::Mat MatImage, ImageOf<PixelRgb> & yarpImage);
 
+int boxScaleFactor = 0; //Additional pixels for box sizing
+
+int faceSize = 200; //pixel resize for face output
+
 int main(int argc, char** argv)
 {
 	std::string imageInPort;
@@ -124,7 +128,7 @@ int main(int argc, char** argv)
 	{
 		Mat vectArr, captureFrame_cpu,captureFrame_cpuRect;		
 		cv::gpu::GpuMat captureFrame, grayscaleFrame, objBuf;		
-		int step = 0, maxSize = 0, biggestFace = 0, count = 0, noFaces, faceSize = 200;
+		int step = 0, maxSize = 0, biggestFace = 0, count = 0, noFaces;//, faceSize = 200;
 		int centrex, centrey, centrex_old, centrey_old, d;
 		bool inStatus = true;
 		std::vector< cv::Rect > facesOld;
@@ -148,6 +152,7 @@ int main(int argc, char** argv)
 			if(inCount == 0 || outCount == 0)
 			{
 				cout << "Awaiting input and output connections" << endl;
+				waitKey(500); // LB -> added wait 0.5s here to reduce cpu usage when unconnected
 			}
 			else
 			{
@@ -162,7 +167,13 @@ int main(int argc, char** argv)
 						count = 0;
 						step = yarpImage->getRowSize() + yarpImage->getPadding();
 						Mat captureFrame_cpuBayer(yarpImage->height(),yarpImage->width(),CV_8UC3,yarpImage->getRawImage(),step);
-
+                        
+                        // Get height and width of original image
+                        //cout << "Height " << yarpImage->height() << "Width " << yarpImage->width() << endl;
+                        int height = yarpImage->height();
+                        int width = yarpImage->width();
+                        
+                        
 						if(format_int == 0)
 						{
 							cv::cvtColor(captureFrame_cpuBayer,captureFrame_cpu,CV_RGB2BGR);
@@ -227,7 +238,23 @@ int main(int argc, char** argv)
 									centrey = centrey_old;
 									facesOld.push_back(facesNew[i]);
 								}
-
+                                // LB - expand rectangle using additional pixels in boxScaleFactor
+                                facesOld[i].x=facesOld[i].x-boxScaleFactor;
+                                facesOld[i].y=facesOld[i].y-boxScaleFactor;
+                                facesOld[i].width=facesOld[i].width+(boxScaleFactor*2);
+                                facesOld[i].height=facesOld[i].height+(boxScaleFactor*2);
+                                // LB - Check the extra sizes are not outside the original image size
+                                // WARNING -> MIGHT produce distortions -> could reject image instead...
+                                if (facesOld[i].x<0) facesOld[i].x=0;
+                                if (facesOld[i].y<0) facesOld[i].y=0;
+                                if ((facesOld[i].width+facesOld[i].x)>width) facesOld[i].width=width-facesOld[i].x;
+                                if ((facesOld[i].height+facesOld[i].y)>height) facesOld[i].height=height-facesOld[i].y;
+                                
+                                //cout << "Img Height " << yarpImage->height() << "Img Width " << yarpImage->width() << endl;
+                                //cout << "x " << facesOld[i].x << "y " << facesOld[i].y << endl;
+                                //cout << "Roi Height " << facesOld[i].height << "Roi Width " << facesOld[i].width << endl;
+                                
+                                                                
 								vecSizes.at<unsigned short>(i) = facesOld[i].width;
 
 								if(facesOld[i].width > maxSize)
@@ -348,7 +375,7 @@ int main(int argc, char** argv)
 
 		}
 	}
-	else if(hardware_int == 0) //"CPU"
+	else if(hardware_int == 0) //"CPU" LB: NOT WORKING NEEDS FIXING OR REMOVING
 	{
 		Mat grayscaleFrame,face,corners;
 		int step = 0;
@@ -372,6 +399,7 @@ int main(int argc, char** argv)
 				}
 				cout << "Awaiting input and output connections" << endl;
 				//waitKey(poll);
+				waitKey(500); // LB -> added wait 0.5s here to reduce cpu usage when unconnected
 			}
 			else
 			{

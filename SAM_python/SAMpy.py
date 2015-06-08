@@ -8,7 +8,7 @@ SAMpy class for implementation of ABM module
 
 Created on 26 May 2015
 
-@authors: Uriel, Luke, Andreas
+@authors: Uriel Martinez, Luke Boorman, Andreas Damianou
 
 """"""""""""""""""""""""""""""""""""""""""""""
 
