@@ -1,0 +1,259 @@
+
+#include "visionUtils.h"
+
+visionUtils::visionUtils()
+{
+}
+
+visionUtils::~visionUtils()
+{
+}
+
+void visionUtils::convertCvToYarp(Mat MatImage, ImageOf<PixelRgb> & yarpImage)
+{
+	IplImage* IPLfromMat = new IplImage(MatImage);
+
+	yarpImage.resize(IPLfromMat->width,IPLfromMat->height);
+
+	IplImage * iplYarpImage = (IplImage*)yarpImage.getIplImage();
+
+	if (IPL_ORIGIN_TL == IPLfromMat->origin){
+			cvCopy(IPLfromMat, iplYarpImage, 0);
+	}
+	else{
+			cvFlip(IPLfromMat, iplYarpImage, 0);
+	}
+
+	if (IPLfromMat->channelSeq[0]=='B') {
+			cvCvtColor(iplYarpImage, iplYarpImage, CV_BGR2RGB);
+	}
+}
+
+Rect visionUtils::checkRoiInImage(Mat src, Rect roi)
+{
+    // Get image sizes
+    Size s = src.size();
+    int height = s.height;
+    int width = s.width;
+    
+    //cout << "Rect-> x:" << boundRect.x << " y:" << boundRect.y << " h:" << boundRect.height << " w:" << boundRect.width << endl;
+    if (roi.x<0)
+    {
+        cout << "Trimming x from: " << roi.x << " to: 0" << endl;
+        roi.x=0;
+    }
+    if (roi.y<0)
+    {
+        cout << "Trimming y from: " << roi.y << " to: 0" << endl;
+        roi.y=0;
+    }
+    if ((roi.width+roi.x)>width) 
+    {
+        int temp=roi.width;
+        roi.width=width-roi.x;
+        cout << "Trimming width from: " << temp << " to: " << roi.width << endl; 
+    }
+    if ((roi.height+roi.y)>height)
+    {
+        int temp=roi.height;
+        roi.height=height-roi.y;
+        cout << "Trimming height from: " << temp << " to: " << roi.height << endl; 
+    }
+    return roi;
+}
+
+
+Mat visionUtils::segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces)
+{
+    RNG rng(12345); // for colour generation
+
+    // Check mask and original image are the same size
+
+    Size srcS = srcImage.size();
+    int heightS = srcS.height;
+    int widthS = srcS.width;
+
+    Size maskS = maskImage.size();
+    int heightM = maskS.height;
+    int widthM = maskS.width;    
+
+    if (heightS!=heightM || widthS!=widthM)
+    {
+        cout << "hS:" << heightS << " wS:" << widthS << " hM:" << heightM << " wM" << widthM << endl;  
+        cout << "Source and mask images are not the same size... aborting" << endl;
+        Mat ttt;
+        return (ttt);
+    }
+  
+    /// Convert image to gray and blur it
+    cvtColor( maskImage, src_gray, CV_BGR2GRAY );
+    blur( src_gray, src_gray, Size(3,3) );
+    vector<vector<Point> > contours;
+    vector<Vec4i> hierarchy;
+
+    /// Detect edges using Threshold
+    //threshold( src_gray, src_gray, thresh, 255, THRESH_BINARY );
+    /// Find contours
+    findContours( src_gray, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
+
+    // ########## Remove contour indents (defects), by finding the convex 
+    /// Find the convex hull object for each contour
+    vector<vector<Point> >hull( contours.size() );
+
+    for( int i = 0; i < contours.size(); i++ )
+    {  
+        convexHull( Mat(contours[i]), hull[i], false );
+    }
+
+    /// Draw contours + hull results
+    Mat drawingHull = Mat::zeros( src_gray.size(), CV_8UC3 );
+    for( int i = 0; i< contours.size(); i++ )
+    {
+        Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+        drawContours( drawingHull, contours, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
+        drawContours( drawingHull, hull, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
+    }
+
+    if (displayFaces)
+    {
+        namedWindow( "Contour Convex Hull", CV_WINDOW_AUTOSIZE );
+        imshow( "Contour Convex Hull", drawingHull );
+    }
+
+    /// Find the rotated rectangles and ellipses for each contour
+    vector<RotatedRect> minRect( contours.size() );
+    vector<RotatedRect> minEllipse( contours.size() );
+    //vector<Rect> boundRect( contours.size() );
+    //Check minimum contour size and find largest....
+    int largest_area=-1;
+    int largest_contour_index=0;
+ 
+    for( int i = 0; i < contours.size(); i++ )
+    { 
+        minRect[i] = minAreaRect( Mat(contours[i]) );
+        //boundRect[i] = boundingRect( Mat(contours[i]) );
+        if( contours[i].size() > minContourSize )
+        { 
+            double a=contourArea( contours[i],false);  //  Find the area of contour
+            minEllipse[i] = fitEllipse( Mat(contours[i]) );
+            if(a>largest_area)
+            {
+                largest_area=a;
+                largest_contour_index=i;                //Store the index of largest contour
+                //bounding_rect=boundingRect(contours[i]); // Find the bounding rectangle for biggest contour
+            }
+        }
+    }
+
+  /// Draw contours + rotated rects + ellipses
+  //Mat drawing = Mat::zeros( srcImage.size(), CV_8UC3 );
+  Mat drawing=srcImage.clone();
+  for( int i = 0; i< contours.size(); i++ )
+     {
+       Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+       // contour
+       drawContours( drawing, contours, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
+       // ellipse
+       ellipse( drawing, minEllipse[i], color, 2, 8 );
+       // rotated rectangle
+       Point2f rect_points[4]; minRect[i].points( rect_points );
+       for( int j = 0; j < 4; j++ )
+          line( drawing, rect_points[j], rect_points[(j+1)%4], color, 1, 8 );
+     }
+
+  /// Show in a window
+    if (displayFaces)
+    {
+        namedWindow( "Contours", CV_WINDOW_AUTOSIZE );
+        imshow( "Contours", drawing );
+    }
+  // Extract region taken by largest ellipse, as binary mask
+  //Mat srcEllipse = Mat::zeros( srcImage.size(), CV_8UC3 );
+  //Mat temp = Mat::zeros( srcImage.size(), CV_8UC1 );
+  //ellipse( temp, minEllipse[largest_contour_index], Scalar(255), -1, 8 );
+  //srcImage.copyTo(srcEllipse,temp);  // Copy captureframe data to frame_skin, using mask from frame_ttt
+  
+  // Cut down image using box around ellipse / roatedRect
+  // LB Crap
+  //Point2f rect_points[4]; minRect[largest_contour_index].points( rect_points );
+  //vector<Point> points;
+  //for( int j = 0; j < 4; j++ )
+  //  points.push_back(rect_points[j]);
+  //boundRect=boundingRect(points);
+  
+  //// ############### Selected Hull contour to use -> ignoring ellipse etc
+  // Check if hull found successfully... if not ABORT
+    if (hull.empty() )
+    {
+        cout << "Hull region not found > returning...." << endl;
+        Mat ttt;
+        return (ttt);
+    }
+
+    // Check area of hull and abort if neded
+          
+    double area0 = contourArea(hull[largest_contour_index]);
+    vector<Point> approx;
+    approxPolyDP(hull[largest_contour_index], approx, 5, true);
+    double area1 = contourArea(approx);
+    cout << "area0 =" << area0 << endl << "area1 =" << area1 << endl << "approx poly vertices: " << approx.size() << endl;
+    if  (area1<5000)
+    {
+        cout << "Hull area too small > returning...." << endl;
+        Mat ttt;
+        return (ttt);
+    }
+
+    // Cut down rect around convex contour hull 
+    Rect boundRect;
+    boundRect=boundingRect(Mat(hull[largest_contour_index]));
+    // Check bounding box fits inside image.... resize if needed
+    boundRect=checkRoiInImage(srcImage, boundRect);
+    //cout << "Bd h: " << boundRect.height << " Bd w: " << boundRect.width << " Bd x: " << boundRect.x << " Bd y: " << boundRect.y << endl;
+
+    // Check bounding box has greater dimensions than 5x5pix
+    if (boundRect.height<=5 || boundRect.width<=5)
+    {
+        cout << "Region selected too small... exiting" << endl;
+        Mat ttt;
+        return (ttt);
+    }
+    else
+    {
+        /// Take boxed region of face from original image data
+        // Copy inital image and section with bounding box
+        if (displayFaces)
+        {
+            Mat srcSegmented = srcImage.clone();
+            srcSegmented=srcSegmented(boundRect);
+            namedWindow( "Rect region orig", CV_WINDOW_NORMAL );
+            imshow("Rect region orig",srcSegmented);
+        }
+
+        // Repeat for mask image
+        if (displayFaces)
+        {      
+            Mat maskSegmented = maskImage.clone();
+            maskSegmented=maskSegmented(boundRect);
+            namedWindow( "Rect region, with SkinSeg", CV_WINDOW_NORMAL );
+            imshow("Rect region, with SkinSeg",maskSegmented);      
+        }
+
+        /// Repeat boxing but for masked skin data (Hull)
+        // Make binary mask using hull largest contour
+        Mat srcSegSkin = Mat::zeros( srcImage.size(), CV_8UC3 );
+        Mat temp = Mat::zeros( srcImage.size(), CV_8UC1 );
+        drawContours( temp, hull, largest_contour_index, Scalar(255), -1, 8, vector<Vec4i>(), 0, Point() );
+        srcImage.copyTo(srcSegSkin,temp);  // Copy using mask from temp
+        srcSegSkin=srcSegSkin(boundRect);
+
+        if (displayFaces)
+        {
+            namedWindow( "Rect region, with hull region SkinSeg", CV_WINDOW_NORMAL );
+            imshow("Rect region, with hull region SkinSeg",srcSegSkin);      
+        }      
+
+        return(srcSegSkin);
+    }
+}
+

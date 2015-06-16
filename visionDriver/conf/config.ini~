@@ -1,0 +1,12 @@
+# Copyright: (C) 2015 CYBERSELVES project
+# Authors: Uriel Martinez
+# CopyPolicy: Released under the terms of the GNU GPL v2.0.
+
+
+[general]
+imageInPort			
+vectorOutPort
+imageOutPort
+gazeOutPort
+syncInPort
+cascadeFile
