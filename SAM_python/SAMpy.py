@@ -1,16 +1,16 @@
 #!/usr/bin/python
 
-""""""""""""""""""""""""""""""""""""""""""""""
-The University of Sheffield
-WYSIWYD Project
-
-SAMpy class for implementation of ABM module
-
-Created on 26 May 2015
-
-@authors: Uriel Martinez, Luke Boorman, Andreas Damianou
-
-""""""""""""""""""""""""""""""""""""""""""""""
+#""""""""""""""""""""""""""""""""""""""""""""""
+#The University of Sheffield
+#WYSIWYD Project
+#
+#SAMpy class for implementation of ABM module
+#
+#Created on 26 May 2015
+#
+#@authors: Uriel Martinez, Luke Boorman, Andreas Damianou
+#
+#""""""""""""""""""""""""""""""""""""""""""""""
 
 import matplotlib.pyplot as plt
 #import matplotlib as mp
@@ -28,21 +28,21 @@ import operator
 from ABM import ABM
 
 
-""""""""""""""""
-Class developed for the implementation of the face recognition task in real-time mode.
-""""""""""""""""
+#""""""""""""""""
+#Class developed for the implementation of the face recognition task in real-time mode.
+#""""""""""""""""
 
 class SAMpy:
 
-""""""""""""""""
-Initilization of the SAM class
-Inputs:
-    - isYarprunning: specifies if yarp is used (True) or not(False)
-    - imgH, imgW: original image width and height
-    - imgHNewm imgWNew: width and height values to resize the image
-
-Outputs: None
-""""""""""""""""
+#""""""""""""""""
+#Initilization of the SAM class
+#Inputs:
+#    - isYarprunning: specifies if yarp is used (True) or not(False)
+#    - imgH, imgW: original image width and height
+#    - imgHNewm imgWNew: width and height values to resize the image
+#
+#Outputs: None
+#""""""""""""""""
     def __init__(self, isYarpRunning = False, imgH = 200, imgW = 200, imgHNew = 200, imgWNew = 200):
         self.SAMObject=ABM.LFM()        
         self.imgHeight = imgH
@@ -76,11 +76,11 @@ Outputs: None
             self.createImageArrays()
 
 
-""""""""""""""""
-Methods to create the ports for reading images from iCub eyes
-Inputs: None
-Outputs: None
-""""""""""""""""
+#""""""""""""""""
+#Methods to create the ports for reading images from iCub eyes
+#Inputs: None
+#Outputs: None
+#""""""""""""""""
     def createPorts(self):
         self.imageDataInputPort = yarp.BufferedPortImageRgb()
         self.outputFacePrection = yarp.Port()
@@ -89,11 +89,11 @@ Outputs: None
         self.speakStatusInBottle = yarp.Bottle()
         self.imageInputBottle = yarp.Bottle()
 
-""""""""""""""""
-Method to open the ports. It waits until the ports are connected
-Inputs: None
-Outputs: None
-""""""""""""""""
+#""""""""""""""""
+#Method to open the ports. It waits until the ports are connected
+#Inputs: None
+#Outputs: None
+#""""""""""""""""
     def openPorts(self):
         print "open ports"
         self.imageDataInputPort.open("/sam/imageData:i");
@@ -105,11 +105,11 @@ Outputs: None
         while( not(yarp.Network.isConnected("/faceTrackerImg:o","/sam/imageData:i")) ):
             pass
 
-""""""""""""""""
-Method to prepare the arrays to receive the RBG images from yarp
-Inputs: None
-Outputs: None
-""""""""""""""""
+#""""""""""""""""
+#Method to prepare the arrays to receive the RBG images from yarp
+#Inputs: None
+#Outputs: None
+#""""""""""""""""
     def createImageArrays(self):
         self.imageArray = numpy.zeros((self.imgHeight, self.imgWidth, 3), dtype=numpy.uint8)
         self.newImage = yarp.ImageRgb()
@@ -117,16 +117,16 @@ Outputs: None
         self.yarpImage.resize(self.imgWidthNew,self.imgWidthNew)
         self.yarpImage.setExternal(self.imageArray, self.imageArray.shape[1], self.imageArray.shape[0])
 
-""""""""""""""""
-Method to read face data previously collected to be used in the traning phase.
-Here the loaded data is preprocessed to have the correct image size and one face per image.
-Inputs:
-    - root_data_dir: location of face data
-    - participant_inde: array of participants names
-    - pose_index: array of poses from the face data collected
-
-Outputs: None
-""""""""""""""""
+#""""""""""""""""
+#Method to read face data previously collected to be used in the traning phase.
+#Here the loaded data is preprocessed to have the correct image size and one face per image.
+#Inputs:
+#    - root_data_dir: location of face data
+#    - participant_inde: array of participants names
+#    - pose_index: array of poses from the face data collected
+#
+#Outputs: None
+#""""""""""""""""
     def readFaceData(self, root_data_dir, participant_index, pose_index):
         self.Y
         self.L
@@ -215,35 +215,35 @@ Outputs: None
         self.Y=img_data
         self.L=img_label_data
 
-""""""""""""""""
-Method to process some important features from the face data required for the classification model such as mean and variance.
-Inputs:
-    - model: type of model used for the ABM object
-    - Ntr: Number of training samples
-    - pose_selection: participants pose used for training of the ABM object
-
-Outputs: None
-""""""""""""""""
+#""""""""""""""""
+#Method to process some important features from the face data required for the classification model such as mean and variance.
+#Inputs:
+#    - model: type of model used for the ABM object
+#    - Ntr: Number of training samples
+#    - pose_selection: participants pose used for training of the ABM object
+#
+#Outputs: None
+#""""""""""""""""
     def prepareFaceData(self, model='mrd', Ntr = 50, pose_selection = 0):    
-        """--- Now Y has 4 dimensions: 
-        1. Pixels
-        2. Images
-        3. Person
-        4. Movement (Static. up/down. left / right)     
-
-        We can prepare the face data using different scenarios about what to be perceived.
-        In each scenario, a different LFM is used. We have:
-        - gp scenario, where we regress from images to labels (inputs are images, outputs are labels)
-        - bgplvm scenario, where we are only perceiving images as outputs (no inputs, no labels)
-        - mrd scenario, where we have no inputs, but images and labels form two different views of the output space.
-
-        The store module of the LFM automatically sees the structure of the assumed perceived data and 
-        decides on the LFM backbone to be used.
-
-        ! Important: The global variable Y is changed in this section. From the multi-dim. matrix of all
-        modalities, it turns into the training matrix of image data and then again it turns into the 
-        dictionary used for the LFM.
-        """ 
+        #""--- Now Y has 4 dimensions: 
+        #1. Pixels
+        #2. Images
+        #3. Person
+        #4. Movement (Static. up/down. left / right)     
+        #
+        #We can prepare the face data using different scenarios about what to be perceived.
+        #In each scenario, a different LFM is used. We have:
+        #- gp scenario, where we regress from images to labels (inputs are images, outputs are labels)
+        #- bgplvm scenario, where we are only perceiving images as outputs (no inputs, no labels)
+        #- mrd scenario, where we have no inputs, but images and labels form two different views of the output space.
+        #
+        #The store module of the LFM automatically sees the structure of the assumed perceived data and 
+        #decides on the LFM backbone to be used.
+        #
+        #! Important: The global variable Y is changed in this section. From the multi-dim. matrix of all
+        #modalities, it turns into the training matrix of image data and then again it turns into the 
+        #dictionary used for the LFM.
+        #---""" 
 
     	# Take all poses if pose selection ==-1
         if pose_selection == -1:
@@ -308,17 +308,17 @@ Outputs: None
             self.Y = {'Y':self.Yn}
             self.data_labels = self.L.copy()
 
-""""""""""""""""
-Method to train, store and load the learned model to be use for the face recognition task
-Inputs:
-    - modelNumInducing:
-    - modelNumIterations:
-    - modelInitIterations:
-    - fname: file name to store/load the learned model
-    - save_model: enable/disable to save the model
-
-Outputs: None
-""""""""""""""""
+#""""""""""""""""
+#Method to train, store and load the learned model to be use for the face recognition task
+#Inputs:
+#    - modelNumInducing:
+#    - modelNumIterations:
+#    - modelInitIterations:
+#    - fname: file name to store/load the learned model
+#    - save_model: enable/disable to save the model
+#
+#Outputs: None
+#""""""""""""""""
     def training(self, modelNumInducing, modelNumIterations, modelInitIterations, fname, save_model):
         self.model_num_inducing = modelNumInducing
         self.model_num_iterations = modelNumIterations
@@ -350,15 +350,15 @@ Outputs: None
 	        print "Loading SAMOBject"
 	        self.SAMObject = ABM.load_pruned_model(fname)
 
-""""""""""""""""
-Method to test the learned model with faces read from the iCub eyes in real-time
-Inputs:
-    - testFace: image from iCub eyes to be recognized
-    - visualiseInfo: enable/disable the result from the testing process
-
-Outputs:
-    - pp: the axis of the latent space backwards mapping
-""""""""""""""""
+#""""""""""""""""
+#Method to test the learned model with faces read from the iCub eyes in real-time
+#Inputs:
+#    - testFace: image from iCub eyes to be recognized
+#    - visualiseInfo: enable/disable the result from the testing process
+#
+#Outputs:
+#    - pp: the axis of the latent space backwards mapping
+#""""""""""""""""
     def testing(self, testFace, visualiseInfo=None):
         # Returns the predictive mean, the predictive variance and the axis (pp) of the latent space backwards mapping.            
         mm,vv,pp=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
@@ -406,12 +406,12 @@ Outputs:
 
         return pp
 
-""""""""""""""""
-Method to read images from the iCub eyes used for the face recognition task
-Inputs: None
-Outputs:
-    - imageFlatten_testing: image from iCub eyes in row format for testing by the ABM model
-""""""""""""""""
+#""""""""""""""""
+#Method to read images from the iCub eyes used for the face recognition task
+#Inputs: None
+#Outputs:
+#    - imageFlatten_testing: image from iCub eyes in row format for testing by the ABM model
+#""""""""""""""""
     def readImageFromCamera(self):
         while(True):
             try:

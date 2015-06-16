@@ -1,5 +1,6 @@
 #include <stdio.h>
-#include <opencv2\opencv.hpp>
+#include <opencv/cv.h>
+#include <opencv2/highgui.hpp>
 
 using namespace cv;
 using namespace std;
@@ -29,9 +30,12 @@ Mat skinDetect(Mat captureframe, bool verboseSelect)//int argc, char** argv)
 
 	int step = 0;
 	Mat3b frame;
-	// Forcing resize to 640x480 -> all thresholds / pixel filters configured for this size..... 
+	// Forcing resize to 640x480 -> all thresholds / pixel filters configured for this size.....
+	// Note returned to original size at end...
+    Size s = captureframe.size();
 	resize(captureframe,captureframe,Size(640,480));
-	cout << "WARNING: resizing images to 640x480 for processing config" << endl;
+
+	
 	// CHANGED HERE TO BGR
 	//cvtColor(captureframe, captureframe, CV_RGB2BGR);
 	if (verboseOutput)	imshow("Raw Image (A)",captureframe);
@@ -61,6 +65,10 @@ Mat skinDetect(Mat captureframe, bool verboseSelect)//int argc, char** argv)
 	if (verboseOutput)	imshow("Adaptive_threshold (D1)",frame_gray);
 	// 2. Fill in thresholded areas
 	morphologyEx(frame_gray, frame_gray, CV_MOP_CLOSE, Mat1b(imgMorphPixels,imgMorphPixels,1), Point(-1, -1), 2);
+	
+	
+	//GaussianBlur(frame_gray, frame_gray, Size((imgBlurPixels*2)+1,(imgBlurPixels*2)+1), 1, 1);
+	GaussianBlur(frame_gray, frame_gray, Size(imgBlurPixels,imgBlurPixels), 1, 1);
 	// Select single largest region from image, if singleRegionChoice is selected (1)
 	if (singleRegionChoice)
 	{
@@ -71,13 +79,13 @@ Mat skinDetect(Mat captureframe, bool verboseSelect)//int argc, char** argv)
 		frame_gray = cannySegmentation(frame_gray, minPixelSize);
 	}
 
+	
 	// Just return skin
 	Mat frame_skin;
 	captureframe.copyTo(frame_skin,frame_gray);  // Copy captureframe data to frame_skin, using mask from frame_ttt
+	// Resize image to original before return
+	resize(frame_skin,frame_skin,s);
 	if (verboseOutput)	imshow("Skin segmented",frame_skin);
-
-	//#################################################################
-	// Send image to yarp out port
 	return frame_skin;	
 	waitKey(1);
 }
@@ -127,7 +135,7 @@ Mat cannySegmentation(Mat img0, int minPixelSize)
     normalize(mask.clone(), mask, 0.0, 255.0, CV_MINMAX, CV_8UC1);
 
     // show the images
-    if (verboseOutput)	imshow("Canny: Img in", img0);
+    //if (verboseOutput)	imshow("Canny: Img in", img0);
     if (verboseOutput)	imshow("Canny: Mask", mask);
     if (verboseOutput)	imshow("Canny Output", img1);
     return mask;

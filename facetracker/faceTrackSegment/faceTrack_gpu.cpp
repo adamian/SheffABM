@@ -1,8 +1,9 @@
 #include "faceTrack_gpu.h"
-#include <opencv/cv.h>
+#include <opencv2/opencv.hpp>
+#include <opencv2/highgui.hpp>
 #include <fstream>
 #include <iostream>
-#include <windows.h>
+//#include <windows.h>
 
 using namespace yarp::os;
 using namespace yarp::sig;
@@ -13,8 +14,15 @@ using namespace yarp::dev;
 using namespace std;
 //using namespace cv::gpu;
 
+
+int boxScaleFactor = 20; //Additional pixels for box sizing
+
+int faceSize = 400; //pixel resize for face output
+
+Rect checkRoiInImage(Mat src, Rect roi);
 void CVtoYarp(Mat MatImage, ImageOf<PixelRgb> & yarpImage);
 Mat skinDetect(Mat captureframeSkin, bool verboseSelect);
+Mat segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces);
 
 int main(int argc, char** argv)
 {
@@ -28,7 +36,7 @@ int main(int argc, char** argv)
 	int isGPUavailable;
 	int pollTime = 500; //wait delay in ms 500 = 0.5s
 
-	bool displayFaces = TRUE;
+	bool displayFaces = TRUE; // Select to show all output images.... There will be many!!!!
 
 
 	if(argc >= 4)
@@ -93,7 +101,7 @@ int main(int argc, char** argv)
 
 	Mat vectArr, captureFrameBGR,captureFrameRect;		
 	cv::gpu::GpuMat captureFrameGPU, grayscaleFrameGPU, objBufGPU;		
-	int step = 0, maxSize = 0, biggestFace = 0, count = 0, noFaces, faceSize = 200;
+	int step = 0, maxSize = 0, biggestFace = 0, count = 0, noFaces;
 	int centrex, centrey, centrex_old, centrey_old, d;
 	bool inStatus = true;
 	std::vector< Rect > facesOld;
@@ -110,7 +118,7 @@ int main(int argc, char** argv)
 
 	cv::gpu::CascadeClassifier_GPU face_cascade;
 	// Check if file exists
-	char filename[]="D:/robotology/install/haarcascade_frontalface_alt.xml";
+	//char filename[]="D:/robotology/install/haarcascade_frontalface_alt.xml";
 
 
 	//// LB NEEDS FIXING -> CHECK FOR FILE!!!!!
@@ -128,9 +136,9 @@ int main(int argc, char** argv)
 	//	return 0;
 	//}
 
-	face_cascade.load(filename);
+	//face_cascade.load(filename);
 
-	//face_cascade.load("/home/icub/Downloads/facetracker/faceTracking/haarcascade_frontalface_alt.xml");
+	face_cascade.load("/home/icub/Downloads/facetracker/faceTracking/haarcascade_frontalface_alt.xml");
 	while(true)
 	{
 		inCount = faceTrack.getInputCount();
@@ -138,7 +146,7 @@ int main(int argc, char** argv)
 		if(inCount == 0 || outCount == 0)
 		{
 			cout << "Awaiting input and output connections" << endl;
-			Sleep(pollTime);
+			//Sleep(pollTime);
 		}
 		else
 		{
@@ -153,37 +161,42 @@ int main(int argc, char** argv)
 					count = 0;
 					step = yarpImage->getRowSize() + yarpImage->getPadding();
 					Mat captureFrameRaw(yarpImage->height(),yarpImage->width(),CV_8UC3,yarpImage->getRawImage(),step);
-					cout << "Got here 0" << endl;
 					cvtColor(captureFrameRaw,captureFrameBGR,CV_RGB2BGR);
+					
+                    // Get height and width of original image
+                    //cout << "Height " << yarpImage->height() << "Width " << yarpImage->width() << endl;
+                    int height = yarpImage->height();
+                    int width = yarpImage->width();
+					
 					captureFrameGPU.upload(captureFrameBGR);
 					cv::gpu::cvtColor(captureFrameGPU,grayscaleFrameGPU,CV_BGR2GRAY);
 					cv::gpu::equalizeHist(grayscaleFrameGPU,grayscaleFrameGPU);
 						
 					noFaces = face_cascade.detectMultiScale(grayscaleFrameGPU,objBufGPU,1.2,5,Size(30,30));
-					cout << "Got here 1" << endl;
+
+					// LB addition here....
+					// Detect skin and overlay face extracted region once detected
+					Mat skinImage;
+					skinImage = skinDetect(captureFrameBGR, displayFaces);
+					// Display skin image if on
+					//if(displayFaces) imshow("Skin only",skinImage);
 
 					if(noFaces != 0)
 					{
 
-						captureFrameBGR.copyTo(captureFrameRect);
+						
 						cout << noFaces << endl;
-						cout << "Got here 2" << endl;
-						// LB addition here....
-						// As face has been detected.... Detect skin and overlay face extracted region
-						Mat skinImage;
-						skinImage = skinDetect(captureFrameRect, displayFaces);
-						// Display skin image if on
-						if(displayFaces) imshow("Skin only",skinImage);
-
-						captureFrameRect=skinImage;
-						cout << "Got here 3" << endl;
+                        // copy in last skin image
+						captureFrameRect=skinImage.clone();
 						std::vector<cv::Mat> faceVec;
-							
+						std::vector<cv::Mat> faceVecSkin;
+						
 						noFaces = 1;
 
 						Mat vecSizes = Mat::zeros(noFaces,1,CV_16UC1);
 						Mat allFaces(faceSize,1,CV_8UC3,count);
-
+                        Mat allFacesSkin(faceSize,1,CV_8UC3,count);
+                        
 						objBufGPU.colRange(0,noFaces).download(vectArr);
 
 						Rect* facesNew = vectArr.ptr<Rect>();
@@ -221,6 +234,27 @@ int main(int argc, char** argv)
 								centrey = centrey_old;
 								facesOld.push_back(facesNew[i]);
 							}
+                            
+                            // LB - expand rectangle using additional pixels in boxScaleFactor
+                            if (boxScaleFactor != 0)
+                            {
+                            facesOld[i].x=facesOld[i].x-boxScaleFactor;
+                            facesOld[i].y=facesOld[i].y-boxScaleFactor;
+                            facesOld[i].width=facesOld[i].width+(boxScaleFactor*2);
+                            facesOld[i].height=facesOld[i].height+(boxScaleFactor*2);
+                            // LB - Check the extra sizes are not outside the original image size
+                            // WARNING -> MIGHT produce distortions -> could reject image instead...
+                            facesOld[i]=checkRoiInImage(captureFrameRaw, facesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
+                            
+                            //if (facesOld[i].x<0) facesOld[i].x=0;
+                            //if (facesOld[i].y<0) facesOld[i].y=0;
+                            //if ((facesOld[i].width+facesOld[i].x)>width) facesOld[i].width=width-facesOld[i].x;
+                            //if ((facesOld[i].height+facesOld[i].y)>height) facesOld[i].height=height-facesOld[i].y;
+                            
+                            //cout << "Img Height " << yarpImage->height() << "Img Width " << yarpImage->width() << endl;
+                            //cout << "x " << facesOld[i].x << "y " << facesOld[i].y << endl;
+                            //cout << "Roi Height " << facesOld[i].height << "Roi Width " << facesOld[i].width << endl;
+                            }
 
 							vecSizes.at<unsigned short>(i) = facesOld[i].width;
 
@@ -265,24 +299,47 @@ int main(int argc, char** argv)
 						{
 							if(facesOld[i].area() != 0)
 							{
+							    // Standard image facedetector, take original image
 								Mat temp = captureFrameBGR.operator()(facesOld[i]).clone();
 								resize(temp,temp,Size(faceSize,faceSize));
 								faceVec.push_back(temp);
+								// LB processed skin segmented data
+								Mat temp2 = skinImage.operator()(facesOld[i]).clone();
+								resize(temp2,temp2,Size(faceSize,faceSize));
+								faceVecSkin.push_back(temp2);
+								
 							}
 						}
-						hconcat(faceVec,allFaces);
-						//faceVec.~vector();
-
+						//hconcat(faceVec,allFaces); // LB original code -> segmented face from original data
+						hconcat(faceVec,allFaces);					
+                        hconcat(faceVecSkin,allFacesSkin);
+                        
 						if( displayFaces )
 						{
 							imshow("faces",allFaces);
+							imshow("faces Skin",allFacesSkin);
 //							imshow("wholeImage",captureFrameRect);
 						}
 
-//							CVtoYarp(allFaces,faceImages);
-
-
+                        // LB: Test Ellipse extraction of face....
+                        //int ttt=segmentEllipse(skinImage);
+                        Mat faceSegmented=segmentEllipse(allFaces,allFacesSkin,displayFaces); 
+                        //cout << "Is face seg empty: " <<  faceSegmented.empty() << endl;
+                        //LB Check face was found!
+                        if (!faceSegmented.empty())
+                        {
+                        // Resize to standard
+                        resize(faceSegmented,faceSegmented,Size(faceSize,faceSize));
+                        CVtoYarp(faceSegmented,faceImages);
+                        imageOut.write();
+                        cout << "Sending face to output port" << endl;
+                        }
+                        else
+                        {
+                        cout << " Face segmentation unsuccessful" << endl;
+                        }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////			
+
 /*
 						int segX1 = 1;
 						int segY1 = 1;
@@ -303,8 +360,8 @@ int main(int argc, char** argv)
 						imshow("Segmented image", foreground);
 */
 ///////////////////////////////////////////////////////////////////////////////////////////////////////			
-
-						CVtoYarp(allFaces,faceImages);
+//						CVtoYarp(faceSegmented,faceImages);
+						//CVtoYarp(allFaces,faceImages); //LB original
 
 
 //							syncPort.write(syncBottleOut, syncBottleIn);
@@ -313,7 +370,7 @@ int main(int argc, char** argv)
 //                            if( syncBottleIn.toString().c_str() == "sam_ready" )
 //							{
 //								cout << "SENDING IMAGE TO SAM_PYTHON" << endl;
-						imageOut.write();
+//						imageOut.write();
 //							}
 
 //                            syncBottleIn->clear();
