@@ -1,5 +1,5 @@
 
-#include "skinDetector.cpp"
+#include "skinDetector.h"
 
 skinDetector::skinDetector()
 {

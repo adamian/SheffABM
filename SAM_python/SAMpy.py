@@ -102,7 +102,7 @@ class SAMpy:
         self.speakStatusOutBottle.addString("stat")
 
         print "Waiting for connection with imageDataInputPort..."
-        while( not(yarp.Network.isConnected("/faceTrackerImg:o","/sam/imageData:i")) ):
+        while( not(yarp.Network.isConnected("/visionDriver/image:o","/sam/imageData:i")) ):
             pass
 
 #""""""""""""""""

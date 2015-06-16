@@ -7,7 +7,7 @@ using namespace std;
 using std::cout;
 
 
-class skinDetector:
+class skinDetector
 {
     private:
         bool singleRegionChoice; // On = Find single largest region of skin
@@ -23,5 +23,4 @@ class skinDetector:
         ~skinDetector();
         Mat detect(Mat, bool);
         Mat cannySegmentation(Mat, int);
-}
-
+};

@@ -25,7 +25,7 @@ using namespace std;
 using namespace cv::gpu;
 
 
-class visionUtils:
+class visionUtils
 {
     private:
         Mat srcImage;
@@ -38,8 +38,8 @@ class visionUtils:
     public:
         visionUtils();
         ~visionUtils();
-        convertCvToYarp(Mat , ImageOf<PixelRgb> &);
-        Rect checkRoiInImage(Mat src, Rect roi);
-        Mat segmentEllipse(Mat, Mat, bool)
-}
+        void convertCvToYarp(cv::Mat MatImage, ImageOf<PixelRgb> &yarpImage);
+        Rect checkRoiInImage(Mat, Rect);
+        Mat segmentEllipse(Mat, Mat, bool);
+};
 

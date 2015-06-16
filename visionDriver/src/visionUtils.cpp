@@ -9,7 +9,7 @@ visionUtils::~visionUtils()
 {
 }
 
-void visionUtils::convertCvToYarp(Mat MatImage, ImageOf<PixelRgb> & yarpImage)
+void visionUtils::convertCvToYarp(cv::Mat MatImage, ImageOf<PixelRgb> & yarpImage)
 {
 	IplImage* IPLfromMat = new IplImage(MatImage);
 

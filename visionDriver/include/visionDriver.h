@@ -67,12 +67,12 @@ class visionDriver: public RFModule
     	int inCount;
     	int outCount;
 
-		Mat vectArr;
-        Mat captureFrame_cpu;
-        Mat captureFrame_cpuRect;		
-		cv::gpu::GpuMat captureFrame;
-        cv::gpu::GpuMat grayscaleFrame;
-        cv::gpu::GpuMat objBuf;
+	Mat vectArr;
+        Mat captureFrameBGR;
+        Mat captureFrameRect;		
+	cv::gpu::GpuMat captureFrameGPU;
+        cv::gpu::GpuMat grayscaleFrameGPU;
+        cv::gpu::GpuMat objBufGPU;
 
 		int step;
         int maxSize;

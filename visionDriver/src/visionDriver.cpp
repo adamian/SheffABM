@@ -4,10 +4,7 @@
 
 visionDriver::visionDriver()
 {
-	poll = 500;
 	displayFaces = false;
-	pollTime = 500; //wait delay in ms 500 = 0.5s
-
     utilsObj = new visionUtils();
     detectorObj = new skinDetector();
 }
@@ -36,15 +33,15 @@ bool visionDriver::updateModule()
 		    //cvCvtColor((IplImage*)yarpImage->getIplImage(), cvImage, CV_RGB2BGR);
 		    count = 0;
 		    step = yarpImage->getRowSize() + yarpImage->getPadding();
-		    Mat captureFrame_cpuBayer(yarpImage->height(),yarpImage->width(),CV_8UC3,yarpImage->getRawImage(),step);
-			cvtColor(captureFrameRaw,captureFrameBGR,CV_RGB2BGR);
+		    Mat captureFrameRaw(yarpImage->height(),yarpImage->width(),CV_8UC3,yarpImage->getRawImage(),step);
+		    cvtColor(captureFrameRaw,captureFrameBGR,CV_RGB2BGR);
 
-            int height = yarpImage->height();
-            int width = yarpImage->width();
+                    int height = yarpImage->height();
+                    int width = yarpImage->width();
 			
-			captureFrameGPU.upload(captureFrameBGR);
-			cv::gpu::cvtColor(captureFrameGPU,grayscaleFrameGPU,CV_BGR2GRAY);
-			cv::gpu::equalizeHist(grayscaleFrameGPU,grayscaleFrameGPU);
+		    captureFrameGPU.upload(captureFrameBGR);
+		    cv::gpu::cvtColor(captureFrameGPU,grayscaleFrameGPU,CV_BGR2GRAY);
+		    cv::gpu::equalizeHist(grayscaleFrameGPU,grayscaleFrameGPU);
 
 /*
 		    if(format_int == 0)
@@ -62,7 +59,7 @@ bool visionDriver::updateModule()
 		    cv::gpu::equalizeHist(grayscaleFrame,grayscaleFrame);
 */
 		
-		    noFaces = face_cascade.detectMultiScale(grayscaleFrame,objBuf,1.2,5,Size(30,30));
+		    noFaces = face_cascade.detectMultiScale(grayscaleFrameGPU,objBufGPU,1.2,5,Size(30,30));
 
 			Mat skinImage;
 			skinImage = detectorObj->detect(captureFrameBGR, displayFaces);
@@ -128,7 +125,7 @@ bool visionDriver::updateModule()
                         facesOld[i].height=facesOld[i].height+(boxScaleFactor*2);
                         // LB - Check the extra sizes are not outside the original image size
                         // WARNING -> MIGHT produce distortions -> could reject image instead...
-                        facesOld[i]=checkRoiInImage(captureFrameRaw, facesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
+                        facesOld[i]=utilsObj->checkRoiInImage(captureFrameRaw, facesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
                     }
 
 					vecSizes.at<unsigned short>(i) = facesOld[i].width;
@@ -142,10 +139,7 @@ bool visionDriver::updateModule()
 					//required for rectangle faces in full image view
 					Point pt1(facesOld[i].x + facesOld[i].width, facesOld[i].y + facesOld[i].height);
 					Point pt2(facesOld[i].x, facesOld[i].y);
-							
-					//Point pt1(facesOld[i].x + facesOld[i].width - 100, facesOld[i].y + facesOld[i].height - 100);
-					//Point pt2(facesOld[i].x + 100, facesOld[i].y + 100);
-							
+								
 					rectangle(captureFrameRect,pt1,pt2,cvScalar(0,255,0,0),1,8,0); 
 						
 					int base = (i*3);
@@ -199,7 +193,7 @@ bool visionDriver::updateModule()
 
                 // LB: Test Ellipse extraction of face....
                 //int ttt=segmentEllipse(skinImage);
-                Mat faceSegmented=segmentEllipse(allFaces,allFacesSkin,displayFaces); 
+                Mat faceSegmented=utilsObj->segmentEllipse(allFaces,allFacesSkin,displayFaces); 
                 //cout << "Is face seg empty: " <<  faceSegmented.empty() << endl;
                 //LB Check face was found!
                 if (!faceSegmented.empty())
@@ -216,122 +210,11 @@ bool visionDriver::updateModule()
                 }
 			}
 
-/*
-			    captureFrame_cpu.copyTo(captureFrame_cpuRect);
-			    cout << noFaces << endl;
-			    std::vector<cv::Mat> faceVec;
-			
-			    noFaces = 1;
-
-			    Mat vecSizes = cv::Mat::zeros(noFaces,1,CV_16UC1);
-			    Mat allFaces(faceSize,1,CV_8UC3,count);
-
-			    objBuf.colRange(0,noFaces).download(vectArr);
-
-			    Rect* facesNew = vectArr.ptr<Rect>();
-			    yarp::sig::Vector& posOutput = targetPort.prepare();
-			    posOutput.resize(noFaces*3); //each face in the list has a number id, x centre and y centre
-
-			    ImageOf<PixelRgb>& faceImages = imageOut.prepare();
-
-			    for(int i = 0; i<noFaces; i++)
-			    {
-				    int numel = facesOld.size();
-				    if(i < numel)
-				    {
-					    centrex = facesNew[i].x;
-					    centrey = facesNew[i].y;
-					
-					    centrex_old = facesOld[i].x;
-					    centrey_old = facesOld[i].y;
-
-					    d = (centrex_old - centrex) + (centrey_old- centrey);
-					    d = abs(d);
-
-					    if(d > 10)
-					    {
-						    centrex_old = facesOld[i].x;
-						    centrey_old = facesOld[i].y;
-						    facesOld[i] = facesNew[i];
-					    }
-				    }		
-				    else
-				    {
-					    centrex_old = facesNew[i].x;
-					    centrey_old = facesNew[i].y;
-					    centrex = centrex_old;
-					    centrey = centrey_old;
-					    facesOld.push_back(facesNew[i]);
-				    }
-
-				    vecSizes.at<unsigned short>(i) = facesOld[i].width;
-
-				    if(facesOld[i].width > maxSize)
-				    {
-					    maxSize = facesOld[i].width;
-					    biggestFace = i;
-				    }
-				
-				    //required for rectangle faces in full image view
-				    Point pt1(facesOld[i].x + facesOld[i].width, facesOld[i].y + facesOld[i].height);
-				    Point pt2(facesOld[i].x, facesOld[i].y);
-					
-				    cv::rectangle(captureFrame_cpuRect,pt1,pt2,cvScalar(0,255,0,0),1,8,0); 
-				
-				    int base = (i*3);
-				    posOutput[base] = i;
-				    posOutput[base+1] = centrex;
-				    posOutput[base+2] = centrey;
-
-
-				    if( i == 0 )
-				    {
-					    Bottle posGazeOutput;
-					    posGazeOutput.clear();
-					    posGazeOutput.addString("left");
-					    posGazeOutput.addDouble(centrex);
-					    posGazeOutput.addDouble(centrey);
-					    posGazeOutput.addDouble(1.0);
-
-					    gazePort.write(posGazeOutput);
-				    }
-
-			    }
-			    Mat indices;
-			    cv::sortIdx(vecSizes, indices, cv::SORT_EVERY_COLUMN | cv::SORT_DESCENDING);
-			
-			    for(int i = 0; i<noFaces; i++)
-			    {
-				    if(facesOld[i].area() != 0)
-				    {
-					    Mat temp = captureFrame_cpu.operator()(facesOld[i]).clone();
-					    cv::resize(temp,temp,Size(faceSize,faceSize));
-					    faceVec.push_back(temp);
-				    }
-			    }
-			    hconcat(faceVec,allFaces);
-			    //faceVec.~vector();
-
-			    if( displayFaces )
-			    {
-				    cv::imshow("faces",allFaces);
-			    }
-
-
-			    CVtoYarp(allFaces,faceImages);
-
-			    imageOut.write();
-
-            }
-*/
 
 		    targetPort.write();
 		    waitKey(1);
 	    }
     }
-
-    if( displayFaces )
-	    cv::imshow("wholeImage",captureFrame_cpuRect);
 
     return true;
 }
