@@ -4,7 +4,7 @@
 
 visionDriver::visionDriver()
 {
-	displayFaces = false;
+	displayFaces = true;
     utilsObj = new visionUtils();
     detectorObj = new skinDetector();
 }
@@ -62,7 +62,8 @@ bool visionDriver::updateModule()
 		    noFaces = face_cascade.detectMultiScale(grayscaleFrameGPU,objBufGPU,1.2,5,Size(30,30));
 
 			Mat skinImage;
-			skinImage = detectorObj->detect(captureFrameBGR, displayFaces);
+			Mat skinMask;
+			skinImage = detectorObj->detect(captureFrameBGR, displayFaces, &skinMask);
 		
 		    if(noFaces != 0)
 		    {
@@ -142,6 +143,10 @@ bool visionDriver::updateModule()
 								
 					rectangle(captureFrameRect,pt1,pt2,cvScalar(0,255,0,0),1,8,0); 
 						
+					// TESTING -> draw over face in skin mask...
+					rectangle(skinMask,pt1,pt2,cvScalar(0,0,0,0),-1,8,0); 	
+					imshow("Skin_mask_noface",skinMask);
+						
 					int base = (i*3);
 					posOutput[base] = i;
 					posOutput[base+1] = centrex;
@@ -196,6 +201,7 @@ bool visionDriver::updateModule()
                 Mat faceSegmented=utilsObj->segmentEllipse(allFaces,allFacesSkin,displayFaces); 
                 //cout << "Is face seg empty: " <<  faceSegmented.empty() << endl;
                 //LB Check face was found!
+
                 if (!faceSegmented.empty())
                 {
                     // Resize to standard

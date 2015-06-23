@@ -15,7 +15,7 @@ skinDetector::~skinDetector()
 {
 }
 
-Mat skinDetector::detect(Mat captureframe, bool verboseSelect)
+Mat skinDetector::detect(Mat captureframe, bool verboseSelect, Mat *skinMask)
 {
 	verboseOutput=verboseSelect;
 	//if (argc>=1) frame = argv[1]);
@@ -63,19 +63,20 @@ Mat skinDetector::detect(Mat captureframe, bool verboseSelect)
 	//GaussianBlur(frame_gray, frame_gray, Size((imgBlurPixels*2)+1,(imgBlurPixels*2)+1), 1, 1);
 	GaussianBlur(frame_gray, frame_gray, Size(imgBlurPixels,imgBlurPixels), 1, 1);
 	// Select single largest region from image, if singleRegionChoice is selected (1)
+	
 	if (singleRegionChoice)
 	{
-		frame_gray = cannySegmentation(frame_gray, -1);
+		*skinMask = cannySegmentation(frame_gray, -1);
 	}
 	else // Detect each separate block and remove blobs smaller than a few pixels
 	{
-		frame_gray = cannySegmentation(frame_gray, minPixelSize);
+		*skinMask = cannySegmentation(frame_gray, minPixelSize);
 	}
 
-	
+
 	// Just return skin
 	Mat frame_skin;
-	captureframe.copyTo(frame_skin,frame_gray);  // Copy captureframe data to frame_skin, using mask from frame_ttt
+	captureframe.copyTo(frame_skin,*skinMask);  // Copy captureframe data to frame_skin, using mask from frame_ttt
 	// Resize image to original before return
 	resize(frame_skin,frame_skin,s);
 	if (verboseOutput)	imshow("Skin segmented",frame_skin);

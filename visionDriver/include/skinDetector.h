@@ -21,6 +21,6 @@ class skinDetector
     public:
         skinDetector();
         ~skinDetector();
-        Mat detect(Mat, bool);
+        Mat detect(Mat, bool, Mat *);
         Mat cannySegmentation(Mat, int);
 };

@@ -107,11 +107,26 @@ Mat visionUtils::segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces)
 
     /// Draw contours + hull results
     Mat drawingHull = Mat::zeros( src_gray.size(), CV_8UC3 );
+    
+    //Check minimum contour size and find largest....
+    int largest_area=-1;
+    int largest_contour_index=0;
+    
     for( int i = 0; i< contours.size(); i++ )
     {
         Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
         drawContours( drawingHull, contours, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
         drawContours( drawingHull, hull, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
+        if( contours[i].size() > minContourSize )
+        { 
+            double a=contourArea( contours[i],false);  //  Find the area of contour
+            if(a>largest_area)
+            {
+                largest_area=a;
+                largest_contour_index=i;  
+
+            }
+        }
     }
 
     if (displayFaces)
@@ -119,7 +134,7 @@ Mat visionUtils::segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces)
         namedWindow( "Contour Convex Hull", CV_WINDOW_AUTOSIZE );
         imshow( "Contour Convex Hull", drawingHull );
     }
-
+/*
     /// Find the rotated rectangles and ellipses for each contour
     vector<RotatedRect> minRect( contours.size() );
     vector<RotatedRect> minEllipse( contours.size() );
@@ -167,19 +182,7 @@ Mat visionUtils::segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces)
         namedWindow( "Contours", CV_WINDOW_AUTOSIZE );
         imshow( "Contours", drawing );
     }
-  // Extract region taken by largest ellipse, as binary mask
-  //Mat srcEllipse = Mat::zeros( srcImage.size(), CV_8UC3 );
-  //Mat temp = Mat::zeros( srcImage.size(), CV_8UC1 );
-  //ellipse( temp, minEllipse[largest_contour_index], Scalar(255), -1, 8 );
-  //srcImage.copyTo(srcEllipse,temp);  // Copy captureframe data to frame_skin, using mask from frame_ttt
-  
-  // Cut down image using box around ellipse / roatedRect
-  // LB Crap
-  //Point2f rect_points[4]; minRect[largest_contour_index].points( rect_points );
-  //vector<Point> points;
-  //for( int j = 0; j < 4; j++ )
-  //  points.push_back(rect_points[j]);
-  //boundRect=boundingRect(points);
+*/
   
   //// ############### Selected Hull contour to use -> ignoring ellipse etc
   // Check if hull found successfully... if not ABORT
