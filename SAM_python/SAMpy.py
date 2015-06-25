@@ -43,7 +43,10 @@ class SAMpy:
 #
 #Outputs: None
 #""""""""""""""""
-    def __init__(self, isYarpRunning = False, imgH = 200, imgW = 200, imgHNew = 200, imgWNew = 200):
+    def __init__(self, isYarpRunning = False, imgH = 200, imgW = 200, imgHNew = 200, imgWNew = 200, inputImagePort="/visionDriver/image:o"):
+        
+        self.inputImagePort=inputImagePort
+        
         self.SAMObject=ABM.LFM()        
         self.imgHeight = imgH
         self.imgWidth = imgW
@@ -101,8 +104,9 @@ class SAMpy:
         self.speakStatusPort.open("/sam/speakStatus:i")
         self.speakStatusOutBottle.addString("stat")
 
-        print "Waiting for connection with imageDataInputPort..."
-        while( not(yarp.Network.isConnected("/visionDriver/image:o","/sam/imageData:i")) ):
+        #print "Waiting for connection with imageDataInputPort..."
+        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
+            print "Waiting for connection with imageDataInputPort..."
             pass
 
 #""""""""""""""""

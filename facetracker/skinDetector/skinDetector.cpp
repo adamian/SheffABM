@@ -2,7 +2,7 @@
 #include <yarp/sig/all.h>
 #include <yarp/os/all.h>
 #include <yarp/dev/all.h>
-#include <opencv2\opencv.hpp>
+#include <opencv2/opencv.hpp>
 
 using namespace yarp::os;
 using namespace yarp::sig;
@@ -43,7 +43,10 @@ int main(int argc, char** argv)
 	int imgMorphPixels=3; //7, 9; // Number pixels to do morphing over Erode dilate etc....
 	
 	// 1st Argument, Choose method Adaptive threshold =0 (default) or Binary = 1 
-	if (argc>=1) singleRegionChoice = int(argv[1]);
+	if (argc>=1)
+	{
+		if (argv[1]=="1") singleRegionChoice=true;
+	}
 
 	if(argc >= 4)
 	{

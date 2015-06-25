@@ -150,9 +150,16 @@ int main(int argc, char** argv)
 		
 		CascadeClassifier_GPU face_cascade;
 //		face_cascade.load("../haarcascade_frontalface_alt.xml");
+<<<<<<< Updated upstream
 //		face_cascade.load("/home/icub/Downloads/facetracker/faceTracking/haarcascade_frontalface_alt.xml");
 		face_cascade.load("D:/robotology/SheffABM/facetracker/bodyTracking/haarcascade_frontalface_alt.xml");
 
+=======
+		face_cascade.load("/home/icub/SheffABM/facetracker/faceTracking/haarcascade_frontalface_alt.xml");
+//		face_cascade.load("/home/icub/SheffABM/facetracker/faceTracking/haarcascade_upperbody.xml");//LB testing upper body
+		
+		cout << "loaded haar cascade xml" << endl;
+>>>>>>> Stashed changes
 		while(true)
 		{
 			inCount = faceTrack.getInputCount();

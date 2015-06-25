@@ -31,6 +31,8 @@ bool verboseOutput = true; // Turn on to show image processing steps
 
 bool useYarp = true; // Option to use yarp images or load from files
 
+
+
 int minPixelSize=2500; // Minimum pixel size for keeping skin regions!
 int imgBlurPixels=7;//7, 15; // Number of pixels to smooth over for final thresholding
 int imgMorphPixels=3; //7, 9; // Number pixels to do morphing over Erode dilate etc...
@@ -57,13 +59,11 @@ int main(int argc, char** argv)
 		std::string vectorOutPort;
 		std::string imageOutPort;
 		// 1st Argument, Choose method Adaptive threshold =0 (default) or Binary = 1 
-		if (argc>=1) singleRegionChoice = int(argv[1]);
-
-		if(argc >= 4)
+		if(argc >= 3)
 		{
-			imageInPort = argv[2];
-			vectorOutPort = argv[3];
-			imageOutPort = argv[4];
+			imageInPort = argv[1];
+			vectorOutPort = argv[2];
+			imageOutPort = argv[3];
 		}
 		else
 		{
@@ -71,6 +71,13 @@ int main(int argc, char** argv)
 			vectorOutPort = "/skeleVector:o";
 			imageOutPort = "/skeleImage:o";
 		}
+		
+		if (argc>=4)
+		{
+    		if (argv[4]=="1") singleRegionChoice=true;
+    		cout << "Using single region finder" << endl;
+        }
+
 
 		Network yarp;
 		BufferedPort< ImageOf<PixelRgb> > faceTrack;	
@@ -147,7 +154,8 @@ int main(int argc, char** argv)
 	}
 	else // If no yarp use picture from file...
 	{
-		Mat captureFrame = imread("D:/robotology/SheffABM/SkinData/Uriel_hands.png");
+		//Mat captureFrame = imread("D:/robotology/SheffABM/SkinData/Uriel_hands.png");
+		Mat captureFrame = imread("/home/icub/SheffABM/facetracker/testActionImages/Uriel_hands.png");
 		Mat frame = captureFrame.clone(); // done to allow easier commenting
 		// ### 1. skin detect (HSV & filter)		
 		// frame =	skinDetect(frame);

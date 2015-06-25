@@ -35,14 +35,14 @@ int main(int argc, char** argv)
 	int isGPUavailable;
 	int pollTime = 500; //wait delay in ms 500 = 0.5s
 
-	bool displayFaces = TRUE; // Select to show all output images.... There will be many!!!!
+	bool displayFaces = false; // Select to show all output images.... There will be many!!!!
 
 
-	if(argc >= 4)
+	if(argc >= 3)
 	{
-		imageInPort = argv[2];
-		vectorOutPort = argv[3];
-		imageOutPort = argv[4];
+		imageInPort = argv[1];
+		vectorOutPort = argv[2];
+		imageOutPort = argv[3];
 	}
 	else
 	{
@@ -135,9 +135,9 @@ int main(int argc, char** argv)
 	//}
 
 	//face_cascade.load(filename);
-	face_cascade.load("D:/robotology/install/haarcascade_frontalface_alt.xml");
+	//face_cascade.load("D:/robotology/install/haarcascade_frontalface_alt.xml");
 
-	//face_cascade.load("/home/icub/Downloads/facetracker/faceTracking/haarcascade_frontalface_alt.xml");
+	face_cascade.load("/home/icub/Downloads/facetracker/faceTracking/haarcascade_frontalface_alt.xml");
 
 
 	while(true)
