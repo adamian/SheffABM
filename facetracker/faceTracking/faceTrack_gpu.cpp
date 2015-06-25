@@ -28,7 +28,7 @@ int main(int argc, char** argv)
 	int isGPUavailable;
 	int poll = 500;
 
-	bool displayFaces = false;
+	bool displayFaces = true;
 
 	if(argc >= 5)
 	{
@@ -85,9 +85,15 @@ int main(int argc, char** argv)
 	}
 	else if(argc<4)
 	{
-		cout << "Not enough arguments. Must provide port name to the input" << endl;
-		cout << "and output ports and specify hardware used (\"CPU\" or \"GPU\")" << endl;
-		return -2;
+		hardware_int = 1; //GPU default
+		imageInPort = "/faceTrackerImg:i";
+		vectorOutPort = "/faceTracker:coordinatePort:o";
+		imageOutPort = "/faceTrackerImg:o";
+		cout << "Running default ports on GPU " << endl;
+		///faceTrackerImg:i /faceTracker:coordinatePort:o /faceTrackerImg:o GPU
+		//cout << "Not enough arguments. Must provide port name to the input" << endl;
+		//cout << "and output ports and specify hardware used (\"CPU\" or \"GPU\")" << endl;
+		//return -2;
 	}
 	
 	Network yarp;
@@ -96,7 +102,7 @@ int main(int argc, char** argv)
 	BufferedPort< ImageOf<PixelRgb> > imageOut;
 
 	Port gazePort;	//x and y position for gaze controller
-    Port syncPort;
+    //Port syncPort;
 
 	
 	bool inOpen = faceTrack.open(imageInPort.c_str());
@@ -104,12 +110,12 @@ int main(int argc, char** argv)
 	bool imageOutOpen = imageOut.open(imageOutPort.c_str());
 
 	bool gazeOut = gazePort.open("/gazePositionControl:o");
-	bool syncPortIn = syncPort.open("/faceTracker/syncPort:i");
+	//bool syncPortIn = syncPort.open("/faceTracker/syncPort:i");
 
-    Bottle syncBottleIn, syncBottleOut;
+    //Bottle syncBottleIn, syncBottleOut;
 
-	syncBottleOut.clear();
-	syncBottleOut.addString("stat");
+	//syncBottleOut.clear();
+	//syncBottleOut.addString("stat");
 
 	if(!inOpen | !outOpen | !imageOutOpen | !gazeOut )
 	{
@@ -144,7 +150,9 @@ int main(int argc, char** argv)
 		
 		CascadeClassifier_GPU face_cascade;
 //		face_cascade.load("../haarcascade_frontalface_alt.xml");
-		face_cascade.load("/home/icub/Downloads/facetracker/faceTracking/haarcascade_frontalface_alt.xml");
+//		face_cascade.load("/home/icub/Downloads/facetracker/faceTracking/haarcascade_frontalface_alt.xml");
+		face_cascade.load("D:/robotology/SheffABM/facetracker/bodyTracking/haarcascade_frontalface_alt.xml");
+
 		while(true)
 		{
 			inCount = faceTrack.getInputCount();
@@ -190,9 +198,11 @@ int main(int argc, char** argv)
 						
 						noFaces = face_cascade.detectMultiScale(grayscaleFrame,objBuf,1.2,5,Size(30,30));
 						
+						captureFrame_cpu.copyTo(captureFrame_cpuRect);
+						
 						if(noFaces != 0)
 						{
-							captureFrame_cpu.copyTo(captureFrame_cpuRect);
+							
 							cout << noFaces << endl;
 							std::vector<cv::Mat> faceVec;
 							
@@ -211,7 +221,7 @@ int main(int argc, char** argv)
 
 							for(int i = 0; i<noFaces; i++)
 							{
-								int numel = facesOld.size();
+								int numel = int(facesOld.size());
 								if(i < numel)
 								{
 									centrex = facesNew[i].x;
@@ -308,8 +318,8 @@ int main(int argc, char** argv)
 
 							if( displayFaces )
 							{
-								cv::imshow("faces",allFaces);
-//								cv::imshow("wholeImage",captureFrame_cpuRect);
+								if (noFaces>0) cv::imshow("faces",allFaces);
+								cv::imshow("wholeImage",captureFrame_cpuRect);
 							}
 
 //							CVtoYarp(allFaces,faceImages);
@@ -369,9 +379,6 @@ int main(int argc, char** argv)
 						waitKey(1);
 					}
 			}
-
-			if( displayFaces )
-				cv::imshow("wholeImage",captureFrame_cpuRect);
 
 		}
 	}
@@ -433,7 +440,7 @@ int main(int argc, char** argv)
 						cv::equalizeHist(grayscaleFrame,grayscaleFrame);
 
 						face_cascade.detectMultiScale(grayscaleFrame,faces,1.1,3,CV_HAAR_FIND_BIGGEST_OBJECT|CV_HAAR_SCALE_IMAGE,Size(30,30));
-						noFaces = faces.size();
+						noFaces = int(faces.size());
 
 						yarp::sig::Vector& output = targetPort.prepare();
 						output.resize(noFaces*3); //each face in the list has a number id, x centre and y centre

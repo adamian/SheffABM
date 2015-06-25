@@ -26,10 +26,10 @@ void thin(Mat& img,
           bool destair=false);
 
 
-bool singleRegionChoice = 0; // On = Find single largest region of skin
-bool verboseOutput = 1; // Turn on to show image processing steps
+bool singleRegionChoice = false; // On = Find single largest region of skin
+bool verboseOutput = true; // Turn on to show image processing steps
 
-bool useYarp = 1; // Option to use yarp images or load from files
+bool useYarp = true; // Option to use yarp images or load from files
 
 int minPixelSize=2500; // Minimum pixel size for keeping skin regions!
 int imgBlurPixels=7;//7, 15; // Number of pixels to smooth over for final thresholding
@@ -67,9 +67,9 @@ int main(int argc, char** argv)
 		}
 		else
 		{
-			imageInPort = "/skinImage:i";
-			vectorOutPort = "/skinVector:o";
-			imageOutPort = "/skinImage:o";
+			imageInPort = "/skeleImage:i";
+			vectorOutPort = "/skeleVector:o";
+			imageOutPort = "/skeleImage:o";
 		}
 
 		Network yarp;

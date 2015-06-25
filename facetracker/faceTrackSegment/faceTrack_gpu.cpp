@@ -1,6 +1,5 @@
 #include "faceTrack_gpu.h"
 #include <opencv2/opencv.hpp>
-#include <opencv2/highgui.hpp>
 #include <fstream>
 #include <iostream>
 //#include <windows.h>
@@ -47,13 +46,12 @@ int main(int argc, char** argv)
 	}
 	else
 	{
-		imageInPort = "/faceTrackerImg:i";
-		vectorOutPort = "/faceTracker:coordinatePort:o";
-		imageOutPort = "/faceTrackerImg:o";
+		imageInPort = "/faceImage:i";
+		vectorOutPort = "/faceVector:o";
+		imageOutPort = "/faceImage:o";
 	}  
 
-
-	isGPUavailable = cv::gpu::getCudaEnabledDeviceCount();
+	isGPUavailable = gpu::getCudaEnabledDeviceCount();
 
 	if (isGPUavailable == 0)
 	{
@@ -65,7 +63,7 @@ int main(int argc, char** argv)
 	else
 	{
 		
-		cv::gpu::getDevice();
+		gpu::getDevice();
 		cout << "Proceeding on GPU" << endl;
 	}
 
@@ -76,19 +74,19 @@ int main(int argc, char** argv)
 	BufferedPort< ImageOf<PixelRgb> > imageOut;
 
 	Port gazePort;	//x and y position for gaze controller
-    Port syncPort;
+    //Port syncPort;
 
 	bool inOpen = faceTrack.open(imageInPort.c_str());
 	bool outOpen = targetPort.open(vectorOutPort.c_str());
 	bool imageOutOpen = imageOut.open(imageOutPort.c_str());
 
 	bool gazeOut = gazePort.open("/gazePositionControl:o");
-	bool syncPortIn = syncPort.open("/faceTracker/syncPort:i");
+	//bool syncPortIn = syncPort.open("/faceTracker/syncPort:i");
 
-    Bottle syncBottleIn, syncBottleOut;
+    //Bottle syncBottleIn, syncBottleOut;
 
-	syncBottleOut.clear();
-	syncBottleOut.addString("stat");
+	//syncBottleOut.clear();
+	//syncBottleOut.addString("stat");
 
 	if(!inOpen | !outOpen | !imageOutOpen | !gazeOut )
 	{
@@ -100,7 +98,7 @@ int main(int argc, char** argv)
 	int outCount = faceTrack.getOutputCount();
 
 	Mat vectArr, captureFrameBGR,captureFrameRect;		
-	cv::gpu::GpuMat captureFrameGPU, grayscaleFrameGPU, objBufGPU;		
+	gpu::GpuMat captureFrameGPU, grayscaleFrameGPU, objBufGPU;		
 	int step = 0, maxSize = 0, biggestFace = 0, count = 0, noFaces;
 	int centrex, centrey, centrex_old, centrey_old, d;
 	bool inStatus = true;
@@ -116,7 +114,7 @@ int main(int argc, char** argv)
 	}	
 	
 
-	cv::gpu::CascadeClassifier_GPU face_cascade;
+	gpu::CascadeClassifier_GPU face_cascade;
 	// Check if file exists
 	//char filename[]="D:/robotology/install/haarcascade_frontalface_alt.xml";
 
@@ -137,8 +135,11 @@ int main(int argc, char** argv)
 	//}
 
 	//face_cascade.load(filename);
+	face_cascade.load("D:/robotology/install/haarcascade_frontalface_alt.xml");
 
-	face_cascade.load("/home/icub/Downloads/facetracker/faceTracking/haarcascade_frontalface_alt.xml");
+	//face_cascade.load("/home/icub/Downloads/facetracker/faceTracking/haarcascade_frontalface_alt.xml");
+
+
 	while(true)
 	{
 		inCount = faceTrack.getInputCount();

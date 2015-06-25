@@ -1,0 +1,83 @@
+<application>
+  <name>Action Detector</name>
+<!--  <module>
+    <name>webcamToYarp</name>
+    <parameters>/webcamOut</parameters>
+    <node>localhost</node>
+  </module> 
+  <module>
+    <name>faceTrack</name>
+    <parameters>/faceTrackerImg:i /faceTracker:coordinatePort:o /faceTrackerImg:o GPU</parameters>
+    <node>localhost</node>
+  </module> //-->
+  <module>
+    <name>bodyTrack</name>
+    <parameters>/bodyImage:i /bodyVector:o /bodyImage:o</parameters>
+    <node>localhost</node>
+    <stdio>localhost</stdio>
+  </module>
+  <module>
+    <name>faceTrackSeg</name>
+    <parameters>/faceImage:i /faceVector:o /faceImage:o</parameters>
+    <node>localhost</node>
+    <stdio>localhost</stdio>
+  </module>
+  <module>
+    <name>actionSkeleton</name>
+    <parameters>/skeleImage:i /skeleVector:o /skeleImage:o</parameters>
+    <node>localhost</node>
+    <stdio>localhost</stdio>
+  </module>
+  <module>
+  <name>skinDetector</name>
+    <parameters>/skinImage:i /skinVector:o /skinImage:o</parameters>
+    <node>localhost</node>
+    <stdio>localhost</stdio>
+  </module>
+  <module>
+  <name>yarpview</name>
+    <parameters>--name /skinImgView:i</parameters>
+    <node>localhost</node>
+  </module>
+  <module>
+  <name>yarp</name>
+    <parameters>read /readSkinInfo:i</parameters>
+    <node>localhost</node>
+  </module>
+<!-->  <module>
+    <name>yarp</name>
+    <parameters>read /readFaceInfo:i</parameters>
+    <node>localhost</node>
+  </module> //-->
+<!-->  <connection>
+    <from>/webcamOut</from>
+    <to>/skinImage:i</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/icub/cam/left</from>
+    <to>/faceTrackerImg:i</to>
+    <protocol>udp</protocol>
+  </connection>
+    <connection>
+    <from>/faceTracker:coordinatePort:o</from>
+    <to>/readFaceInfo:i</to>
+    <protocol>udp</protocol>
+  </connection> //-->
+  <connection>
+    <from>/faceImage:o</from>
+    <to>/skinImage:i</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/skinImage:o</from>
+    <to>/skinImgView:i</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/skinVector:o</from>
+    <to>/readSkinInfo:i</to>
+    <protocol>udp</protocol>
+  </connection>
+</application>
+
