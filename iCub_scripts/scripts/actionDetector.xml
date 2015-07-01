@@ -1,23 +1,33 @@
 <application>
   <name>Action Detector</name>
   <module>
+  <name>visionDriver</name>
+    <parameters>--from /home/icub/SheffABM/visionDriver/conf/config.ini</parameters>
+    <node>localhost</node>
+  </module>
+  <module>
     <name>bodyTrack</name>
     <parameters>/bodyImage:i /bodyVector:o /bodyImage:o</parameters>
     <node>localhost</node>
     <stdio>localhost</stdio>
   </module>
-  <module>
-    <name>faceTrackSeg</name>
+<!--  <module>
+    <name>visionDriver</name>
     <parameters>/faceImage:i /faceVector:o /faceImage:o</parameters>
     <node>localhost</node>
     <stdio>localhost</stdio>
-  </module>
+  </module> //-->
   <module>
     <name>actionSkeleton</name>
     <parameters>/skeleImage:i /skeleVector:o /skeleImage:o 0</parameters>
     <node>localhost</node>
     <stdio>localhost</stdio>
   </module>
+  <module>
+  <name>iSpeak</name>
+    <parameters>--package espeak --package_options "-ven+13 -p99 -s125"</parameters>
+    <node>icubsrv</node>
+  </module>    
   <module>
   <name>yarpview</name>
     <parameters>--name /faceView:i</parameters>
@@ -48,21 +58,44 @@
     <parameters>read /readSkeleInfo:i</parameters>
     <node>localhost</node>
   </module>  
-  <connection>
+<!-- Connections -->
+<!-- visionDriver //-->
+  <connection>  
     <from>/icub/cam/left</from>
-    <to>/faceImage:i</to>
+    <to>/visionDriver/image:i</to>
     <protocol>udp+recv.bayer+method.nearest+mjpeg</protocol>
-  </connection> 
+  </connection>
   <connection>
-    <from>/faceImage:o</from>
+    <from>/visionDriver/image:o</from>
     <to>/faceView:i</to>
     <protocol>udp</protocol>
   </connection>
   <connection>
-    <from>/faceVector:o</from>
+    <from>/visionDriver/image:o</from>
+    <to>/sam/imageData:i</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/visionDriver/vector:o</from>
     <to>/readFaceInfo:i</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/visionDriver/gaze:o</from>
+    <to>/iKinGazeCtrl/mono:i</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/sam/facePrediction:o</from>
+    <to>/iSpeak</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/sam/speakStatus:i</from>
+    <to>/iSpeak/rpc</to>
     <protocol>tcp</protocol>
-  </connection>  
+  </connection>
+<!-- BODY tracker, needs adding to visionDriver //-->
   <connection>
     <from>/icub/cam/left</from>
     <to>/bodyImage:i</to>
@@ -82,7 +115,8 @@
     <from>/bodyImage:o</from>
     <to>/skeleImage:i</to>
     <protocol>udp+mjpeg</protocol>
-  </connection> 
+  </connection>
+<!-- Skeletontracker, needs adding to visionDriver //-->
   <connection>
     <from>/skeleImage:o</from>
     <to>/skeleView:i</to>

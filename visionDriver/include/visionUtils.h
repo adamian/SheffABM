@@ -15,6 +15,8 @@
 #include <algorithm>
 
 
+#ifndef __VISIONUTILS_H__
+
 using namespace yarp::os;
 using namespace yarp::sig;
 using namespace yarp::sig::draw;
@@ -40,6 +42,11 @@ class visionUtils
         ~visionUtils();
         void convertCvToYarp(cv::Mat MatImage, ImageOf<PixelRgb> &yarpImage);
         Rect checkRoiInImage(Mat, Rect);
-        Mat segmentEllipse(Mat, Mat, bool);
+        Mat segmentEllipse(Mat, Mat, bool, Mat *);
+        Mat skeletonDetect(Mat, int, bool );
+        Mat segmentLineFit(Mat, int, bool);
+        Mat cannySegmentation(Mat, int, bool);
+//        bool compareContourAreas(std::vector<cv::Point> c1, std::vector<cv::Point> c2);
 };
 
+#endif  // __VISIONUTILS_H__

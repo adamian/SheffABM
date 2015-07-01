@@ -63,7 +63,7 @@ Rect visionUtils::checkRoiInImage(Mat src, Rect roi)
 }
 
 
-Mat visionUtils::segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces)
+Mat visionUtils::segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces, Mat *skinSegMaskInv)
 {
     RNG rng(12345); // for colour generation
 
@@ -134,56 +134,7 @@ Mat visionUtils::segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces)
         namedWindow( "Contour Convex Hull", CV_WINDOW_AUTOSIZE );
         imshow( "Contour Convex Hull", drawingHull );
     }
-/*
-    /// Find the rotated rectangles and ellipses for each contour
-    vector<RotatedRect> minRect( contours.size() );
-    vector<RotatedRect> minEllipse( contours.size() );
-    //vector<Rect> boundRect( contours.size() );
-    //Check minimum contour size and find largest....
-    int largest_area=-1;
-    int largest_contour_index=0;
- 
-    for( int i = 0; i < contours.size(); i++ )
-    { 
-        minRect[i] = minAreaRect( Mat(contours[i]) );
-        //boundRect[i] = boundingRect( Mat(contours[i]) );
-        if( contours[i].size() > minContourSize )
-        { 
-            double a=contourArea( contours[i],false);  //  Find the area of contour
-            minEllipse[i] = fitEllipse( Mat(contours[i]) );
-            if(a>largest_area)
-            {
-                largest_area=a;
-                largest_contour_index=i;                //Store the index of largest contour
-                //bounding_rect=boundingRect(contours[i]); // Find the bounding rectangle for biggest contour
-            }
-        }
-    }
 
-  /// Draw contours + rotated rects + ellipses
-  //Mat drawing = Mat::zeros( srcImage.size(), CV_8UC3 );
-  Mat drawing=srcImage.clone();
-  for( int i = 0; i< contours.size(); i++ )
-     {
-       Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
-       // contour
-       drawContours( drawing, contours, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
-       // ellipse
-       ellipse( drawing, minEllipse[i], color, 2, 8 );
-       // rotated rectangle
-       Point2f rect_points[4]; minRect[i].points( rect_points );
-       for( int j = 0; j < 4; j++ )
-          line( drawing, rect_points[j], rect_points[(j+1)%4], color, 1, 8 );
-     }
-
-  /// Show in a window
-    if (displayFaces)
-    {
-        namedWindow( "Contours", CV_WINDOW_AUTOSIZE );
-        imshow( "Contours", drawing );
-    }
-*/
-  
   //// ############### Selected Hull contour to use -> ignoring ellipse etc
   // Check if hull found successfully... if not ABORT
     if (hull.empty() )
@@ -193,8 +144,7 @@ Mat visionUtils::segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces)
         return (ttt);
     }
 
-    // Check area of hull and abort if neded
-          
+    // Check area of hull and abort if neded  
     double area0 = contourArea(hull[largest_contour_index]);
     vector<Point> approx;
     approxPolyDP(hull[largest_contour_index], approx, 5, true);
@@ -245,10 +195,15 @@ Mat visionUtils::segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces)
         /// Repeat boxing but for masked skin data (Hull)
         // Make binary mask using hull largest contour
         Mat srcSegSkin = Mat::zeros( srcImage.size(), CV_8UC3 );
-        Mat temp = Mat::zeros( srcImage.size(), CV_8UC1 );
-        drawContours( temp, hull, largest_contour_index, Scalar(255), -1, 8, vector<Vec4i>(), 0, Point() );
-        srcImage.copyTo(srcSegSkin,temp);  // Copy using mask from temp
+        Mat skinSegMask = Mat::zeros( srcImage.size(), CV_8UC1 );
+        drawContours( skinSegMask, hull, largest_contour_index, Scalar(255), -1, 8, vector<Vec4i>(), 0, Point() );
+        srcImage.copyTo(srcSegSkin,skinSegMask);  // Copy using mask from skinSegMask
         srcSegSkin=srcSegSkin(boundRect);
+        
+        // Make face blocking mask (face pix = 0)
+//        Mat skinSegMaskInvTemp = Scalar::all(255)-skinSegMask;
+        Mat skinSegMaskInvTemp = Mat::zeros( srcImage.size(), CV_8UC1 );
+        bitwise_not(skinSegMaskInvTemp,*skinSegMaskInv,skinSegMask);
 
         if (displayFaces)
         {
@@ -259,4 +214,234 @@ Mat visionUtils::segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces)
         return(srcSegSkin);
     }
 }
+
+Mat visionUtils::skeletonDetect(Mat captureFrame, int imgBlurPixels, bool displayFaces)
+{
+    // Alternative
+    // Mat& skelThinned=captureFrame.clone();
+    // thin(skelThinned,false,false,false);
+    // if (displayFaces) imshow("Skel erode",skelThinned);
+
+    threshold(captureFrame, captureFrame, 127, 255, THRESH_BINARY);
+    if (displayFaces) imshow("Skel in",captureFrame);
+    Mat skel(captureFrame.size(), CV_8UC1, Scalar(0));
+    Mat temp;
+    Mat eroded;
+ 
+    Mat element = getStructuringElement(MORPH_CROSS, Size(3, 3));
+ 
+    bool done;		
+    do
+    {
+	    erode(captureFrame, eroded, element);
+	    dilate(eroded, temp, element); // temp = open(captureFrame)
+	    subtract(captureFrame, temp, temp);
+	    bitwise_or(skel, temp, skel);
+	    eroded.copyTo(captureFrame);
+	    //cout << "Zero count: " << countNonZero(captureFrame) << endl;
+	    done = (countNonZero(captureFrame) == 0);
+    } while (!done);
+    if (displayFaces) imshow("Skel raw",skel);
+    // Blur to reduce noise
+    GaussianBlur(skel, skel, Size(imgBlurPixels,imgBlurPixels), 1, 1);
+    // Find contours use canny seg...
+    Mat skelCanny = segmentLineFit(skel, 30, displayFaces);
+
+    return skel;
+}
+
+//bool visionUtils::compareContourAreas(std::vector<cv::Point> contour1, std::vector<cv::Point> contour2 )
+bool compareContourAreas(std::vector<cv::Point> contour1, std::vector<cv::Point> contour2 )
+{
+    double i = fabs( contourArea(cv::Mat(contour1)) );
+    double j = fabs( contourArea(cv::Mat(contour2)) );
+    return ( i < j );
+}
+
+Mat visionUtils::segmentLineFit(Mat img0, int minPixelSize, bool displayFaces)
+{
+    // Segments items in gray image (img0)
+    // minPixelSize=
+    // -1, returns largest region only
+    // pixels, threshold for removing smaller regions, with less than minPixelSize pixels
+    // 0, returns all detected segments
+    RNG rng(12345);
+
+    
+    // apply your filter
+    //Canny(img0, img1, 100, 200, 3); //100, 200, 3);
+    
+    // LB: Zero pad image to remove edge effects when getting regions....	
+    int padPixels=20;
+    // Rect border added at start...
+    Rect tempRect;
+    tempRect.x=padPixels;
+    tempRect.y=padPixels;
+    tempRect.width=img0.cols;
+    tempRect.height=img0.rows;
+    Mat img1 = Mat::zeros(img0.rows+(padPixels*2), img0.cols+(padPixels*2), CV_8UC1);
+    img0.copyTo(img1(tempRect));
+
+    // find the contours
+    std::vector<std::vector<cv::Point> > contours;
+    vector<Vec4i> hierarchy;
+
+    findContours(img1, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+
+    // Mask for segmented region
+    Mat mask = Mat::zeros(img1.rows, img1.cols, CV_8UC3);
+
+    Mat returnMask = Mat::zeros(img1.rows, img1.cols, CV_8UC3);
+    
+    vector<double> areas(contours.size());
+
+    // Case for using minimum pixel size
+    Vec4f lines;
+    Scalar color;
+    
+    // sort contours
+    std::sort(contours.begin(), contours.end(), compareContourAreas);
+
+    // grab contours
+    //std::vector<cv::Point> firstContour = contours[contours.size()-1];
+    //std::vector<cv::Point> secondContour = contours[contours.size()-2];
+    
+    cout << "No of contours =" << contours.size() << endl;
+    
+    int maxIterations = 0;
+    
+    if( contours.size() > 0 )
+    {
+
+/*        if( contours.size()-2 > 0 )
+            maxIterations = contours.size()-2;
+        else
+            maxIterations = 0;
+*/
+
+        if( contours.size() >= 2 )
+            maxIterations = 2;
+        else
+            maxIterations = 1;    
+    
+//    for (int i = contours.size()-1; i > maxIterations; i--)
+    for (int j = 1; j < maxIterations+1; j++)
+    {
+        int i = contours.size()-j;
+	    if (contourArea(Mat(contours[i]))>minPixelSize)
+	    {
+		    color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+		    //drawContours(mask, contours, i, color, CV_FILLED);
+		    drawContours( mask, contours, i, color, 2, 8, hierarchy, 0, Point() );
+		    fitLine(Mat(contours[i]),lines,2,0,0.01,0.01);
+		    //lefty = int((-x*vy/vx) + y)
+		    //righty = int(((gray.shape[1]-x)*vy/vx)+y)
+		    int lefty = (-lines[2]*lines[1]/lines[0])+lines[3];
+		    int righty = ((mask.cols-lines[2])*lines[1]/lines[0])+lines[3];
+		    //line(mask,Point(mask.cols-1,righty),Point(0,lefty),color,2);
+
+
+		    // Find line limits....
+		    //x,y,w,h = cv2.boundingRect(cnt)
+		    //cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
+		    Rect boundingBox;
+		    boundingBox = boundingRect(Mat(contours[i]));
+		    // Start 
+		    //boundingBox.x;
+		    //boundingBox.x+boundingBox.width;
+		    int leftBoxy = ((boundingBox.x-lines[2])*lines[1]/lines[0])+lines[3];
+		    int rightBoxy = (((boundingBox.x+boundingBox.width)-lines[2])*lines[1]/lines[0])+lines[3];
+		    line(mask,Point((boundingBox.x+boundingBox.width)-1,rightBoxy),Point(boundingBox.x,leftBoxy),color,2);
+	    }
+    }
+    
+    
+    // normalize so imwrite(...)/imshow(...) shows the mask correctly!
+    normalize(mask.clone(), mask, 0.0, 255.0, CV_MINMAX, CV_8UC1);
+    // To Remove border added at start...    
+    returnMask=mask(tempRect);
+    
+    // show the images
+    if (displayFaces)	imshow("Seg line utils: Img in", img0);
+    if (displayFaces)	imshow("Seg line utils: Mask", returnMask);
+    if (displayFaces)	imshow("Seg line utils: Output", img1);
+    
+    }
+    
+
+    return returnMask;
+
+    //vector<Vec2f> lines;
+    //HoughLines(dst, lines, 1, CV_PI/180, 100, 0, 0 );
+
+}
+
+Mat visionUtils::cannySegmentation(Mat img0, int minPixelSize, bool displayFaces)
+{
+/*	// Segments items in gray image (img0)
+	// minPixelSize=
+	// -1, returns largest region only
+	// pixels, threshold for removing smaller regions, with less than minPixelSize pixels
+	// 0, returns all detected segments
+
+    // LB: Zero pad image to remove edge effects when getting regions....	
+    int padPixels=20;
+    // Rect border added at start...
+    Rect tempRect;
+    tempRect.x=padPixels;
+    tempRect.y=padPixels;
+    tempRect.width=img0.cols;
+    tempRect.height=img0.rows;
+    Mat img1 = Mat::zeros(img0.rows+(padPixels*2), img0.cols+(padPixels*2), CV_8UC1);
+    img0.copyTo(img1(tempRect));
+    
+	// apply your filter
+    Canny(img1, img1, 100, 200, 3); //100, 200, 3);
+
+    // find the contours
+    vector< vector<Point> > contours;
+    findContours(img1, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+
+    // Mask for segmented regiond
+    Mat mask = Mat::zeros(img1.rows, img1.cols, CV_8UC1);
+
+    vector<double> areas(contours.size());
+
+	if (minPixelSize==-1)
+	{ // Case of taking largest region
+		for(int i = 0; i < contours.size(); i++)
+			areas[i] = contourArea(Mat(contours[i]));
+		double max;
+		Point maxPosition;
+		minMaxLoc(Mat(areas),0,&max,0,&maxPosition);
+		drawContours(mask, contours, maxPosition.y, Scalar(1), CV_FILLED);
+	}
+	else
+	{ // Case for using minimum pixel size
+		for (int i = 0; i < contours.size(); i++)
+		{
+			if (contourArea(Mat(contours[i]))>minPixelSize)
+			drawContours(mask, contours, i, Scalar(1), CV_FILLED);
+
+		}
+	}
+    // normalize so imwrite(...)/imshow(...) shows the mask correctly!
+    normalize(mask.clone(), mask, 0.0, 255.0, CV_MINMAX, CV_8UC1);
+    
+    // Remove border added at start...
+    
+    Mat returnMask;
+    returnMask=mask(tempRect);
+    // show the images
+    if (displayFaces)	imshow("Canny: Img in", img0);
+    if (displayFaces)	imshow("Canny: Mask", returnMask);
+    if (displayFaces)	imshow("Canny Output", img1);
+    */
+    
+    Mat returnMask=img0;
+    
+    return returnMask;
+}
+
+
 

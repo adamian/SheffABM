@@ -24,7 +24,7 @@ import operator
 
 
 # Creates a SAMpy object
-mySAMpy = SAMpy(True, imgH = 400, imgW = 400, imgHNew = 200, imgWNew = 200,inputImagePort="/faceImage:o")#inputImagePort="/visionDriver/image:o")
+mySAMpy = SAMpy(True, imgH = 400, imgW = 400, imgHNew = 200, imgWNew = 200,inputImagePort="/visionDriver/image:o")
 
 # Specification of the experiment number
 experiment_number = 11

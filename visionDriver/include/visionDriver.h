@@ -36,20 +36,24 @@ class visionDriver: public RFModule
 	    string imageInPort;
 	    string vectorOutPort;
 	    string imageOutPort;
+	    //string skinMaskOutPort;
 	    string hardware;
 	    string format;
         string gazeOutPort;
         string syncPortConf;
-        string cascadeFile;
+        string faceCascadeFile;
+        string bodyCascadeFile;
 	    int format_int;
 	    int hardware_int;
 	    int isGPUavailable;
 	    int poll;
 	    bool displayFaces;
+	    bool displayBodies;
 
 	    BufferedPort< ImageOf<PixelRgb> > faceTrack;	
 	    BufferedPort< yarp::sig::Vector > targetPort;	//init output port
 	    BufferedPort< ImageOf<PixelRgb> > imageOut;
+	    //BufferedPort< ImageOf<PixelRgb> > skinMaskOut;
 
 	    Port gazePort;	//x and y position for gaze controller
         Port syncPort;
@@ -57,6 +61,7 @@ class visionDriver: public RFModule
 	    bool inOpen;
 	    bool outOpen;
 	    bool imageOutOpen;
+	    //bool skinMaskOutOpen;
 
 	    bool gazeOut;
 	    bool syncPortIn;
@@ -67,19 +72,25 @@ class visionDriver: public RFModule
     	int inCount;
     	int outCount;
 
-	Mat vectArr;
+
+    	Mat vectFaceArr;
+    	Mat vectBodyArr;
         Mat captureFrameBGR;
-        Mat captureFrameRect;		
+        Mat captureFrameFace;		
+        Mat captureFrameBody;		
 	cv::gpu::GpuMat captureFrameGPU;
         cv::gpu::GpuMat grayscaleFrameGPU;
-        cv::gpu::GpuMat objBufGPU;
+        cv::gpu::GpuMat objBufFaceGPU;
+        cv::gpu::GpuMat objBufBodyGPU;
 
 		int step;
         int maxSize;
         int biggestFace;
         int count;
         int noFaces;
+        int noBodies;
         int faceSize;
+        int bodySize;
 		int centrex;
         int centrey;
         int centrex_old;
@@ -88,9 +99,14 @@ class visionDriver: public RFModule
 		bool inStatus;
         int boxScaleFactor; //Additional pixels for box sizing
     	int pollTime;
+        int sagittalSplit;  // split person in left and right
+    	
+    	int imgBlurPixels; //blur pixels for gauss smoothing
 		std::vector< cv::Rect > facesOld;
+		std::vector< cv::Rect > bodiesOld;
 
     	CascadeClassifier_GPU face_cascade;
+    	CascadeClassifier_GPU body_cascade;
 
         visionUtils *utilsObj;
         skinDetector *detectorObj;

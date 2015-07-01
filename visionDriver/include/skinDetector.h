@@ -2,6 +2,8 @@
 #include <opencv/cv.h>
 #include <opencv2/highgui.hpp>
 
+//#include "visionUtils.h"
+
 using namespace cv;
 using namespace std;
 using std::cout;
@@ -17,6 +19,8 @@ class skinDetector
 
 	    int imgBlurPixels;//7, 15; // Number of pixels to smooth over for final thresholding
 	    int imgMorphPixels; //7, 9; // Number pixels to do morphing over Erode dilate etc....
+	    
+//	    visionUtils objUtils;
 
     public:
         skinDetector();

@@ -383,7 +383,15 @@ class SAMpy:
             print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.L[nn,:])]
             textStringOut=self.participant_index[int(self.L[nn,:])]
         if (vv.mean()<0.00012):
-            facePredictionBottle.addString("Hello " + textStringOut)
+            choice=numpy.random.randint(4)
+            if (choice==0):
+                 facePredictionBottle.addString("Hello " + textStringOut)
+            elif(choice==1):
+                 facePredictionBottle.addString("I am watching you " + textStringOut)
+            elif(choice==2):
+                 facePredictionBottle.addString(textStringOut + " could you move a little you are blocking my view of the outside")
+            else:
+                 facePredictionBottle.addString(textStringOut + " will you be my friend")                  
             # Otherwise ask for updated name... (TODO: add in updated name)
         else:
             facePredictionBottle.addString("I think you are " + textStringOut + " but I am not sure, please confirm?")        

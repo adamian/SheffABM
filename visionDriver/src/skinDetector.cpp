@@ -84,6 +84,7 @@ Mat skinDetector::detect(Mat captureframe, bool verboseSelect, Mat *skinMask)
 	waitKey(1);
 }
 
+
 Mat skinDetector::cannySegmentation(Mat img0, int minPixelSize)
 {
 	// Segments items in gray image (img0)
@@ -91,11 +92,20 @@ Mat skinDetector::cannySegmentation(Mat img0, int minPixelSize)
 	// -1, returns largest region only
 	// pixels, threshold for removing smaller regions, with less than minPixelSize pixels
 	// 0, returns all detected segments
-
-    Mat img1;
+	
+    // LB: Zero pad image to remove edge effects when getting regions....	
+    int padPixels=20;
+    // Rect border added at start...
+    Rect tempRect;
+    tempRect.x=padPixels;
+    tempRect.y=padPixels;
+    tempRect.width=img0.cols;
+    tempRect.height=img0.rows;
+    Mat img1 = Mat::zeros(img0.rows+(padPixels*2), img0.cols+(padPixels*2), CV_8UC1);
+    img0.copyTo(img1(tempRect));
     
 	// apply your filter
-    Canny(img0, img1, 100, 200, 3); //100, 200, 3);
+    Canny(img1, img1, 100, 200, 3); //100, 200, 3);
 
     // find the contours
     vector< vector<Point> > contours;
@@ -127,10 +137,18 @@ Mat skinDetector::cannySegmentation(Mat img0, int minPixelSize)
     // normalize so imwrite(...)/imshow(...) shows the mask correctly!
     normalize(mask.clone(), mask, 0.0, 255.0, CV_MINMAX, CV_8UC1);
 
+
+    Mat returnMask;
+    returnMask=mask(tempRect);
+    
+    
     // show the images
-    if (verboseOutput)	imshow("Canny: Img in", img0);
-    if (verboseOutput)	imshow("Canny: Mask", mask);
-    if (verboseOutput)	imshow("Canny Output", img1);
-    return mask;
+    if (verboseOutput)	imshow("Canny Skin: Img in", img0);
+    if (verboseOutput)	imshow("Canny Skin: Mask", returnMask);
+    if (verboseOutput)	imshow("Canny Skin: Output", img1);
+    
+
+    return returnMask;
 }
+
 

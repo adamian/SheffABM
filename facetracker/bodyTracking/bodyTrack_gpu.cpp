@@ -16,6 +16,8 @@ void CVtoYarp(cv::Mat MatImage, ImageOf<PixelRgb> & yarpImage);
 int boxScaleFactor = 0; //Additional pixels for box sizing
 
 int faceSize = 200; //pixel resize for face output
+int sagittalSplit = 0;  // split person in left and right
+
 
 int main(int argc, char** argv)
 {
@@ -251,7 +253,9 @@ int main(int argc, char** argv)
 						//Point pt2(facesOld[i].x + 100, facesOld[i].y + 100);
 							
 						rectangle(captureFrame_cpuRect,pt1,pt2,Scalar(0,255,0),1,8,0);
-						line(captureFrame_cpuRect,Point(int(facesOld[i].x+(facesOld[i].width/2)),0),Point(int(facesOld[i].x+(facesOld[i].width/2)),height),Scalar(0,0,255),1,8,0);
+						sagittalSplit = int(facesOld[i].x+(facesOld[i].width/2));
+						
+						line(captureFrame_cpuRect,Point(sagittalSplit,0),Point(sagittalSplit,height),Scalar(0,0,255),1,8,0);
 
 						int base = (i*3);
 						posOutput[base] = i;
