@@ -10,6 +10,9 @@ visionDriver::visionDriver()
 	displayBodies = true;
     utilsObj = new visionUtils();
     detectorObj = new skinDetector();
+    //Mat faceSegMaskInv;
+    faceSegFlag=false;
+    bodySegFlag=false;
 }
 
 visionDriver::~visionDriver()
@@ -20,10 +23,7 @@ bool visionDriver::updateModule()
 {
     inCount = faceTrack.getInputCount();
     outCount = targetPort.getOutputCount();
-    Rect currentFaceRect;
-    Mat faceSegMaskInv;
-    bool faceSegFlag;
-    
+
     if(inCount == 0 || outCount == 0)
     {
 	    cout << "Awaiting input and output connections" << endl;
@@ -73,12 +73,13 @@ bool visionDriver::updateModule()
 			Mat skinMask;
 			skinImage = detectorObj->detect(captureFrameBGR, displayFaces, &skinMask);
 
-		
+			captureFrameFace=captureFrameBGR.clone();
+			
 		    if(noFaces != 0)
 		    {
-			    cout << "Number of faces" << noFaces << endl;
+			    cout << "Number of faces " << noFaces << endl;
                 // copy in last skin image
-			    captureFrameFace=captureFrameBGR.clone();
+			    //captureFrameFace=captureFrameBGR.clone();
 			    std::vector<cv::Mat> faceVec;
 			    std::vector<cv::Mat> faceVecSkin;
 			
@@ -151,8 +152,14 @@ bool visionDriver::updateModule()
 					//required for rectangle faces in full image view
 					Point pt1(facesOld[i].x + facesOld[i].width, facesOld[i].y + facesOld[i].height);
 					Point pt2(facesOld[i].x, facesOld[i].y);
-					rectangle(captureFrameFace,pt1,pt2,cvScalar(0,255,0,0),1,8,0); 				
-						
+					rectangle(captureFrameFace,pt1,pt2,Scalar(0,255,0),1,8,0); 	
+					
+					cout << "Got here 1" << endl;		
+					// Text face onto picture
+					captureFrameFace=addText("Face", captureFrameFace, pt1, Scalar(0,255,0));
+					
+					cout << "Got here 2" << endl;	
+					
 					int base = (i*3);
 					posOutput[base] = i;
 					posOutput[base+1] = centrex;
@@ -200,7 +207,7 @@ bool visionDriver::updateModule()
 				{
 					imshow("faces",allFaces);
 					imshow("faces Skin",allFacesSkin);
-					imshow("Face seg", captureFrameFace);
+					//imshow("Face seg", captureFrameFace);
 				}
 
                 // LB: Segment out just face....
@@ -223,13 +230,10 @@ bool visionDriver::updateModule()
 //                    imshow("facemaskinv",faceSegMaskInv);
                     faceSegMaskInv = faceSegTemp.clone();
                     faceSegFlag=true;
-
-
-
                 }
                 else
-                {
-                    faceSegFlag=false;
+                {//LB warning disabled flag here!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    //faceSegFlag=false;
                     cout << " Face segmentation unsuccessful" << endl;
                 }                           
 			}
@@ -297,89 +301,49 @@ bool visionDriver::updateModule()
 					}
 */                            
         
-                    int i = 0;
+                int i = 0;
 //                    bodiesOld.empty();
 //                    bodiesOld.push_back(bodiesNew[i]);
 //                    bodiesOld[i] = bodiesNew[i];
-                    
-                    // LB - expand rectangle using additional pixels in boxScaleFactor
-                    if (boxScaleFactor != 0)
-                    {
-                        bodiesOld[i].x=bodiesOld[i].x-boxScaleFactor;
-                        bodiesOld[i].y=bodiesOld[i].y-boxScaleFactor;
-                        bodiesOld[i].width=bodiesOld[i].width+(boxScaleFactor*2);
-                        bodiesOld[i].height=bodiesOld[i].height+(boxScaleFactor*2);
-                        // LB - Check the extra sizes are not outside the original image size
-                        // WARNING -> MIGHT produce distortions -> could reject image instead...
-                        bodiesOld[i]=utilsObj->checkRoiInImage(captureFrameRaw, bodiesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
-                    }
+                
+                // LB - expand rectangle using additional pixels in boxScaleFactor
+                if (boxScaleFactor != 0)
+                {
+                    bodiesOld[i].x=bodiesOld[i].x-boxScaleFactor;
+                    bodiesOld[i].y=bodiesOld[i].y-boxScaleFactor;
+                    bodiesOld[i].width=bodiesOld[i].width+(boxScaleFactor*2);
+                    bodiesOld[i].height=bodiesOld[i].height+(boxScaleFactor*2);
+                    // LB - Check the extra sizes are not outside the original image size
+                    // WARNING -> MIGHT produce distortions -> could reject image instead...
+                    bodiesOld[i]=utilsObj->checkRoiInImage(captureFrameRaw, bodiesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
+                }
 
-//                    cout << "DEBUG 2" << endl;
+//              cout << "DEBUG 2" << endl;
+				vecSizes.at<unsigned short>(i) = bodiesOld[i].width;
+							
+				//required for rectangle faces in full image view
+				Point pt1(bodiesOld[i].x + bodiesOld[i].width, bodiesOld[i].y + bodiesOld[i].height);
+				Point pt2(bodiesOld[i].x, bodiesOld[i].y);
 
-					vecSizes.at<unsigned short>(i) = bodiesOld[i].width;
-
-//                    cout << "DEBUG PRE FACE 1" << endl;
-
-/*					if(bodiesOld[i].width > maxSize)
-					{
-						maxSize = bodiesOld[i].width;
-						biggestFace = i;
-					}
-*/								
-					//required for rectangle faces in full image view
-					Point pt1(bodiesOld[i].x + bodiesOld[i].width, bodiesOld[i].y + bodiesOld[i].height);
-					Point pt2(bodiesOld[i].x, bodiesOld[i].y);
-
-//                    cout << "DEBUG PRE FACE 2" << endl;
-								
-					rectangle(captureFrameBody,pt1,pt2,cvScalar(0,255,0,0),1,8,0); 
-//                    cout << "DEBUG PRE FACE 3" << endl;
-					sagittalSplit = int(bodiesOld[i].x+(bodiesOld[i].width/2));				
-//                    cout << "DEBUG PRE FACE 4" << endl;
-					line(captureFrameBody,Point(sagittalSplit,0),Point(sagittalSplit,height),Scalar(0,0,255),1,8,0);
-					
-//                    cout << "DEBUG PRE FACE 5" << endl;
-
-                    if (!faceSegMaskInv.empty() && faceSegFlag)
-                    {
-                        cout << "DEBUG FACE 1" << endl;
-					    cout << skinMask.size() << " inv mask " << faceSegMaskInv.size() << endl;
-					    cout << currentFaceRect.width << " h=" << currentFaceRect.height << endl;
-					    Mat rectMaskFaceOnly = Mat::zeros( skinMask.size(), CV_8UC1 );
-                        cout << "DEBUG FACE 2" << endl;
-					    Mat skinMaskNoFace;
-					    Mat faceSegTemp;
-					    resize(faceSegMaskInv,faceSegTemp,Size(currentFaceRect.height,currentFaceRect.width));
-                        cout << "DEBUG FACE 3" << endl;
-					    faceSegTemp.copyTo(rectMaskFaceOnly(currentFaceRect) );
-                        cout << "DEBUG FACE 4" << endl;
-    			        //threshold(rectMaskFaceOnly, rectMaskFaceOnly, 127, 255, THRESH_BINARY);
-					    bitwise_not(rectMaskFaceOnly,rectMaskFaceOnly);
-                        cout << "DEBUG FACE 5" << endl;
-    			        //threshold(skinMask, skinMask, 127, 255, THRESH_BINARY);
-    			        bitwise_and(rectMaskFaceOnly,skinMask,skinMaskNoFace);
-                        cout << "DEBUG FACE 6" << endl;
-    			        
-    			        if( displayBodies )
-    			        {
-                            cout << "DEBUG FACE 7" << endl;
-					        imshow("Rectangle mask face",rectMaskFaceOnly);
-                            cout << "DEBUG FACE 8" << endl;
-					        //imshow("skinmask face",skinMask);
-                            imshow("skinmask no face :)",skinMaskNoFace);					    
-                            cout << "DEBUG FACE 9" << endl;
-                        }
-                        
-                        // FOR SKELETON TRACKING draw over face in skin mask... facemask
-					    //rectangle(skinMask,pt1,pt2,cvScalar(0,0,0,0),-1,8,0); 	
-					    //if (displayBodies) imshow("Skin_mask_noface",skinMask);
-					    // Send to skeleton fn here
-					    Mat skelMat;
-                        cout << "DEBUG FACE 10" << endl;
-					    skelMat=utilsObj->skeletonDetect(skinMaskNoFace, imgBlurPixels, displayBodies);
-                        cout << "DEBUG FACE 11" << endl;
-                    }
-
+//              cout << "DEBUG PRE FACE 2" << endl;
+							
+				rectangle(captureFrameBody,pt1,pt2,Scalar(0,255,0),1,8,0); 
+//              cout << "DEBUG PRE FACE 3" << endl;
+				sagittalSplit = int(bodiesOld[i].x+(bodiesOld[i].width/2));				
+//              cout << "DEBUG PRE FACE 4" << endl;
+				line(captureFrameBody,Point(sagittalSplit,0),Point(sagittalSplit,height),Scalar(0,0,255),1,8,0);
+				
+				// LB: CHECK sagittal split is sensible -> around the middle of the image (15%of either side).....
+				// if not reject segmentation....
+				
+				if (sagittalSplit > skinMask.cols*0.85 || sagittalSplit < skinMask.cols*0.15)
+				{
+				cout << " Sagittal split line is too near edge -> rejecting body detection" << endl;
+				bodySegFlag=false;
+				}else{
+				bodySegFlag=true;				
+				}
+				
 				Mat indices;
 				sortIdx(vecSizes, indices, SORT_EVERY_COLUMN | SORT_DESCENDING);
 					
@@ -410,31 +374,99 @@ bool visionDriver::updateModule()
                         
 				if( displayBodies )
 				{
-					imshow("bodies",allBodies);
-					imshow("bodies Skin",allBodiesSkin);
+					//imshow("bodies",allBodies);
+					//imshow("bodies Skin",allBodiesSkin);
 					imshow("Body seg",captureFrameBody);
 				}
-
-/*
-                // LB: Segment out just face....
-                Mat bodySegmented=utilsObj->segmentEllipse(allBodies,allBodiesSkin,displayBodies,); 
-                //cout << "Is face seg empty: " <<  faceSegmented.empty() << endl;
-                //LB Check face was found!
-                if (!bodySegmented.empty())
-                {
-                    // Resize to standard
-                    resize(bodySegmented,bodySegmented,Size(bodySize,bodySize));
-//                    utilsObj->convertCvToYarp(bodySegmented,bodyImages);
-                    imageOut.write();
-                    cout << "Sending body to output port" << endl;
-                }
-                else
-                {
-                    cout << "Body segmentation unsuccessful" << endl;
-                }
-*/
 			}
-        		    
+			
+		// #####################################################################
+        // LB: Skeleton segmentation to find arms for action detection
+        // ########################################################
+        
+        //cout << "Faceseg empty?: " << faceSegMaskInv.empty() << "face  seg flag" << faceSegFlag << " body seg flag:" << bodySegFlag << endl;
+        
+            if (!faceSegMaskInv.empty() && faceSegFlag && bodySegFlag)
+            {
+                cout << "DEBUG FACE 1" << endl;
+			    cout << skinMask.size() << " inv mask " << faceSegMaskInv.size() << endl;
+			    cout << currentFaceRect.width << " h=" << currentFaceRect.height << endl;
+			    Mat rectMaskFaceOnly = Mat::zeros( skinMask.size(), CV_8UC1 );
+                cout << "DEBUG FACE 2" << endl;
+			    Mat skinMaskNoFace;
+			    Mat faceSegTemp;
+			    resize(faceSegMaskInv,faceSegTemp,Size(currentFaceRect.height,currentFaceRect.width));
+                cout << "DEBUG FACE 3" << endl;
+			    faceSegTemp.copyTo(rectMaskFaceOnly(currentFaceRect) );
+                cout << "DEBUG FACE 4" << endl;
+		        //threshold(rectMaskFaceOnly, rectMaskFaceOnly, 127, 255, THRESH_BINARY);
+			    bitwise_not(rectMaskFaceOnly,rectMaskFaceOnly);
+                cout << "DEBUG FACE 5" << endl;
+		        //threshold(skinMask, skinMask, 127, 255, THRESH_BINARY);
+		        bitwise_and(rectMaskFaceOnly,skinMask,skinMaskNoFace);
+                cout << "DEBUG FACE 6" << endl;
+		        
+		        if( displayBodies )
+		        {
+                    cout << "DEBUG FACE 7" << endl;
+			        imshow("Rectangle mask face",rectMaskFaceOnly);
+                    cout << "DEBUG FACE 8" << endl;
+			        //imshow("skinmask face",skinMask);
+                    imshow("skinmask no face :)",skinMaskNoFace);					    
+                    cout << "DEBUG FACE 9" << endl;
+                }
+                
+                // FOR SKELETON TRACKING draw over face in skin mask... facemask
+			    //rectangle(skinMask,pt1,pt2,cvScalar(0,0,0,0),-1,8,0); 	
+			    //if (displayBodies) imshow("Skin_mask_noface",skinMask);
+			    // Send to skeleton fn here
+			    Mat skelMat;
+                cout << "DEBUG FACE 10" << endl;
+			    //skelMat=utilsObj->skeletonDetect(skinMaskNoFace, imgBlurPixels, displayBodies);
+			    vector<Rect> boundingBox = utilsObj->getArmRects(skinMaskNoFace, imgBlurPixels, &skelMat, displayFaces);
+			    
+			    
+                int leftArmInd=0;
+                int rightArmInd=0;
+                int testInXMost=0;
+                int testInXLeast=captureFrameFace.cols;
+			    
+			    for (int i = 0; i<boundingBox.size(); i++)
+			    {
+			        if (boundingBox[i].x<testInXLeast){
+			        testInXLeast=boundingBox[i].x;
+			        rightArmInd=i;
+			        }
+			        
+			        if (boundingBox[i].x>testInXMost){
+			        testInXMost=boundingBox[i].x;
+			        leftArmInd=i;
+			        }			        
+
+                 }
+
+		    	//Draw left arm rectangles
+				Point pt1(boundingBox[leftArmInd].x + boundingBox[leftArmInd].width, boundingBox[leftArmInd].y + boundingBox[leftArmInd].height);
+				Point pt2(boundingBox[leftArmInd].x, boundingBox[leftArmInd].y);
+				rectangle(captureFrameFace,pt1,pt2,Scalar(0,0,255),1,8,0);
+				captureFrameFace=addText("Left arm", captureFrameFace, pt1, Scalar(0,0,255));
+			    
+		    
+		    	//Draw right arm rectangles
+				Point pt3(boundingBox[rightArmInd].x + boundingBox[rightArmInd].width, boundingBox[rightArmInd].y + boundingBox[rightArmInd].height);
+				Point pt4(boundingBox[rightArmInd].x, boundingBox[rightArmInd].y);
+				rectangle(captureFrameFace,pt3,pt4,Scalar(0,0,255),1,8,0);
+				captureFrameFace=addText("Right arm", captureFrameFace, pt3, Scalar(0,0,255));			    
+			    
+			    
+			    if( displayFaces )
+				{
+					imshow("Face & Arms", captureFrameFace);
+				}
+			    
+                cout << "DEBUG FACE 11" << endl;
+            }
+					    
 	    }
     }
 
@@ -537,4 +569,42 @@ double visionDriver::getPeriod()
 {
     return 0.1;
 }
+
+
+Mat visionDriver::addText(string textIn, Mat img, Point textLocation, Scalar colour)
+{
+
+//string text = "Funny text inside the box";
+int fontFace = FONT_HERSHEY_SIMPLEX;
+double fontScale = 1;
+int thickness = 2;
+
+//Mat img(600, 800, CV_8UC3, Scalar::all(0));
+
+int baseline=0;
+Size textSize = getTextSize(textIn, fontFace,
+                            fontScale, thickness, &baseline);
+baseline += thickness;
+
+// center the textIn
+Point textOrg(textLocation.x - (textSize.width/2),textLocation.y + (textSize.height/2));
+
+cout << "Got here 3" << endl;	
+// draw the box
+//rectangle(img, textOrg + Point(0, baseline),
+//          textOrg + Point(textSize.width, -textSize.height),
+//          Scalar(0,0,255));
+// ... and the baseline first
+//line(img, textOrg + Point(0, thickness),
+//     textOrg + Point(textSize.width, thickness),
+//     Scalar(0, 0, 255));
+//
+// then put the textIn itself
+putText(img, textIn, textOrg, fontFace, fontScale,
+        colour, thickness, 8);
+
+return img;
+}
+
+
 

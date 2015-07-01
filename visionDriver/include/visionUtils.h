@@ -14,9 +14,6 @@
 #include <math.h>
 #include <algorithm>
 
-
-#ifndef __VISIONUTILS_H__
-
 using namespace yarp::os;
 using namespace yarp::sig;
 using namespace yarp::sig::draw;
@@ -44,9 +41,9 @@ class visionUtils
         Rect checkRoiInImage(Mat, Rect);
         Mat segmentEllipse(Mat, Mat, bool, Mat *);
         Mat skeletonDetect(Mat, int, bool );
-        Mat segmentLineFit(Mat, int, bool);
+        vector<Rect> segmentLineBoxFit(Mat, int, int, Mat *, bool);
         Mat cannySegmentation(Mat, int, bool);
+        vector<Rect> getArmRects(Mat, int, Mat *, bool);
 //        bool compareContourAreas(std::vector<cv::Point> c1, std::vector<cv::Point> c2);
 };
 
-#endif  // __VISIONUTILS_H__

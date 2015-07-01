@@ -50,6 +50,14 @@ class visionDriver: public RFModule
 	    bool displayFaces;
 	    bool displayBodies;
 
+        
+        Rect currentFaceRect;
+        Mat faceSegMaskInv;
+        
+        // FLags
+        bool faceSegFlag;
+        bool bodySegFlag;
+
 	    BufferedPort< ImageOf<PixelRgb> > faceTrack;	
 	    BufferedPort< yarp::sig::Vector > targetPort;	//init output port
 	    BufferedPort< ImageOf<PixelRgb> > imageOut;
@@ -78,7 +86,7 @@ class visionDriver: public RFModule
         Mat captureFrameBGR;
         Mat captureFrameFace;		
         Mat captureFrameBody;		
-	cv::gpu::GpuMat captureFrameGPU;
+	    cv::gpu::GpuMat captureFrameGPU;
         cv::gpu::GpuMat grayscaleFrameGPU;
         cv::gpu::GpuMat objBufFaceGPU;
         cv::gpu::GpuMat objBufBodyGPU;
@@ -119,5 +127,6 @@ class visionDriver: public RFModule
         bool interruptModule();
         double getPeriod();
         void CVtoYarp(Mat, ImageOf<PixelRgb> &);
+        Mat addText(string, Mat, Point, Scalar);
 };
 

@@ -215,16 +215,26 @@ Mat visionUtils::segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces, 
     }
 }
 
-Mat visionUtils::skeletonDetect(Mat captureFrame, int imgBlurPixels, bool displayFaces)
+vector<Rect> visionUtils::getArmRects(Mat threshImage, int imgBlurPixels, Mat *skelSeg, bool displayFaces)
 {
-    // Alternative
-    // Mat& skelThinned=captureFrame.clone();
-    // thin(skelThinned,false,false,false);
-    // if (displayFaces) imshow("Skel erode",skelThinned);
+    // Find skeleton in bw image (using skin seg)
+    // Returns sekleton segmented image and bouding boxes around segmented regions
+    Mat skel = skeletonDetect(threshImage, imgBlurPixels, displayFaces);
+    // Find contours use canny seg...
+    // 2= no of segments = 2 arms
+    vector<Rect> boundingBox = segmentLineBoxFit(skel, 100, 2, skelSeg , displayFaces);
+    // Return bouding boxes around arms....
+    return boundingBox;
+}
 
-    threshold(captureFrame, captureFrame, 127, 255, THRESH_BINARY);
-    if (displayFaces) imshow("Skel in",captureFrame);
-    Mat skel(captureFrame.size(), CV_8UC1, Scalar(0));
+
+Mat visionUtils::skeletonDetect(Mat threshImage, int imgBlurPixels, bool displayFaces)
+{
+    // Finds skeleton of white objects in black image, using erode / dilate morph operations
+
+    threshold(threshImage, threshImage, 127, 255, THRESH_BINARY);
+    if (displayFaces) imshow("Skel in",threshImage);
+    Mat skel(threshImage.size(), CV_8UC1, Scalar(0));
     Mat temp;
     Mat eroded;
  
@@ -233,20 +243,17 @@ Mat visionUtils::skeletonDetect(Mat captureFrame, int imgBlurPixels, bool displa
     bool done;		
     do
     {
-	    erode(captureFrame, eroded, element);
-	    dilate(eroded, temp, element); // temp = open(captureFrame)
-	    subtract(captureFrame, temp, temp);
+	    erode(threshImage, eroded, element);
+	    dilate(eroded, temp, element); // temp = open(threshImage)
+	    subtract(threshImage, temp, temp);
 	    bitwise_or(skel, temp, skel);
-	    eroded.copyTo(captureFrame);
-	    //cout << "Zero count: " << countNonZero(captureFrame) << endl;
-	    done = (countNonZero(captureFrame) == 0);
+	    eroded.copyTo(threshImage);
+	    //cout << "Zero count: " << countNonZero(threshImage) << endl;
+	    done = (countNonZero(threshImage) == 0);
     } while (!done);
     if (displayFaces) imshow("Skel raw",skel);
     // Blur to reduce noise
     GaussianBlur(skel, skel, Size(imgBlurPixels,imgBlurPixels), 1, 1);
-    // Find contours use canny seg...
-    Mat skelCanny = segmentLineFit(skel, 30, displayFaces);
-
     return skel;
 }
 
@@ -258,13 +265,12 @@ bool compareContourAreas(std::vector<cv::Point> contour1, std::vector<cv::Point>
     return ( i < j );
 }
 
-Mat visionUtils::segmentLineFit(Mat img0, int minPixelSize, bool displayFaces)
+vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxSegments, Mat *returnMask, bool displayFaces)
 {
     // Segments items in gray image (img0)
-    // minPixelSize=
-    // -1, returns largest region only
-    // pixels, threshold for removing smaller regions, with less than minPixelSize pixels
+    // minPixelSize= pixels, threshold for removing smaller regions, with less than minPixelSize pixels
     // 0, returns all detected segments
+    // maxSegments = max no segments to return 
     RNG rng(12345);
 
     
@@ -291,7 +297,7 @@ Mat visionUtils::segmentLineFit(Mat img0, int minPixelSize, bool displayFaces)
     // Mask for segmented region
     Mat mask = Mat::zeros(img1.rows, img1.cols, CV_8UC3);
 
-    Mat returnMask = Mat::zeros(img1.rows, img1.cols, CV_8UC3);
+    //Mat returnMask = Mat::zeros(img1.rows, img1.cols, CV_8UC3);
     
     vector<double> areas(contours.size());
 
@@ -307,69 +313,71 @@ Mat visionUtils::segmentLineFit(Mat img0, int minPixelSize, bool displayFaces)
     //std::vector<cv::Point> secondContour = contours[contours.size()-2];
     
     cout << "No of contours =" << contours.size() << endl;
-    
+    vector<Rect> boundingBox;
     int maxIterations = 0;
     
     if( contours.size() > 0 )
     {
-
-/*        if( contours.size()-2 > 0 )
-            maxIterations = contours.size()-2;
-        else
-            maxIterations = 0;
-*/
-
-        if( contours.size() >= 2 )
-            maxIterations = 2;
+        if( contours.size() >= maxSegments )
+            maxIterations = maxSegments;
         else
             maxIterations = 1;    
     
-//    for (int i = contours.size()-1; i > maxIterations; i--)
-    for (int j = 1; j < maxIterations+1; j++)
-    {
-        int i = contours.size()-j;
-	    if (contourArea(Mat(contours[i]))>minPixelSize)
-	    {
-		    color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
-		    //drawContours(mask, contours, i, color, CV_FILLED);
-		    drawContours( mask, contours, i, color, 2, 8, hierarchy, 0, Point() );
-		    fitLine(Mat(contours[i]),lines,2,0,0.01,0.01);
-		    //lefty = int((-x*vy/vx) + y)
-		    //righty = int(((gray.shape[1]-x)*vy/vx)+y)
-		    int lefty = (-lines[2]*lines[1]/lines[0])+lines[3];
-		    int righty = ((mask.cols-lines[2])*lines[1]/lines[0])+lines[3];
-		    //line(mask,Point(mask.cols-1,righty),Point(0,lefty),color,2);
+
+        int contourCount=0;
+        
+        for (int j = 1; j < maxIterations+1; j++)
+        {
+            int i = contours.size()-j;
+	        if (contourArea(Mat(contours[i]))>minPixelSize)
+	        {
+		        color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+		        //drawContours(mask, contours, i, color, CV_FILLED);
+		        drawContours( mask, contours, i, color, 2, 8, hierarchy, 0, Point() );
+		        fitLine(Mat(contours[i]),lines,2,0,0.01,0.01);
+		        //lefty = int((-x*vy/vx) + y)
+		        //righty = int(((gray.shape[1]-x)*vy/vx)+y)
+		        int lefty = (-lines[2]*lines[1]/lines[0])+lines[3];
+		        int righty = ((mask.cols-lines[2])*lines[1]/lines[0])+lines[3];
+		        //line(mask,Point(mask.cols-1,righty),Point(0,lefty),color,2);
 
 
-		    // Find line limits....
-		    //x,y,w,h = cv2.boundingRect(cnt)
-		    //cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
-		    Rect boundingBox;
-		    boundingBox = boundingRect(Mat(contours[i]));
-		    // Start 
-		    //boundingBox.x;
-		    //boundingBox.x+boundingBox.width;
-		    int leftBoxy = ((boundingBox.x-lines[2])*lines[1]/lines[0])+lines[3];
-		    int rightBoxy = (((boundingBox.x+boundingBox.width)-lines[2])*lines[1]/lines[0])+lines[3];
-		    line(mask,Point((boundingBox.x+boundingBox.width)-1,rightBoxy),Point(boundingBox.x,leftBoxy),color,2);
-	    }
+		        // Find line limits....
+		        //x,y,w,h = cv2.boundingRect(cnt)
+		        //cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
+		        //padPixels
+		        boundingBox.push_back(boundingRect(Mat(contours[i])));
+		        // Start 
+		        //boundingBox[contourCount].x;
+		        //boundingBox[contourCount].x+boundingBox[contourCount].width;
+		        int leftBoxy = ((boundingBox[contourCount].x-lines[2])*lines[1]/lines[0])+lines[3];
+		        int rightBoxy = (((boundingBox[contourCount].x+boundingBox[contourCount].width)-lines[2])*lines[1]/lines[0])+lines[3];
+		        line(mask,Point((boundingBox[contourCount].x+boundingBox[contourCount].width)-1,rightBoxy),Point(boundingBox[contourCount].x,leftBoxy),color,2);
+		        boundingBox[contourCount].x=boundingBox[contourCount].x-padPixels;
+		        boundingBox[contourCount].y=boundingBox[contourCount].y-padPixels;
+		        
+		        boundingBox[contourCount]=checkRoiInImage(img0, boundingBox[contourCount]);
+		        
+		        contourCount++;
+	        }
+        }
+    
+        // normalize so imwrite(...)/imshow(...) shows the mask correctly!
+        normalize(mask.clone(), mask, 0.0, 255.0, CV_MINMAX, CV_8UC1);
+        // To Remove border added at start...    
+        *returnMask=mask(tempRect);
+        
+
+        
+        //mask(tempRect).copyTo(*returnMask);
+        
+        // show the images
+        if (displayFaces)	imshow("Seg line utils: Img in", img0);
+        if (displayFaces)	imshow("Seg line utils: Mask", *returnMask);
+        if (displayFaces)	imshow("Seg line utils: Output", img1);
+    
     }
-    
-    
-    // normalize so imwrite(...)/imshow(...) shows the mask correctly!
-    normalize(mask.clone(), mask, 0.0, 255.0, CV_MINMAX, CV_8UC1);
-    // To Remove border added at start...    
-    returnMask=mask(tempRect);
-    
-    // show the images
-    if (displayFaces)	imshow("Seg line utils: Img in", img0);
-    if (displayFaces)	imshow("Seg line utils: Mask", returnMask);
-    if (displayFaces)	imshow("Seg line utils: Output", img1);
-    
-    }
-    
-
-    return returnMask;
+    return boundingBox;
 
     //vector<Vec2f> lines;
     //HoughLines(dst, lines, 1, CV_PI/180, 100, 0, 0 );
