@@ -150,11 +150,8 @@ bool visionDriver::updateModule()
 					Point pt2(facesOld[i].x, facesOld[i].y);
 					rectangle(captureFrameFace,pt1,pt2,Scalar(0,255,0),1,8,0); 	
 					
-					cout << "Got here 1" << endl;		
 					// Text face onto picture
 					captureFrameFace=addText("Face", captureFrameFace, pt1, Scalar(0,255,0));
-					
-					cout << "Got here 2" << endl;	
 					
 					int base = (i*3);
 					posOutput[base] = i;
@@ -260,9 +257,6 @@ bool visionDriver::updateModule()
 //				Rect* bodiesNew = vectBodyArr.ptr<Rect>();
 				Rect* bodiesOld = vectBodyArr.ptr<Rect>();
 
-//                cout << "DEBUG 1" << endl;
-
-
 //				ImageOf<PixelRgb>& bodyImages = imageOut.prepare();
 
 /*
@@ -314,19 +308,14 @@ bool visionDriver::updateModule()
                     bodiesOld[i]=utilsObj->checkRoiInImage(captureFrameRaw, bodiesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
                 }
 
-//              cout << "DEBUG 2" << endl;
 				vecSizes.at<unsigned short>(i) = bodiesOld[i].width;
 							
 				//required for rectangle faces in full image view
 				Point pt1(bodiesOld[i].x + bodiesOld[i].width, bodiesOld[i].y + bodiesOld[i].height);
 				Point pt2(bodiesOld[i].x, bodiesOld[i].y);
 
-//              cout << "DEBUG PRE FACE 2" << endl;
-							
 				rectangle(captureFrameBody,pt1,pt2,Scalar(0,255,0),1,8,0); 
-//              cout << "DEBUG PRE FACE 3" << endl;
 				sagittalSplit = int(bodiesOld[i].x+(bodiesOld[i].width/2));				
-//              cout << "DEBUG PRE FACE 4" << endl;
 				line(captureFrameBody,Point(sagittalSplit,0),Point(sagittalSplit,height),Scalar(0,0,255),1,8,0);
 				
 				// LB: CHECK sagittal split is sensible -> around the middle of the image (15%of either side).....
@@ -343,9 +332,6 @@ bool visionDriver::updateModule()
 				Mat indices;
 				sortIdx(vecSizes, indices, SORT_EVERY_COLUMN | SORT_DESCENDING);
 					
-//                cout << "DEBUG 3" << endl;
-
-
 				for(int i = 0; i<noBodies; i++)
 				{
 					if(bodiesOld[i].area() != 0)
@@ -361,8 +347,6 @@ bool visionDriver::updateModule()
 						
 					}
 				}
-
-//                cout << "DEBUG 4" << endl;
 
 				//hconcat(faceVec,allFaces); // LB original code -> segmented face from original data
 				hconcat(bodyVec,allBodies);					
@@ -384,32 +368,23 @@ bool visionDriver::updateModule()
         
             if (!faceSegMaskInv.empty() && faceSegFlag && bodySegFlag)
             {
-                cout << "DEBUG FACE 1" << endl;
 			    cout << skinMask.size() << " inv mask " << faceSegMaskInv.size() << endl;
 			    cout << currentFaceRect.width << " h=" << currentFaceRect.height << endl;
 			    Mat rectMaskFaceOnly = Mat::zeros( skinMask.size(), CV_8UC1 );
-                cout << "DEBUG FACE 2" << endl;
 			    Mat skinMaskNoFace;
 			    Mat faceSegTemp;
 			    resize(faceSegMaskInv,faceSegTemp,Size(currentFaceRect.height,currentFaceRect.width));
-                cout << "DEBUG FACE 3" << endl;
 			    faceSegTemp.copyTo(rectMaskFaceOnly(currentFaceRect) );
-                cout << "DEBUG FACE 4" << endl;
 		        //threshold(rectMaskFaceOnly, rectMaskFaceOnly, 127, 255, THRESH_BINARY);
 			    bitwise_not(rectMaskFaceOnly,rectMaskFaceOnly);
-                cout << "DEBUG FACE 5" << endl;
 		        //threshold(skinMask, skinMask, 127, 255, THRESH_BINARY);
 		        bitwise_and(rectMaskFaceOnly,skinMask,skinMaskNoFace);
-                cout << "DEBUG FACE 6" << endl;
 		        
 		        if( displayBodies )
 		        {
-                    cout << "DEBUG FACE 7" << endl;
 			        imshow("Rectangle mask face",rectMaskFaceOnly);
-                    cout << "DEBUG FACE 8" << endl;
 			        //imshow("skinmask face",skinMask);
                     imshow("skinmask no face :)",skinMaskNoFace);					    
-                    cout << "DEBUG FACE 9" << endl;
                 }
                 
                 // FOR SKELETON TRACKING draw over face in skin mask... facemask
@@ -417,7 +392,6 @@ bool visionDriver::updateModule()
 			    //if (displayBodies) imshow("Skin_mask_noface",skinMask);
 			    // Send to skeleton fn here
 			    Mat skelMat;
-                cout << "DEBUG FACE 10" << endl;
 			    //skelMat=utilsObj->skeletonDetect(skinMaskNoFace, imgBlurPixels, displayBodies);
 			    //vector<Rect> boundingBox = utilsObj->getArmRects(skinMaskNoFace, imgBlurPixels, &skelMat, displayFaces);
 		        vector<Rect> boundingBox = utilsObj->segmentLineBoxFit(skinMaskNoFace, 100, 2, &skelMat, &returnContours, displayFaces);
@@ -465,7 +439,7 @@ bool visionDriver::updateModule()
 			            Mat leftArmBGR=captureFrameBGR(boundingBox[leftArmInd]);
 			            Mat rightArmBGR=captureFrameBGR(boundingBox[rightArmInd]);
 			            
-			            if (displayFaces) imshow("Left arm ",leftArmBGR);
+//			            if (displayFaces) imshow("Left arm ",leftArmBGR);
 			            if (displayFaces) imshow("Right arm",rightArmBGR);
 			            
 			            // skinMask
@@ -491,6 +465,68 @@ bool visionDriver::updateModule()
                             vector<Point2f> mc( returnContours.size() );
                             for( int i = 0; i < returnContours.size(); i++ )
                             { mc[i] = Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 ); }
+                            
+                            Point average_mc;
+                            
+                            for( int i = 0; i < returnContours.size(); i++ )
+                            {
+                                average_mc.x = average_mc.x + mc[i].x;
+                                average_mc.y = average_mc.y + mc[i].y;
+                            }
+                            
+                            average_mc.x = average_mc.x/returnContours.size();
+                            average_mc.y = average_mc.y/returnContours.size();
+                            
+                            average_mc.x = average_mc.x + boundingBox[leftArmInd].x;
+                            average_mc.y = average_mc.y + boundingBox[leftArmInd].y;
+                            
+                            circle(captureFrameFace,average_mc,10,Scalar(0,255,0),3);
+                            
+    						Bottle leftHandPositionOutput;
+    						leftHandPositionOutput.clear();
+    						leftHandPositionOutput.addDouble(average_mc.x);
+    						leftHandPositionOutput.addDouble(average_mc.y);
+    						leftHandPort.write(leftHandPositionOutput);
+                        }
+
+                        Mat rightArmSkelContours;
+                        
+                        vector<Rect> rightboundingBox = utilsObj->segmentLineBoxFit(rightskel, 50, 3, &rightArmSkelContours, &returnContours, false);
+                        if (displayFaces) imshow("Right arm skeleton contours",rightArmSkelContours);
+                        // Find hand in image..... where there are most contours...
+
+                        if (rightboundingBox.size()>0)
+                        {
+                            /// Get the moments
+                            vector<Moments> mu(returnContours.size() );
+                            for( int i = 0; i < returnContours.size(); i++ )
+                            { mu[i] = moments( returnContours[i], false ); }
+                            ///  Get the mass centers:
+                            vector<Point2f> mc( returnContours.size() );
+                            for( int i = 0; i < returnContours.size(); i++ )
+                            { mc[i] = Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 ); }
+                            
+                            Point average_mc;
+                            
+                            for( int i = 0; i < returnContours.size(); i++ )
+                            {
+                                average_mc.x = average_mc.x + mc[i].x;
+                                average_mc.y = average_mc.y + mc[i].y;
+                            }
+                            
+                            average_mc.x = average_mc.x/returnContours.size();
+                            average_mc.y = average_mc.y/returnContours.size();
+                            
+                            average_mc.x = average_mc.x + boundingBox[rightArmInd].x;
+                            average_mc.y = average_mc.y + boundingBox[rightArmInd].y;
+                            
+                            circle(captureFrameFace,average_mc,10,Scalar(0,255,0),3);                            
+
+    						Bottle rightHandPositionOutput;
+    					    rightHandPositionOutput.clear();
+    						rightHandPositionOutput.addDouble(average_mc.x);
+    						rightHandPositionOutput.addDouble(average_mc.y);
+    						rightHandPort.write(rightHandPositionOutput);
                         }
   
                     }
@@ -509,9 +545,7 @@ bool visionDriver::updateModule()
 			    if( displayFaces )
 				{
 					imshow("Face & Arms", captureFrameFace);
-				}
-			    
-                cout << "DEBUG FACE 11" << endl;
+				} 
             }
 					    
 	    }
@@ -546,6 +580,10 @@ bool visionDriver::configure(ResourceFinder &rf)
     //cout << skinMaskOutPort << endl;
     cout << faceCascadeFile << endl;
     cout << bodyCascadeFile << endl;
+    
+    leftHandPortName = "/visionDriver/leftHandPosition:o";
+    rightHandPortName = "/visionDriver/rightHandPosition:o";
+    
     cout << "------------------------" << endl;
 
     isGPUavailable = getCudaEnabledDeviceCount();
@@ -571,6 +609,10 @@ bool visionDriver::configure(ResourceFinder &rf)
 	imageOutOpen = imageOut.open(imageOutPort.c_str());
 
 	gazeOut = gazePort.open(gazeOutPort.c_str());
+	
+	leftHandPort.open(leftHandPortName.c_str());
+	rightHandPort.open(rightHandPortName.c_str());
+	
 	//skinMaskOutOpen = skinMaskOut.open(skinMaskOutPort.c_str());
 	//syncPortIn = syncPort.open(syncPortConf.c_str());
 
@@ -636,7 +678,6 @@ baseline += thickness;
 // center the textIn
 Point textOrg(textLocation.x - (textSize.width/2),textLocation.y + (textSize.height/2));
 
-cout << "Got here 3" << endl;	
 // draw the box
 //rectangle(img, textOrg + Point(0, baseline),
 //          textOrg + Point(textSize.width, -textSize.height),

@@ -66,6 +66,11 @@ class visionDriver: public RFModule
 	    Port gazePort;	//x and y position for gaze controller
         Port syncPort;
 
+        Port leftHandPort;
+        Port rightHandPort;
+        string leftHandPortName;
+        string rightHandPortName;
+
         std::vector<std::vector<cv::Point> > returnContours;
 	    
 	    bool inOpen;
