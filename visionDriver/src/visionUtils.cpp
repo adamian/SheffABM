@@ -214,19 +214,23 @@ Mat visionUtils::segmentEllipse(Mat srcImage, Mat maskImage, bool displayFaces, 
         return(srcSegSkin);
     }
 }
-
+/*
 vector<Rect> visionUtils::getArmRects(Mat threshImage, int imgBlurPixels, Mat *skelSeg, bool displayFaces)
 {
     // Find skeleton in bw image (using skin seg)
-    // Returns sekleton segmented image and bouding boxes around segmented regions
-    Mat skel = skeletonDetect(threshImage, imgBlurPixels, displayFaces);
-    // Find contours use canny seg...
+    // Returns sekleton segmented image 
+    //LB TEST
+    //Mat skel = skeletonDetect(threshImage, imgBlurPixels, displayFaces);
+    
+    Mat skel = threshImage.clone();
+    
+    // Find contours use canny seg...and put bouding boxes around segmented regions
     // 2= no of segments = 2 arms
     vector<Rect> boundingBox = segmentLineBoxFit(skel, 100, 2, skelSeg , displayFaces);
     // Return bouding boxes around arms....
     return boundingBox;
 }
-
+*/
 
 Mat visionUtils::skeletonDetect(Mat threshImage, int imgBlurPixels, bool displayFaces)
 {
@@ -265,12 +269,12 @@ bool compareContourAreas(std::vector<cv::Point> contour1, std::vector<cv::Point>
     return ( i < j );
 }
 
-vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxSegments, Mat *returnMask, bool displayFaces)
+vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxSegments, Mat *returnMask, std::vector<std::vector<cv::Point> > *returnContours,bool displayFaces)
 {
     // Segments items in gray image (img0)
     // minPixelSize= pixels, threshold for removing smaller regions, with less than minPixelSize pixels
     // 0, returns all detected segments
-    // maxSegments = max no segments to return 
+    // maxSegments = max no segments to return, 0 = all
     RNG rng(12345);
 
     
@@ -314,16 +318,17 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
     
     cout << "No of contours =" << contours.size() << endl;
     vector<Rect> boundingBox;
+    std::vector<std::vector<cv::Point> > tempReturnContours;
     int maxIterations = 0;
     
     if( contours.size() > 0 )
     {
-        if( contours.size() >= maxSegments )
+        if (maxSegments==0)// return all contours..
+            maxIterations = contours.size();
+        else if(contours.size() >= maxSegments)
             maxIterations = maxSegments;
         else
-            maxIterations = 1;    
-    
-
+            maxIterations = 1;    // LB: need to check this is correct!
         int contourCount=0;
         
         for (int j = 1; j < maxIterations+1; j++)
@@ -347,35 +352,36 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
 		        //cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
 		        //padPixels
 		        boundingBox.push_back(boundingRect(Mat(contours[i])));
-		        // Start 
-		        //boundingBox[contourCount].x;
-		        //boundingBox[contourCount].x+boundingBox[contourCount].width;
-		        int leftBoxy = ((boundingBox[contourCount].x-lines[2])*lines[1]/lines[0])+lines[3];
-		        int rightBoxy = (((boundingBox[contourCount].x+boundingBox[contourCount].width)-lines[2])*lines[1]/lines[0])+lines[3];
-		        line(mask,Point((boundingBox[contourCount].x+boundingBox[contourCount].width)-1,rightBoxy),Point(boundingBox[contourCount].x,leftBoxy),color,2);
+
+		        // LB OPTIONAL LINE FITTING HERE...
+		        //int leftBoxy = ((boundingBox[contourCount].x-lines[2])*lines[1]/lines[0])+lines[3];
+		        //int rightBoxy = (((boundingBox[contourCount].x+boundingBox[contourCount].width)-lines[2])*lines[1]/lines[0])+lines[3];
+		        //line(mask,Point((boundingBox[contourCount].x+boundingBox[contourCount].width)-1,rightBoxy),Point(boundingBox[contourCount].x,leftBoxy),color,2);
+		        
+		        // Remove edge padding effects....
 		        boundingBox[contourCount].x=boundingBox[contourCount].x-padPixels;
 		        boundingBox[contourCount].y=boundingBox[contourCount].y-padPixels;
 		        
 		        boundingBox[contourCount]=checkRoiInImage(img0, boundingBox[contourCount]);
 		        
 		        contourCount++;
+		        
+		        tempReturnContours.push_back(contours[i]);
 	        }
         }
     
+        returnContours->resize(tempReturnContours.size());
+        *returnContours = tempReturnContours;
+        
         // normalize so imwrite(...)/imshow(...) shows the mask correctly!
         normalize(mask.clone(), mask, 0.0, 255.0, CV_MINMAX, CV_8UC1);
         // To Remove border added at start...    
         *returnMask=mask(tempRect);
-        
-
-        
         //mask(tempRect).copyTo(*returnMask);
-        
         // show the images
         if (displayFaces)	imshow("Seg line utils: Img in", img0);
         if (displayFaces)	imshow("Seg line utils: Mask", *returnMask);
         if (displayFaces)	imshow("Seg line utils: Output", img1);
-    
     }
     return boundingBox;
 

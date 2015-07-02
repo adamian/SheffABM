@@ -12,7 +12,7 @@ visionDriver::visionDriver()
     detectorObj = new skinDetector();
     //Mat faceSegMaskInv;
     faceSegFlag=false;
-    bodySegFlag=false;
+    bodySegFlag=false;    
 }
 
 visionDriver::~visionDriver()
@@ -78,8 +78,6 @@ bool visionDriver::updateModule()
 		    if(noFaces != 0)
 		    {
 			    cout << "Number of faces " << noFaces << endl;
-                // copy in last skin image
-			    //captureFrameFace=captureFrameBGR.clone();
 			    std::vector<cv::Mat> faceVec;
 			    std::vector<cv::Mat> faceVecSkin;
 			
@@ -94,8 +92,6 @@ bool visionDriver::updateModule()
 				Rect* facesNew = vectFaceArr.ptr<Rect>();
 				yarp::sig::Vector& posOutput = targetPort.prepare();
 				posOutput.resize(noFaces*3); //each face in the list has a number id, x centre and y centre
-                // skin mask (currently masking face -> arms / hands
-				//ImageOf<PixelRgb>& skinMaskImages = skinMaskOut.prepare();
 
 				ImageOf<PixelRgb>& faceImages = imageOut.prepare();
 
@@ -423,40 +419,91 @@ bool visionDriver::updateModule()
 			    Mat skelMat;
                 cout << "DEBUG FACE 10" << endl;
 			    //skelMat=utilsObj->skeletonDetect(skinMaskNoFace, imgBlurPixels, displayBodies);
-			    vector<Rect> boundingBox = utilsObj->getArmRects(skinMaskNoFace, imgBlurPixels, &skelMat, displayFaces);
-			    
-			    
-                int leftArmInd=0;
-                int rightArmInd=0;
-                int testInXMost=0;
-                int testInXLeast=captureFrameFace.cols;
-			    
-			    for (int i = 0; i<boundingBox.size(); i++)
+			    //vector<Rect> boundingBox = utilsObj->getArmRects(skinMaskNoFace, imgBlurPixels, &skelMat, displayFaces);
+		        vector<Rect> boundingBox = utilsObj->segmentLineBoxFit(skinMaskNoFace, 100, 2, &skelMat, &returnContours, displayFaces);
+
+			    //check atleast two bounding boxes found for left and right arms...
+			    if (boundingBox.size()>1)
 			    {
-			        if (boundingBox[i].x<testInXLeast){
-			        testInXLeast=boundingBox[i].x;
-			        rightArmInd=i;
-			        }
 			        
-			        if (boundingBox[i].x>testInXMost){
-			        testInXMost=boundingBox[i].x;
-			        leftArmInd=i;
-			        }			        
+                    int leftArmInd=0;
+                    int rightArmInd=0;
+                    int testInXMost=0;
+                    int testInXLeast=captureFrameFace.cols;
+			        
+			        for (int i = 0; i<boundingBox.size(); i++)
+			        {
+			            if (boundingBox[i].x<testInXLeast){
+			            testInXLeast=boundingBox[i].x;
+			            rightArmInd=i;
+			            }
+			            
+			            if (boundingBox[i].x>testInXMost){
+			            testInXMost=boundingBox[i].x;
+			            leftArmInd=i;
+			            }			        
+                     }
 
-                 }
+                    // Check both boudingBoxes arent the same for left and right 
+                    if (rightArmInd!=leftArmInd)
+                    {
+		            	//Draw left arm rectangles
+				        Point pt1(boundingBox[leftArmInd].x + boundingBox[leftArmInd].width, boundingBox[leftArmInd].y + boundingBox[leftArmInd].height);
+				        Point pt2(boundingBox[leftArmInd].x, boundingBox[leftArmInd].y);
+				        rectangle(captureFrameFace,pt1,pt2,Scalar(0,0,255),1,8,0);
+				        captureFrameFace=addText("Left arm", captureFrameFace, pt1, Scalar(0,0,255));
+			            
+		            	//Draw right arm rectangles
+				        Point pt3(boundingBox[rightArmInd].x + boundingBox[rightArmInd].width, boundingBox[rightArmInd].y + boundingBox[rightArmInd].height);
+				        Point pt4(boundingBox[rightArmInd].x, boundingBox[rightArmInd].y);
+				        rectangle(captureFrameFace,pt3,pt4,Scalar(0,0,255),1,8,0);
+				        captureFrameFace=addText("Right arm", captureFrameFace, pt3, Scalar(0,0,255));			    
+			            
+			            // ###############################################
+			            // Extract arms -> for CamShift and Skeleton processing
+	                    // Original color versions
+			            Mat leftArmBGR=captureFrameBGR(boundingBox[leftArmInd]);
+			            Mat rightArmBGR=captureFrameBGR(boundingBox[rightArmInd]);
+			            
+			            if (displayFaces) imshow("Left arm ",leftArmBGR);
+			            if (displayFaces) imshow("Right arm",rightArmBGR);
+			            
+			            // skinMask
+			            Mat leftArmSkin=skinMask(boundingBox[leftArmInd]);
+			            Mat rightArmSkin=skinMask(boundingBox[rightArmInd]);
+                        // Apply skeleton masking to arms....
+                        Mat leftskel = utilsObj->skeletonDetect(leftArmSkin, imgBlurPixels, displayFaces);
+                        Mat rightskel = utilsObj->skeletonDetect(rightArmSkin, imgBlurPixels, displayFaces);
+                        // Get contours of regions....
+                        Mat leftArmSkelContours;
+                        
+                        vector<Rect> leftboundingBox = utilsObj->segmentLineBoxFit(leftskel, 50, 3, &leftArmSkelContours, &returnContours, false);
+                        if (displayFaces) imshow("Left arm skeleton contours",leftArmSkelContours);
+                        // Find hand in image..... where there are most contours...
 
-		    	//Draw left arm rectangles
-				Point pt1(boundingBox[leftArmInd].x + boundingBox[leftArmInd].width, boundingBox[leftArmInd].y + boundingBox[leftArmInd].height);
-				Point pt2(boundingBox[leftArmInd].x, boundingBox[leftArmInd].y);
-				rectangle(captureFrameFace,pt1,pt2,Scalar(0,0,255),1,8,0);
-				captureFrameFace=addText("Left arm", captureFrameFace, pt1, Scalar(0,0,255));
-			    
-		    
-		    	//Draw right arm rectangles
-				Point pt3(boundingBox[rightArmInd].x + boundingBox[rightArmInd].width, boundingBox[rightArmInd].y + boundingBox[rightArmInd].height);
-				Point pt4(boundingBox[rightArmInd].x, boundingBox[rightArmInd].y);
-				rectangle(captureFrameFace,pt3,pt4,Scalar(0,0,255),1,8,0);
-				captureFrameFace=addText("Right arm", captureFrameFace, pt3, Scalar(0,0,255));			    
+                        if (leftboundingBox.size()>0)
+                        {
+                            /// Get the moments
+                            vector<Moments> mu(returnContours.size() );
+                            for( int i = 0; i < returnContours.size(); i++ )
+                            { mu[i] = moments( returnContours[i], false ); }
+                            ///  Get the mass centers:
+                            vector<Point2f> mc( returnContours.size() );
+                            for( int i = 0; i < returnContours.size(); i++ )
+                            { mc[i] = Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 ); }
+                        }
+  
+                    }
+                    else
+		            {
+		                // LB can ADD in here to find which is visibile using the saggital split from the body tracker....
+		                cout << "Only one arm found....." << endl;	    
+			        }
+			    }
+			    else
+		        {
+		            cout << "No arms found....." << endl;	    
+			    }
 			    
 			    
 			    if( displayFaces )
