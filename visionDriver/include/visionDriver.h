@@ -113,6 +113,7 @@ class visionDriver: public RFModule
         int d;
 		bool inStatus;
         int boxScaleFactor; //Additional pixels for box sizing
+		int neckScaleFactor;// additional neck scale factor for masking the neck region..... basically add pixels south
     	int pollTime;
         int sagittalSplit;  // split person in left and right
     	

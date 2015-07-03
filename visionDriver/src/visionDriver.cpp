@@ -6,6 +6,12 @@ visionDriver::visionDriver()
 {
     imgBlurPixels=7; //gauss smoothing pixels
     sagittalSplit = 0;  // split person in left and right
+	faceSize = 400;
+    bodySize = faceSize;
+    boxScaleFactor = 20; // Expand face and body detected regions by this amount in pixels
+	// LB additional neck scale factor for masking the neck region..... basically add pixels south
+	neckScaleFactor = 40; // pixels south...
+
 	displayFaces = true;
 	displayBodies = true;
     utilsObj = new visionUtils();
@@ -136,6 +142,13 @@ bool visionDriver::updateModule()
                         // WARNING -> MIGHT produce distortions -> could reject image instead...
                         facesOld[i]=utilsObj->checkRoiInImage(captureFrameRaw, facesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
                     }
+
+					// Add extra pixels to bottom to remove neck skin region...
+					if (neckScaleFactor !=0)
+					{
+						facesOld[i].height=facesOld[i].height+neckScaleFactor;
+						facesOld[i]=utilsObj->checkRoiInImage(captureFrameRaw, facesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
+					}
 
 					vecSizes.at<unsigned short>(i) = facesOld[i].width;
 
@@ -373,7 +386,8 @@ bool visionDriver::updateModule()
 			    Mat rectMaskFaceOnly = Mat::zeros( skinMask.size(), CV_8UC1 );
 			    Mat skinMaskNoFace;
 			    Mat faceSegTemp;
-			    resize(faceSegMaskInv,faceSegTemp,Size(currentFaceRect.height,currentFaceRect.width));
+			    //resize(faceSegMaskInv,faceSegTemp,Size(currentFaceRect.height,currentFaceRect.width));
+				resize(faceSegMaskInv,faceSegTemp,Size(currentFaceRect.width,currentFaceRect.height));//Size(currentFaceRect.height,currentFaceRect.width));
 			    faceSegTemp.copyTo(rectMaskFaceOnly(currentFaceRect) );
 		        //threshold(rectMaskFaceOnly, rectMaskFaceOnly, 127, 255, THRESH_BINARY);
 			    bitwise_not(rectMaskFaceOnly,rectMaskFaceOnly);
@@ -394,7 +408,7 @@ bool visionDriver::updateModule()
 			    Mat skelMat;
 			    //skelMat=utilsObj->skeletonDetect(skinMaskNoFace, imgBlurPixels, displayBodies);
 			    //vector<Rect> boundingBox = utilsObj->getArmRects(skinMaskNoFace, imgBlurPixels, &skelMat, displayFaces);
-		        vector<Rect> boundingBox = utilsObj->segmentLineBoxFit(skinMaskNoFace, 100, 2, &skelMat, &returnContours, displayFaces);
+		        vector<Rect> boundingBox = utilsObj->segmentLineBoxFit(skinMaskNoFace, 250, 2, &skelMat, &returnContours, displayFaces);
 
 			    //check atleast two bounding boxes found for left and right arms...
 			    if (boundingBox.size()>1)
@@ -632,9 +646,6 @@ bool visionDriver::configure(ResourceFinder &rf)
 //    maxSize = 0;
 //    biggestFace = 0;
     count = 0;
-    faceSize = 400;
-    bodySize = faceSize;
-    boxScaleFactor = 20;
     
 	inStatus = true;
 

@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <opencv/cv.h>
-#include <opencv2/highgui.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 //#include "visionUtils.h"
 
