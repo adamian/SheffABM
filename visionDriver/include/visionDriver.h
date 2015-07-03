@@ -116,6 +116,7 @@ class visionDriver: public RFModule
 		int neckScaleFactor;// additional neck scale factor for masking the neck region..... basically add pixels south
     	int pollTime;
         int sagittalSplit;  // split person in left and right
+        Point bodyCentre; // calc centre of body
     	
     	int imgBlurPixels; //blur pixels for gauss smoothing
 		std::vector< cv::Rect > facesOld;
@@ -126,6 +127,10 @@ class visionDriver: public RFModule
 
         visionUtils *utilsObj;
         skinDetector *detectorObj;
+        
+        bool firstMovement;
+        Point average_mc;
+        Point previous_average_mc;        
 
     public:
         visionDriver();

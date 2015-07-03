@@ -43,6 +43,8 @@ class visionUtils
         Mat skeletonDetect(Mat, int, bool );
         vector<Rect> segmentLineBoxFit(Mat, int, int, Mat *,  std::vector<std::vector<cv::Point> > *, bool);
         Mat cannySegmentation(Mat, int, bool);
+        bool isHandMoving(Point, Point, int);
+        
 //        vector<Rect> getArmRects(Mat, int, Mat *, bool);
 //        bool compareContourAreas(std::vector<cv::Point> c1, std::vector<cv::Point> c2);
 };

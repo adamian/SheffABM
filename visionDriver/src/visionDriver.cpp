@@ -4,8 +4,8 @@
 
 visionDriver::visionDriver()
 {
+    // ##### Options ###### 
     imgBlurPixels=7; //gauss smoothing pixels
-    sagittalSplit = 0;  // split person in left and right
 	faceSize = 400;
     bodySize = faceSize;
     boxScaleFactor = 20; // Expand face and body detected regions by this amount in pixels
@@ -18,7 +18,8 @@ visionDriver::visionDriver()
     detectorObj = new skinDetector();
     //Mat faceSegMaskInv;
     faceSegFlag=false;
-    bodySegFlag=false;    
+    bodySegFlag=false;
+    firstMovement = false;
 }
 
 visionDriver::~visionDriver()
@@ -435,6 +436,17 @@ bool visionDriver::updateModule()
                     // Check both boudingBoxes arent the same for left and right 
                     if (rightArmInd!=leftArmInd)
                     {
+                    
+                        // LB: Testing -> find approx centre of person....
+                        if (sagittalSplit!=0)
+                        {
+                            bodyCentre.x=sagittalSplit;
+                            bodyCentre.y=currentFaceRect.y+currentFaceRect.height;
+                            circle(captureFrameFace,bodyCentre,10,Scalar(147,20,255),3);
+                        
+                        }
+                        
+                    
 		            	//Draw left arm rectangles
 				        Point pt1(boundingBox[leftArmInd].x + boundingBox[leftArmInd].width, boundingBox[leftArmInd].y + boundingBox[leftArmInd].height);
 				        Point pt2(boundingBox[leftArmInd].x, boundingBox[leftArmInd].y);
@@ -465,7 +477,19 @@ bool visionDriver::updateModule()
                         // Get contours of regions....
                         Mat leftArmSkelContours;
                         
-                        vector<Rect> leftboundingBox = utilsObj->segmentLineBoxFit(leftskel, 50, 3, &leftArmSkelContours, &returnContours, false);
+//                        vector<Rect> leftboundingBox = utilsObj->segmentLineBoxFit(leftskel, 50, 1, &leftArmSkelContours, &returnContours, false); // was 3 contours...
+                        vector<Rect> leftboundingBox;
+  
+                        // Defined in header file                      
+//                        Point average_mc;
+//                        Point previous_average_mc;
+                        average_mc.x = 0;
+                        average_mc.y = 0;
+
+                        int windowSize = 20;
+                        for( int j = 0; j < windowSize; j++ )
+                        {
+                        leftboundingBox = utilsObj->segmentLineBoxFit(leftskel, 50, 1, &leftArmSkelContours, &returnContours, false); // was 3 contours...
                         if (displayFaces) imshow("Left arm skeleton contours",leftArmSkelContours);
                         // Find hand in image..... where there are most contours...
 
@@ -480,7 +504,9 @@ bool visionDriver::updateModule()
                             for( int i = 0; i < returnContours.size(); i++ )
                             { mc[i] = Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 ); }
                             
-                            Point average_mc;
+//                            Point average_mc;
+//                            average_mc.x = 0;
+//                            average_mc.y = 0;
                             
                             for( int i = 0; i < returnContours.size(); i++ )
                             {
@@ -491,21 +517,93 @@ bool visionDriver::updateModule()
                             average_mc.x = average_mc.x/returnContours.size();
                             average_mc.y = average_mc.y/returnContours.size();
                             
-                            average_mc.x = average_mc.x + boundingBox[leftArmInd].x;
-                            average_mc.y = average_mc.y + boundingBox[leftArmInd].y;
+//                            average_mc.x = average_mc.x + boundingBox[leftArmInd].x;
+//                            average_mc.y = average_mc.y + boundingBox[leftArmInd].y;
+                                                      
+//                            circle(captureFrameFace,average_mc,10,Scalar(0,255,0),3);
                             
-                            circle(captureFrameFace,average_mc,10,Scalar(0,255,0),3);
+//                            utilsObj->isHandMoving(average_mc);
                             
     						Bottle leftHandPositionOutput;
     						leftHandPositionOutput.clear();
     						leftHandPositionOutput.addDouble(average_mc.x);
     						leftHandPositionOutput.addDouble(average_mc.y);
     						leftHandPort.write(leftHandPositionOutput);
+    						
+    						
+    						// LB Testing -> use distance from centre of person to predict hand location?!?!?!?
+    						// Furthest will be least 
+    						if (bodyCentre.x!=0)
+    						{
+    						    int greatestDistance=0;
+        						int temp;
+        						int xContour;
+        						int yContour;
+        						Point leftArmLoc;
+        						// Largest contour = 0 (hopefully), go through points...
+        						for (int i=0; i<returnContours[0].size(); i++)
+        						{
+            						// Classic pythagoras (no need to sqrt)
+            						xContour=returnContours[0][i].x+boundingBox[leftArmInd].x;
+            						yContour=returnContours[0][i].y+boundingBox[leftArmInd].y;
+            						
+            						temp=(bodyCentre.x-xContour)*(bodyCentre.x-xContour) + (bodyCentre.y-yContour)*(bodyCentre.y-yContour);
+            						if (temp>greatestDistance)
+            						{
+                						greatestDistance=temp;
+                						leftArmLoc.x=xContour;
+                						leftArmLoc.y=yContour;
+            						}	
+        						}
+        						circle(captureFrameFace,leftArmLoc,10,Scalar(255,255,255),3);
+        						
+    						}
+    						
+                        }
+                        }
+  
+                        if (leftboundingBox.size()>0 )
+                        {
+                        average_mc.x = average_mc.x/windowSize;
+                        average_mc.y = average_mc.y/windowSize;
+                        average_mc.x = average_mc.x + boundingBox[leftArmInd].x;
+                        average_mc.y = average_mc.y + boundingBox[leftArmInd].y;
                         }
 
-                        Mat rightArmSkelContours;
+                        circle(captureFrameFace,average_mc,10,Scalar(0,255,0),3);
+                      
+                        if (leftboundingBox.size()>0 && firstMovement)
+                        {
+//                        int limitWindow = 200;
+//                        if( utilsObj->isHandMoving(average_mc,previous_average_mc, limitWindow) )
+//                            cout << "==== HAND IS MOVING ====" << endl;
+//                        else
+//                            cout << "==== HAND IS NOT MOVING ====" << endl;
+                        }
                         
-                        vector<Rect> rightboundingBox = utilsObj->segmentLineBoxFit(rightskel, 50, 3, &rightArmSkelContours, &returnContours, false);
+                        if (leftboundingBox.size()>0 )
+                        {
+                            firstMovement = true;                            
+                            previous_average_mc = average_mc;
+                        }
+                      
+
+                        cout << "PREVIOUS POINT: " << average_mc.x << ", " << average_mc.y << endl;
+                        cout << "CURRENT POINT: " << previous_average_mc.x << ", " << previous_average_mc.y << endl;
+                        
+                        Mat rightArmSkelContours;
+
+                        vector<Rect> rightboundingBox;
+                        
+//                        Point average_mc;
+                        average_mc.x = 0;
+                        average_mc.y = 0;
+
+//                        int windowSize = 20;
+                        for( int j = 0; j < windowSize; j++ )
+                        {                       
+//                        vector<Rect> rightboundingBox = utilsObj->segmentLineBoxFit(rightskel, 50, 3, &rightArmSkelContours, &returnContours, false);
+                        rightboundingBox = utilsObj->segmentLineBoxFit(rightskel, 50, 1, &rightArmSkelContours, &returnContours, false);
                         if (displayFaces) imshow("Right arm skeleton contours",rightArmSkelContours);
                         // Find hand in image..... where there are most contours...
 
@@ -520,7 +618,9 @@ bool visionDriver::updateModule()
                             for( int i = 0; i < returnContours.size(); i++ )
                             { mc[i] = Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 ); }
                             
-                            Point average_mc;
+//                            Point average_mc;
+//                            average_mc.x = 0;
+//                            average_mc.y = 0;
                             
                             for( int i = 0; i < returnContours.size(); i++ )
                             {
@@ -530,11 +630,11 @@ bool visionDriver::updateModule()
                             
                             average_mc.x = average_mc.x/returnContours.size();
                             average_mc.y = average_mc.y/returnContours.size();
+                                                       
+//                            average_mc.x = average_mc.x + boundingBox[rightArmInd].x;
+//                            average_mc.y = average_mc.y + boundingBox[rightArmInd].y;
                             
-                            average_mc.x = average_mc.x + boundingBox[rightArmInd].x;
-                            average_mc.y = average_mc.y + boundingBox[rightArmInd].y;
-                            
-                            circle(captureFrameFace,average_mc,10,Scalar(0,255,0),3);                            
+//                            circle(captureFrameFace,average_mc,10,Scalar(0,255,0),3);                            
 
     						Bottle rightHandPositionOutput;
     					    rightHandPositionOutput.clear();
@@ -542,11 +642,20 @@ bool visionDriver::updateModule()
     						rightHandPositionOutput.addDouble(average_mc.y);
     						rightHandPort.write(rightHandPositionOutput);
                         }
+                        }
+                        
+                        average_mc.x = average_mc.x/windowSize;
+                        average_mc.y = average_mc.y/windowSize;
+                        average_mc.x = average_mc.x + boundingBox[rightArmInd].x;
+                        average_mc.y = average_mc.y + boundingBox[rightArmInd].y;
+
+                        circle(captureFrameFace,average_mc,10,Scalar(0,255,0),3);
+                        
   
                     }
                     else
 		            {
-		                // LB can ADD in here to find which is visibile using the saggital split from the body tracker....
+		                // LB can ADD in here to find which is visibile using the sagittal split from the body tracker....
 		                cout << "Only one arm found....." << endl;	    
 			        }
 			    }
@@ -642,10 +751,16 @@ bool visionDriver::configure(ResourceFinder &rf)
 	inCount = faceTrack.getInputCount();
 	outCount = faceTrack.getOutputCount();
     
+    // Init dyn variables
+    sagittalSplit = 0;  // split person in left and right 
+    bodyCentre.x=0;
+    bodyCentre.y=0; 
+    
 	step = 0;
 //    maxSize = 0;
 //    biggestFace = 0;
     count = 0;
+    
     
 	inStatus = true;
 

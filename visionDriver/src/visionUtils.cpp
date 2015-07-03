@@ -316,7 +316,7 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
     //std::vector<cv::Point> firstContour = contours[contours.size()-1];
     //std::vector<cv::Point> secondContour = contours[contours.size()-2];
     
-    cout << "No of contours =" << contours.size() << endl;
+//    cout << "No of contours =" << contours.size() << endl;
     vector<Rect> boundingBox;
     std::vector<std::vector<cv::Point> > tempReturnContours;
     int maxIterations = 0;
@@ -457,5 +457,28 @@ Mat visionUtils::cannySegmentation(Mat img0, int minPixelSize, bool displayFaces
     return returnMask;
 }
 
+bool visionUtils::isHandMoving(Point handPoints, Point previousHandPoints, int limit)
+{
+/*    vector<Point> windowMovement(2);
+    windowMovement[0].x = previousHandPoints.x - limit;
+    windowMovement[0].y = previousHandPoints.y - limit;
+    windowMovement[1].x = previousHandPoints.x + limit;
+    windowMovement[1].y = previousHandPoints.y + limit;
+
+    bool movement = false;
+    if( ( handPoints.x < windowMovement[0].x ) || ( handPoints.x > windowMovement[1].x ) )
+        movement = true;
+    if( ( handPoints.y < windowMovement[0].y ) || ( handPoints.y > windowMovement[1].y ) )
+        movement = true;
+*/        
+
+    bool movement = false;
+    if( ( handPoints.x < previousHandPoints.x - limit ) || ( handPoints.x > previousHandPoints.x + limit ) )
+        movement = true;
+    if( ( handPoints.y < previousHandPoints.y - limit ) || ( handPoints.y > previousHandPoints.y + limit ) )
+        movement = true;
+
+    return movement;
+}
 
 
