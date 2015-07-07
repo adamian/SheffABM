@@ -1,0 +1,9 @@
+1) Make a directory "old" and move old stuff in there.
+2) The files we use are: 
+- SAMpy.py: The main SAM module which is calling ABM.py. This is the middleware between ABM and drivers.
+- ABM.py: The core functionality of the ABM
+- SAMpy_example_segfaces.py: The up to date demo with face tracking using SAM.
+
+3) Make a class Driver and better structure the drivers to inherit from it.
+
+4) Rename SAMpy to FaceDriver, inheriting from Driver.py
