@@ -15,7 +15,7 @@
 #include <algorithm>
 
 #include "visionUtils.h"
-#include "skinDetector.h"
+//#include "skinDetector.h"
 
 using namespace yarp::os;
 using namespace yarp::sig;
@@ -131,7 +131,7 @@ class visionDriver: public RFModule
     	CascadeClassifier_GPU body_cascade;
 
         visionUtils *utilsObj;
-        skinDetector *detectorObj;
+        //skinDetector *detectorObj;
         
         bool firstLeftHandMovement;
         bool firstRightHandMovement;

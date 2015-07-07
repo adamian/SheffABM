@@ -39,16 +39,16 @@ class visionUtils
         ~visionUtils();
         void convertCvToYarp(cv::Mat MatImage, ImageOf<PixelRgb> &yarpImage);
         Rect checkRoiInImage(Mat, Rect);
-        Mat segmentEllipse(Mat, Mat, bool, Mat *);
+        // Segment out face from haar cascade
+        Mat segmentFace(Mat, Mat, bool, Mat *);
         Mat skeletonDetect(Mat, int, bool );
+        // Segmentation tool, darws rect around region and can be updated to fit lines....
         vector<Rect> segmentLineBoxFit(Mat, int, int, Mat *,  std::vector<std::vector<cv::Point> > *, bool);
-        Mat cannySegmentation(Mat, int, bool);
+
         bool isHandMoving(Point, Point, int);
         int drawHist(std::vector<Mat>);
-        
-        
-        
-//        vector<Rect> getArmRects(Mat, int, Mat *, bool);
-//        bool compareContourAreas(std::vector<cv::Point> c1, std::vector<cv::Point> c2);
+        // Skin detection
+        Mat skinDetect(Mat, Mat *, Mat *, int minPixelSize, int, int, int, bool);
+        Mat cannySegmentation(Mat, int, bool);        
 };
 

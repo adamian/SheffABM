@@ -15,7 +15,7 @@ visionDriver::visionDriver()
 	displayFaces = true;
 	displayBodies = true;
     utilsObj = new visionUtils();
-    detectorObj = new skinDetector();
+    //detectorObj = new skinDetector();
     //Mat faceSegMaskInv;
     faceSegFlag=false;
     bodySegFlag=false;
@@ -90,7 +90,10 @@ bool visionDriver::updateModule()
 
 			Mat skinImage;
 			Mat skinMask;
-			skinImage = detectorObj->detect(captureFrameBGR, displayFaces, &skinMask);
+			Mat skinHSV;
+			
+			//skinImage = detectorObj->detect(captureFrameBGR, displayFaces, &skinMask);
+            skinImage = utilsObj->skinDetect(captureFrameBGR, &skinHSV, &skinMask, 400,7, 3, 0, displayFaces);
 
 			captureFrameFace=captureFrameBGR.clone();
 			
@@ -233,7 +236,7 @@ bool visionDriver::updateModule()
                 
                 Mat1b faceSegMask;
                 
-                Mat faceSegmented=utilsObj->segmentEllipse(allFaces,allFacesSkin,displayFaces,&faceSegMask); 
+                Mat faceSegmented=utilsObj->segmentFace(allFaces,allFacesSkin,displayFaces,&faceSegMask); 
                
                 //cout << "Is face seg empty: " <<  faceSegmented.empty() << endl;
                 //LB Check face was found!
@@ -246,12 +249,17 @@ bool visionDriver::updateModule()
                     imageOut.write();
                     //cout << "Sending face to output port" << endl;
                     
+                    // LB: ADAPTIVE SKIN MASKING SECTION -> uses skin on face to refine the skin detector......
                     // LB testing -> get all values from skin mask 
                     // Run through pixels in mask and 
                     // Needs to be more efficient... see image scan opencv documentation...
+                    
+                    // HSV pixels that pass skin detection -> uses face track and segmented face data
                     std::vector<Mat> hsvPixels(3);
-                    Mat3b faceHSV;
-                    cvtColor(faceSegmented, faceHSV, CV_BGR2HSV);
+                    // Take skinHSV (returned from skin detector) and uses face extracted rect..... 
+                    Mat3b faceHSV = skinHSV(currentFaceRect);
+                    //cvtColor(faceSegmented, faceHSV, CV_BGR2HSV);
+
                     // Loop through rows
                     for (int i =0; i < faceHSV.rows; i++)
                     {
@@ -543,6 +551,9 @@ bool visionDriver::updateModule()
                         int windowSize = 20;
                         int limitWindow = 10;
 
+                        left_hand_average_mc.x = 0;
+                        left_hand_average_mc.y = 0;
+
                         for( int j = 0; j < windowSize; j++ )
                         {
                         leftboundingBox = utilsObj->segmentLineBoxFit(leftskel, 50, 1, &leftArmSkelContours, &returnContours, false); // was 3 contours...
@@ -567,11 +578,11 @@ bool visionDriver::updateModule()
                             for( int i = 0; i < returnContours.size(); i++ )
                             {
                                 // Centre of mass method                                
-//                                left_hand_average_mc.x = left_hand_average_mc.x + mc[i].x;
-//                                left_hand_average_mc.y = left_hand_average_mc.y + mc[i].y;
+                                left_hand_average_mc.x = left_hand_average_mc.x + mc[i].x;
+                                left_hand_average_mc.y = left_hand_average_mc.y + mc[i].y;
 
-                                left_hand_average_mc.x = left_hand_average_mc.x + boundingBox[leftArmInd].x;
-                                left_hand_average_mc.y = left_hand_average_mc.y + boundingBox[leftArmInd].y;
+//                                left_hand_average_mc.x = left_hand_average_mc.x + boundingBox[leftArmInd].x;
+//                                left_hand_average_mc.y = left_hand_average_mc.y + boundingBox[leftArmInd].y;
                             }
                             
                             left_hand_average_mc.x = left_hand_average_mc.x/returnContours.size();
@@ -584,12 +595,13 @@ bool visionDriver::updateModule()
                             
 //                            utilsObj->isHandMoving(left_hand_average_mc);
                             
+/*
     						Bottle leftHandPositionOutput;
     						leftHandPositionOutput.clear();
     						leftHandPositionOutput.addDouble(left_hand_average_mc.x);
     						leftHandPositionOutput.addDouble(left_hand_average_mc.y);
     						leftHandPort.write(leftHandPositionOutput);
-    						
+*/    						
     						
     						// LB Testing -> use distance from centre of person to predict hand location?!?!?!?
     						// Furthest will be least 
@@ -644,10 +656,24 @@ bool visionDriver::updateModule()
                             cout << "PREVIOUS POINT: " << left_hand_average_mc.x << ", " << left_hand_average_mc.y << endl;
                             cout << "CURRENT POINT: " << previous_left_hand_average_mc.x << ", " << previous_left_hand_average_mc.y << endl;
                                 
+                            int relLeftXPosition = 0;
+                            int relLeftYPosition = 0;
+
                             if( utilsObj->isHandMoving(left_hand_average_mc,previous_left_hand_average_mc, limitWindow) )
+                            {
                                 cout << "==================== LEFT HAND IS MOVING =======================" << endl;
+                                relLeftXPosition = left_hand_average_mc.x - previous_left_hand_average_mc.x;
+                                relLeftYPosition = left_hand_average_mc.y - previous_left_hand_average_mc.y;
+                            }
 //                            else
 //                                cout << "==== HAND IS NOT MOVING ====" << endl;
+
+    						Bottle leftHandPositionOutput;
+    						leftHandPositionOutput.clear();
+    						leftHandPositionOutput.addDouble(relLeftXPosition);
+    						leftHandPositionOutput.addDouble(relLeftYPosition);
+    						leftHandPort.write(leftHandPositionOutput);
+
                                                             
                             previous_left_hand_average_mc = left_hand_average_mc;                          
                         }                                       
@@ -658,8 +684,8 @@ bool visionDriver::updateModule()
                         vector<Rect> rightboundingBox;
                         
 //                        Point right_hand_average_mc;
-//                        right_hand_average_mc.x = 0;
-//                        right_hand_average_mc.y = 0;
+                        right_hand_average_mc.x = 0;
+                        right_hand_average_mc.y = 0;
 
 //                        int windowSize = 20;
                         for( int j = 0; j < windowSize; j++ )
@@ -687,11 +713,11 @@ bool visionDriver::updateModule()
                             for( int i = 0; i < returnContours.size(); i++ )
                             {
                                 // Centre of mass method
-//                                right_hand_average_mc.x = right_hand_average_mc.x + mc[i].x;
-//                                right_hand_average_mc.y = right_hand_average_mc.y + mc[i].y;
+                                right_hand_average_mc.x = right_hand_average_mc.x + mc[i].x;
+                                right_hand_average_mc.y = right_hand_average_mc.y + mc[i].y;
 
-                                right_hand_average_mc.x = right_hand_average_mc.x + boundingBox[rightArmInd].x;
-                                right_hand_average_mc.y = right_hand_average_mc.y + boundingBox[rightArmInd].y;
+//                                right_hand_average_mc.x = right_hand_average_mc.x + boundingBox[rightArmInd].x;
+//                                right_hand_average_mc.y = right_hand_average_mc.y + boundingBox[rightArmInd].y;
                             }
                             
                             right_hand_average_mc.x = right_hand_average_mc.x/returnContours.size();
@@ -702,11 +728,13 @@ bool visionDriver::updateModule()
                             
 //                            circle(captureFrameFace,right_hand_average_mc,10,Scalar(0,255,0),3);                            
 
+/*
     						Bottle rightHandPositionOutput;
     					    rightHandPositionOutput.clear();
     						rightHandPositionOutput.addDouble(right_hand_average_mc.x);
     						rightHandPositionOutput.addDouble(right_hand_average_mc.y);
     						rightHandPort.write(rightHandPositionOutput);
+*/
                         }
                         }
                         
@@ -729,10 +757,27 @@ bool visionDriver::updateModule()
 //                            cout << "PREVIOUS POINT: " << right_hand_average_mc.x << ", " << right_hand_average_mc.y << endl;
 //                            cout << "CURRENT POINT: " << previous_right_hand_average_mc.x << ", " << previous_right_hand_average_mc.y << endl;
                                 
+                            int relRightXPosition = 0;
+                            int relRightYPosition = 0;
+
                             if( utilsObj->isHandMoving(right_hand_average_mc,previous_right_hand_average_mc, limitWindow) )
+                            {
                                 cout << "**************************** RIGHT HAND IS MOVING ***********************************" << endl;
 //                            else
 //                                cout << "==== HAND IS NOT MOVING ====" << endl;
+
+                                relRightXPosition = right_hand_average_mc.x - previous_right_hand_average_mc.x;
+                                relRightYPosition = right_hand_average_mc.y - previous_right_hand_average_mc.y;
+                            }
+//                            else
+//                                cout << "==== HAND IS NOT MOVING ====" << endl;
+
+    						Bottle rightHandPositionOutput;
+    						rightHandPositionOutput.clear();
+    						rightHandPositionOutput.addDouble(relRightXPosition);
+    						rightHandPositionOutput.addDouble(relRightYPosition);
+    						rightHandPort.write(rightHandPositionOutput);
+                            
                                                             
                             previous_right_hand_average_mc = right_hand_average_mc;                          
                         }
