@@ -62,6 +62,9 @@ class visionDriver: public RFModule
 	    BufferedPort< yarp::sig::Vector > targetPort;	//init output port
 	    BufferedPort< ImageOf<PixelRgb> > imageOut;
 	    //BufferedPort< ImageOf<PixelRgb> > skinMaskOut;
+	    BufferedPort< ImageOf<PixelRgb> > leftArmSkinPort;
+	    BufferedPort< ImageOf<PixelRgb> > rightArmSkinPort;
+	    
 
 	    Port gazePort;	//x and y position for gaze controller
         Port syncPort;
@@ -70,7 +73,9 @@ class visionDriver: public RFModule
         Port rightHandPort;
         string leftHandPortName;
         string rightHandPortName;
-
+        string leftArmSkinPortName;
+        string rightArmSkinPortName;
+        
         std::vector<std::vector<cv::Point> > returnContours;
 	    
 	    bool inOpen;
@@ -128,9 +133,12 @@ class visionDriver: public RFModule
         visionUtils *utilsObj;
         skinDetector *detectorObj;
         
-        bool firstMovement;
-        Point average_mc;
-        Point previous_average_mc;        
+        bool firstLeftHandMovement;
+        bool firstRightHandMovement;
+        Point right_hand_average_mc;
+        Point left_hand_average_mc;
+        Point previous_right_hand_average_mc;        
+        Point previous_left_hand_average_mc;        
 
     public:
         visionDriver();

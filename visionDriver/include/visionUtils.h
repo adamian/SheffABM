@@ -44,6 +44,9 @@ class visionUtils
         vector<Rect> segmentLineBoxFit(Mat, int, int, Mat *,  std::vector<std::vector<cv::Point> > *, bool);
         Mat cannySegmentation(Mat, int, bool);
         bool isHandMoving(Point, Point, int);
+        int drawHist(std::vector<Mat>);
+        
+        
         
 //        vector<Rect> getArmRects(Mat, int, Mat *, bool);
 //        bool compareContourAreas(std::vector<cv::Point> c1, std::vector<cv::Point> c2);
