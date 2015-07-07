@@ -133,6 +133,9 @@ class visionDriver: public RFModule
         visionUtils *utilsObj;
         //skinDetector *detectorObj;
         
+        // Detect skin using default values for first go then update.......
+		std::vector<int> hsvAdaptiveValues;
+
         bool firstLeftHandMovement;
         bool firstRightHandMovement;
         Point right_hand_average_mc;

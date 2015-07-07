@@ -32,6 +32,9 @@ visionDriver::visionDriver()
     previous_right_hand_average_mc.x = 0;
     previous_right_hand_average_mc.y = 0;
     
+    // Detect skin using default values for first go.......
+	hsvAdaptiveValues.clear();
+
 }
 
 visionDriver::~visionDriver()
@@ -89,11 +92,15 @@ bool visionDriver::updateModule()
 		    noBodies = body_cascade.detectMultiScale(grayscaleFrameGPU,objBufBodyGPU,1.2,5,Size(100,100));
 
 			Mat skinImage;
-			Mat skinMask;
+			Mat skinMaskDefault;
 			Mat skinHSV;
 			
-			//skinImage = detectorObj->detect(captureFrameBGR, displayFaces, &skinMask);
-            skinImage = utilsObj->skinDetect(captureFrameBGR, &skinHSV, &skinMask, 400,7, 3, 0, displayFaces);
+			//skinImage = detectorObj->detect(captureFrameBGR, displayFaces, &skinMaskDefault);
+			// Detect skin using default values.......
+			std::vector<int> hsvDefault;
+			
+			// LB: for first go this will use default values until updated by skin from face tracker....... hopefully!
+            skinImage = utilsObj->skinDetect(captureFrameBGR, &skinHSV, &skinMaskDefault, hsvDefault, 400,7, 3, 0, displayFaces);
 
 			captureFrameFace=captureFrameBGR.clone();
 			
@@ -268,25 +275,32 @@ bool visionDriver::updateModule()
                         {
                             //cout << "faceSegMask pix val:" << faceSegMask.at<int>(i,j) << endl;
                             // check pixels in face mask
-                            if  (faceSegMask.at<int>(i,j)>0)
-                                // Check HSV is not zero....
-                                if (faceHSV.at<Vec3b>(i,j)[0]!=0 || faceHSV.at<Vec3b>(i,j)[1]!=0 || faceHSV.at<Vec3b>(i,j)[2]!=0)
-                                {
-                                    // save HSV values from pixel in mask    
-                                    hsvPixels[0].push_back(faceHSV.at<Vec3b>(i,j)[0]); //H
-                                    hsvPixels[1].push_back(faceHSV.at<Vec3b>(i,j)[1]); //S
-                                    hsvPixels[2].push_back(faceHSV.at<Vec3b>(i,j)[2]); //V
-                                }
+                            //if  (faceSegMask)
+                            //if  (faceSegMask.at<int>(i,j)>0)
+                            //{   // Check HSV is not zero....
+                            if (faceHSV(i,j)[0]!=0 || faceHSV(i,j)[1]!=0 || faceHSV(i,j)[2]!=0)
+                            //if (faceHSV.at<Vec3b>(i,j)[0]!=0 || faceHSV.at<Vec3b>(i,j)[1]!=0 || faceHSV.at<Vec3b>(i,j)[2]!=0)
+                            {
+                                // save HSV values from pixel in mask    
+                                hsvPixels[0].push_back(faceHSV(i,j)[0]); //H
+                                hsvPixels[1].push_back(faceHSV(i,j)[1]); //S
+                                hsvPixels[2].push_back(faceHSV(i,j)[2]); //V
+                            }
+                            //}
                         }
                     }
                     
-                    int t = utilsObj->drawHist(hsvPixels);
                     
-                    //cout << "first hsv pixel values:" << hsvPixels[0] << endl;
-                    cout << "found " << hsvPixels[0].size() << " hsv pixels in mask" << endl;
+                    //imshow("HSV seg face",faceHSV);
+                    
+                    // Update adaptive skin detection vector.... for person specific detection....
+                    hsvAdaptiveValues = utilsObj-> updateHSVAdaptiveSkin(hsvPixels, displayFaces);
+                    
+                    //cout << "h pixel values:" << hsvPixels[0] << endl;
+                    //cout << "found " << hsvPixels[0].size() << " hsv pixels in mask" << endl;
                     
                     faceSegMaskInv = faceSegMask.clone();
-                    imshow("facemaskinv",faceSegMaskInv);                 
+                    //imshow("facemaskinv",faceSegMaskInv);                 
                     faceSegFlag=true;
                 }
                 else
@@ -386,7 +400,7 @@ bool visionDriver::updateModule()
 				// LB: CHECK sagittal split is sensible -> around the middle of the image (15%of either side).....
 				// if not reject segmentation....
 				
-				if (sagittalSplit > skinMask.cols*0.85 || sagittalSplit < skinMask.cols*0.15)
+				if (sagittalSplit > skinMaskDefault.cols*0.85 || sagittalSplit < skinMaskDefault.cols*0.15)
 				{
 				cout << " Sagittal split line is too near edge -> rejecting body detection" << endl;
 				bodySegFlag=false;
@@ -433,6 +447,15 @@ bool visionDriver::updateModule()
         
             if (!faceSegMaskInv.empty() && faceSegFlag && bodySegFlag)
             {
+            
+            Mat skinImageTemp;
+            Mat skinHSVtemp;
+            Mat skinMask;
+            // LB redo skin masking but with adaptive filter 
+            skinImageTemp = utilsObj->skinDetect(captureFrameBGR, &skinHSVtemp, &skinMask, hsvAdaptiveValues, 400,7, 3, 0, displayFaces);
+            
+            
+            
 //			    cout << skinMask.size() << " inv mask " << faceSegMskInv.size() << endl;
 	//		    cout << currentFaceRect.width << " h=" << currentFaceRect.height << endl;
 			    Mat rectMaskFaceOnly = Mat::zeros( skinMask.size(), CV_8UC1 );
@@ -450,7 +473,9 @@ bool visionDriver::updateModule()
 		        {
 			        imshow("Rectangle mask face",rectMaskFaceOnly);
 			        //imshow("skinmask face",skinMask);
-                    imshow("skinmask no face :)",skinMaskNoFace);					    
+                    imshow("skinmask no face :)",skinMaskNoFace);	
+                    imshow("skin seg WITH ADAPTIVE SKIN SEG...... ",skinImageTemp);
+                    				    
                 }
                 
                 // FOR SKELETON TRACKING draw over face in skin mask... facemask
@@ -460,7 +485,7 @@ bool visionDriver::updateModule()
 			    Mat skelMat;
 			    //skelMat=utilsObj->skeletonDetect(skinMaskNoFace, imgBlurPixels, displayBodies);
 			    //vector<Rect> boundingBox = utilsObj->getArmRects(skinMaskNoFace, imgBlurPixels, &skelMat, displayFaces);
-		        vector<Rect> boundingBox = utilsObj->segmentLineBoxFit(skinMaskNoFace, 250, 2, &skelMat, &returnContours, displayFaces);
+		        vector<Rect> boundingBox = utilsObj->segmentLineBoxFit(skinMaskNoFace, 400, 2, &skelMat, &returnContours, displayFaces);
 
 			    //check atleast two bounding boxes found for left and right arms...
 			    if (boundingBox.size()>1)
@@ -578,11 +603,11 @@ bool visionDriver::updateModule()
                             for( int i = 0; i < returnContours.size(); i++ )
                             {
                                 // Centre of mass method                                
-                                left_hand_average_mc.x = left_hand_average_mc.x + mc[i].x;
-                                left_hand_average_mc.y = left_hand_average_mc.y + mc[i].y;
+//                                left_hand_average_mc.x = left_hand_average_mc.x + mc[i].x;
+//                                left_hand_average_mc.y = left_hand_average_mc.y + mc[i].y;
 
-//                                left_hand_average_mc.x = left_hand_average_mc.x + boundingBox[leftArmInd].x;
-//                                left_hand_average_mc.y = left_hand_average_mc.y + boundingBox[leftArmInd].y;
+                                left_hand_average_mc.x = left_hand_average_mc.x + boundingBox[leftArmInd].x;
+                                left_hand_average_mc.y = left_hand_average_mc.y + boundingBox[leftArmInd].y;
                             }
                             
                             left_hand_average_mc.x = left_hand_average_mc.x/returnContours.size();
@@ -713,11 +738,11 @@ bool visionDriver::updateModule()
                             for( int i = 0; i < returnContours.size(); i++ )
                             {
                                 // Centre of mass method
-                                right_hand_average_mc.x = right_hand_average_mc.x + mc[i].x;
-                                right_hand_average_mc.y = right_hand_average_mc.y + mc[i].y;
+//                                right_hand_average_mc.x = right_hand_average_mc.x + mc[i].x;
+//                                right_hand_average_mc.y = right_hand_average_mc.y + mc[i].y;
 
-//                                right_hand_average_mc.x = right_hand_average_mc.x + boundingBox[rightArmInd].x;
-//                                right_hand_average_mc.y = right_hand_average_mc.y + boundingBox[rightArmInd].y;
+                                right_hand_average_mc.x = right_hand_average_mc.x + boundingBox[rightArmInd].x;
+                                right_hand_average_mc.y = right_hand_average_mc.y + boundingBox[rightArmInd].y;
                             }
                             
                             right_hand_average_mc.x = right_hand_average_mc.x/returnContours.size();

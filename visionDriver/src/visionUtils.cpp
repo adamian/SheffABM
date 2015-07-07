@@ -398,54 +398,59 @@ bool visionUtils::isHandMoving(Point handPoints, Point previousHandPoints, int l
     return movement;
 }
 
-/**
+/** ###############################################################################
  * @Draw histogram
  * Takes in triple vector of values e.g. std::vector<Mat> bgrPixels(3);
  */
-int visionUtils::drawHist(std::vector<Mat> pixelPlanes)//( int, char** argv )
+int visionUtils::drawHist(std::vector<Mat> pixelPlanes, int histBlurPixels)//( int, char** argv )
 {
-  //Mat dst, src;
-
-  /// Load image
-  /*src = imread( argv[1], 1 );
-
-  if( !src.data )
+    //Mat dst, src;
+    /// Load image
+    /*src = imread( argv[1], 1 );
+    if( !src.data )
     { return -1; }
-*/
-  /// Separate the image in 3 places ( B, G and R )
-  //vector<Mat> pixelPlanes;
-  //split( src, pixelPlanes );
+    */
+    /// Separate the image in 3 places ( B, G and R )
+    //vector<Mat> pixelPlanes;
+    //split( src, pixelPlanes );
 
-  /// Establish the number of bins
-  int histSize = 256;
+    /// Establish the number of bins
+    int histSize = 256;
 
-  /// Set the ranges ( for B,G,R) )
-  float range[] = { 0, 256 } ;
-  const float* histRange = { range };
+    /// Set the ranges ( for B,G,R) )
+    float range[] = { 0, 256 } ;
+    const float* histRange = { range };
 
-  bool uniform = true; bool accumulate = false;
+    bool uniform = true; bool accumulate = false;
 
-  Mat b_hist, g_hist, r_hist;
+    Mat b_hist, g_hist, r_hist;
 
-  /// Compute the histograms:
-  calcHist( &pixelPlanes[0], 1, 0, Mat(), b_hist, 1, &histSize, &histRange, uniform, accumulate );
-  calcHist( &pixelPlanes[1], 1, 0, Mat(), g_hist, 1, &histSize, &histRange, uniform, accumulate );
-  calcHist( &pixelPlanes[2], 1, 0, Mat(), r_hist, 1, &histSize, &histRange, uniform, accumulate );
+    /// Compute the histograms:
+    calcHist( &pixelPlanes[0], 1, 0, Mat(), b_hist, 1, &histSize, &histRange, uniform, accumulate );
+    calcHist( &pixelPlanes[1], 1, 0, Mat(), g_hist, 1, &histSize, &histRange, uniform, accumulate );
+    calcHist( &pixelPlanes[2], 1, 0, Mat(), r_hist, 1, &histSize, &histRange, uniform, accumulate );
 
-  // Draw the histograms for B, G and R or H S V
-  int hist_w = 512; int hist_h = 400;
-  int bin_w = cvRound( (double) hist_w/histSize );
+    // Draw the histograms for B, G and R or H S V
+    int hist_w = 512; int hist_h = 400;
+    int bin_w = cvRound( (double) hist_w/histSize );
 
-  Mat histImage( hist_h, hist_w, CV_8UC3, Scalar( 0,0,0) );
+    Mat histImage( hist_h, hist_w, CV_8UC3, Scalar( 0,0,0) );
+    // Smooth hists if needed
+    if (histBlurPixels>0)
+    {
+        GaussianBlur(b_hist, b_hist, Size(1,histBlurPixels), 1, 1);
+        GaussianBlur(g_hist, g_hist, Size(1,histBlurPixels), 1, 1);
+        GaussianBlur(r_hist, r_hist, Size(1,histBlurPixels), 1, 1);
+    }
 
-  /// Normalize the result to [ 0, histImage.rows ]
-  normalize(b_hist, b_hist, 0, histImage.rows, NORM_MINMAX, -1, Mat() );
-  normalize(g_hist, g_hist, 0, histImage.rows, NORM_MINMAX, -1, Mat() );
-  normalize(r_hist, r_hist, 0, histImage.rows, NORM_MINMAX, -1, Mat() );
+    /// Normalize the result to [ 0, histImage.rows ]
+    normalize(b_hist, b_hist, 0, histImage.rows, NORM_MINMAX, -1, Mat() );
+    normalize(g_hist, g_hist, 0, histImage.rows, NORM_MINMAX, -1, Mat() );
+    normalize(r_hist, r_hist, 0, histImage.rows, NORM_MINMAX, -1, Mat() );
 
-  /// Draw for each channel
-  for( int i = 1; i < histSize; i++ )
-  {
+    /// Draw for each channel
+    for( int i = 1; i < histSize; i++ )
+    {
       line( histImage, Point( bin_w*(i-1), hist_h - cvRound(b_hist.at<float>(i-1)) ) ,
                        Point( bin_w*(i), hist_h - cvRound(b_hist.at<float>(i)) ),
                        Scalar( 255, 0, 0), 2, 8, 0  );
@@ -455,15 +460,56 @@ int visionUtils::drawHist(std::vector<Mat> pixelPlanes)//( int, char** argv )
       line( histImage, Point( bin_w*(i-1), hist_h - cvRound(r_hist.at<float>(i-1)) ) ,
                        Point( bin_w*(i), hist_h - cvRound(r_hist.at<float>(i)) ),
                        Scalar( 0, 0, 255), 2, 8, 0  );
-  }
+    }
 
-  /// Display
-  namedWindow("calcHist Demo", WINDOW_AUTOSIZE );
-  imshow("calcHist Demo", histImage );
+    /// Display
+    namedWindow("calcHist Demo", WINDOW_AUTOSIZE );
+    imshow("calcHist Demo", histImage );
+    waitKey(1);
+    return 0;
+}
 
-  waitKey(1);
 
-  return 0;
+std::vector<int> visionUtils::updateHSVAdaptiveSkin(std::vector<Mat> pixelPlanes, bool displayFaces)//( int, char** argv )
+{
+    if (displayFaces)
+    {
+        drawHist(pixelPlanes, 35);
+    }
+    
+    // Only need this bit
+    /* Using mean and std dev.... */
+    Scalar b_mean, b_stdDev;
+    meanStdDev(pixelPlanes[0], b_mean, b_stdDev);
+    int b_min=b_mean[0] - b_stdDev[0]*3;
+    int b_max=b_mean[0] + b_stdDev[0]*3;
+
+    Scalar g_mean,g_stdDev;
+    meanStdDev(pixelPlanes[1], g_mean,g_stdDev);
+    int g_min=g_mean[0] - g_stdDev[0]*3;
+    int g_max=g_mean[0] + g_stdDev[0]*3;  
+
+    Scalar r_mean, r_stdDev;
+    meanStdDev(pixelPlanes[2], r_mean, r_stdDev);
+    int r_min=r_mean[0] - r_stdDev[0]*3;
+    int r_max=r_mean[0] + r_stdDev[0]*3;    
+
+    cout << "H vals min: " << b_min << " max: " << b_max << endl;
+    cout << "S vals min: " << g_min << " max: " << g_max << endl;
+    cout << "V vals min: " << r_min << " max: " << r_max << endl;
+
+    //// Make new adaptive skin detector HSV vector.....
+    // Original values 0<H<0.25  -   0.15<S<0.9    -    0.2<V<0.95 
+    // and in 8bit (0 to 255) 5<H<17 - 38<S<250 - 51<V<242..................
+    std::vector<int> hsvAdaptiveUpdated;
+    hsvAdaptiveUpdated.push_back(b_min);
+    hsvAdaptiveUpdated.push_back(g_min);
+    hsvAdaptiveUpdated.push_back(r_min);
+    hsvAdaptiveUpdated.push_back(b_max);
+    hsvAdaptiveUpdated.push_back(g_max);
+    hsvAdaptiveUpdated.push_back(r_max);
+
+  return hsvAdaptiveUpdated;
 
 }
 
@@ -471,14 +517,34 @@ int visionUtils::drawHist(std::vector<Mat> pixelPlanes)//( int, char** argv )
 // ############################ Skin Detection ###################################
 
 
-Mat visionUtils::skinDetect(Mat captureframe, Mat *skinHSV, Mat *skinMask, int minPixelSize, int imgBlurPixels, int imgMorphPixels, int singleRegionChoice, bool displayFaces)
+Mat visionUtils::skinDetect(Mat captureframe, Mat *skinHSV, Mat *skinMask, std::vector<int> adaptiveHSV, int minPixelSize, int imgBlurPixels, int imgMorphPixels, int singleRegionChoice, bool displayFaces)
 {
 
 // Select single largest region from image, if singleRegionChoice is selected (=1)
+//    adaptiveHSV = Optional 6x1 vector of ints  -> send in empty or of size!= 6 to use defaults.... 
+//    adaptiveHSV = use range as in H[0]S[1]V[2] min and H[3]S[4]V[5] max       
 //    singleRegionChoice = 0; On = Find single largest region of skin
 //    minPixelSize = 400; // Minimum pixel size for keeping skin regions!
 //    imgBlurPixels = 7;//7, 15; // Number of pixels to smooth over for final thresholding
 //    imgMorphPixels = 3; //7, 9; // Number pixels to do morphing over Erode dilate etc....
+
+
+if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
+{
+    //cout << "Using default HSV values for skin detection" << endl;
+    // 0<H<0.25  -   0.15<S<0.9    -    0.2<V<0.95
+	// Original values in 8bit (0 to 255) 5<H<17 - 38<S<250 - 51<V<242..................
+	adaptiveHSV.clear();
+    adaptiveHSV.push_back(5);
+    adaptiveHSV.push_back(38);
+    adaptiveHSV.push_back(51);
+    adaptiveHSV.push_back(17);
+    adaptiveHSV.push_back(250);
+    adaptiveHSV.push_back(242);
+}
+
+
+//cout << "Using HSV vals: " << adaptiveHSV << endl;
 
 	int step = 0;
 	Mat3b frame;
@@ -499,9 +565,20 @@ Mat visionUtils::skinDetect(Mat captureframe, Mat *skinHSV, Mat *skinMask, int m
 	//medianBlur(frame, frame, 15);
 	for(int r=0; r<frame.rows; ++r){
 		for(int c=0; c<frame.cols; ++c) 
-			// 0<H<0.25  -   0.15<S<0.9    -    0.2<V<0.95   
-			if( (frame(r,c)[0]>5) && (frame(r,c)[0] < 17) && (frame(r,c)[1]>38) && (frame(r,c)[1]<250) && (frame(r,c)[2]>51) && (frame(r,c)[2]<242) ); // do nothing
-			else for(int i=0; i<3; ++i)	frame(r,c)[i] = 0;
+			// 0<H<0.25  -   0.15<S<0.9    -    0.2<V<0.95
+			// Original values in 8bit (0 to 255) 5<H<17 - 38<S<250 - 51<V<242..................
+			// LB: updated to be adaptive.... 
+			//if( (frame(r,c)[0]>5) && (frame(r,c)[0] < 17) && (frame(r,c)[1]>38) && (frame(r,c)[1]<250) && (frame(r,c)[2]>51) && (frame(r,c)[2]<242) ) // do nothing
+			if((frame(r,c)[0]>adaptiveHSV[0]) && (frame(r,c)[0]<adaptiveHSV[3])
+			&& (frame(r,c)[1]>adaptiveHSV[1]) && (frame(r,c)[1]<adaptiveHSV[4])
+			&& (frame(r,c)[2]>adaptiveHSV[2]) && (frame(r,c)[2]<adaptiveHSV[5]))
+			{
+			//cout << "Found skin!!!" << endl;
+			}// do nothing
+			else
+			{
+			for(int i=0; i<3; ++i) frame(r,c)[i] = 0;
+			}
 	}
 
 	if (displayFaces)	imshow("Skin HSV (B)",frame);
@@ -509,7 +586,7 @@ Mat visionUtils::skinDetect(Mat captureframe, Mat *skinHSV, Mat *skinMask, int m
 	Mat1b frame_gray;
 	
 	// send HSV to skinHsv for return
-	*skinHSV=frame;
+	*skinHSV=frame.clone();
 	
 	cvtColor(frame, frame, CV_HSV2BGR);
 	cvtColor(frame, frame_gray, CV_BGR2GRAY);

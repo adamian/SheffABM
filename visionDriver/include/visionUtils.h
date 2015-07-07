@@ -46,9 +46,13 @@ class visionUtils
         vector<Rect> segmentLineBoxFit(Mat, int, int, Mat *,  std::vector<std::vector<cv::Point> > *, bool);
 
         bool isHandMoving(Point, Point, int);
-        int drawHist(std::vector<Mat>);
+        
+        // adaptive HSV
+        std::vector<int> updateHSVAdaptiveSkin(std::vector<Mat>, bool);
+        int drawHist(std::vector<Mat>, int);
+        
         // Skin detection
-        Mat skinDetect(Mat, Mat *, Mat *, int minPixelSize, int, int, int, bool);
+        Mat skinDetect(Mat, Mat *, Mat *, std::vector<int>, int, int, int, int, bool);
         Mat cannySegmentation(Mat, int, bool);        
 };
 
