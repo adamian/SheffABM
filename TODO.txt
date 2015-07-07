@@ -5,5 +5,7 @@
 - SAMpy_example_segfaces.py: The up to date demo with face tracking using SAM.
 
 3) Make a class Driver and better structure the drivers to inherit from it.
+The train module should be the same for all drivers implementing Driver.
 
 4) Rename SAMpy to FaceDriver, inheriting from Driver.py
+Remove calls that the parent class is doing and in the end call the init of the parent with super()
