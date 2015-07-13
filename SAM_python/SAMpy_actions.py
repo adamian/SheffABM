@@ -161,9 +161,44 @@ class SAMpy_actions:
         return cols, indexToName
 
 
-    def splitHandMovements(self, dataMovements):
-        
-        return 0
+    def splitHandMovements(dataLog):
+
+        sampleRight = False
+        sampleLeft = False
+        counterZeros = 0;
+        zeroCriteria = False;
+        tempRightData = []
+        tempLeftData = []
+        leftData = []
+        rightData = []
+
+        for i in range(len(dataLog[0])):
+            if( ( dataLog[0][i] > 0.1 ) and ( zeroCriteria == False ) ):
+                tempRightData.append([dataLog[0][i], dataLog[1][i]]);
+                sampleRight = True
+            elif( ( sampleRight == True ) and (zeroCriteria == True ) ):
+                rightData.append(tempRightData)
+                tempRightData = []
+                sampleRight = False
+
+            if( ( dataLog[0][i] < -0.1 ) and ( zeroCriteria == False ) ):
+                tempLeftData.append([dataLog[0][i], dataLog[1][i]]);
+                sampleLeft = True;
+            elif( ( sampleLeft == True ) and (zeroCriteria == True ) ):
+                leftData.append(tempLeftData)
+                tempLeftData = []
+                sampleLeft = False
+            
+            if( dataLog[0][i] == 0.0 ):
+                counterZeros = counterZeros + 1;
+
+            if( counterZeros > 2 ):
+                zeroCriteria = True
+                counterZeros = 0
+            else:
+                zeroCriteria = False
+                
+        return leftData, rightData
 
 #""""""""""""""""
 #Method to read face data previously collected to be used in the traning phase.
