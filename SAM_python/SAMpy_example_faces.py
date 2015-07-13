@@ -13,7 +13,7 @@
 #
 
 import matplotlib.pyplot as plt
-from SAMpy import SAMpy
+from SAMpy_faces import SAMpy_faces
 import pylab as pb
 import sys
 import pickle
@@ -24,7 +24,7 @@ import operator
 
 
 # Creates a SAMpy object
-mySAMpy = SAMpy(True, imgH = 400, imgW = 400, imgHNew = 200, imgWNew = 200,inputImagePort="/visionDriver/image:o")
+mySAMpy = SAMpy_faces(True, imgH = 400, imgW = 400, imgHNew = 200, imgWNew = 200,inputImagePort="/visionDriver/image:o")
 
 # Specification of the experiment number
 experiment_number = 11
