@@ -32,7 +32,7 @@ from ABM import ABM
 #Class developed for the implementation of the face recognition task in real-time mode.
 #""""""""""""""""
 
-class SAMpy:
+class SAMpy_actions:
 
 #""""""""""""""""
 #Initilization of the SAM class
@@ -72,11 +72,11 @@ class SAMpy:
         self.model_num_iterations = 0
         self.model_init_iterations = 0
 
-        if( isYarpRunning == True ):
-            yarp.Network.init()
-            self.createPorts()
-            self.openPorts()
-            self.createImageArrays()
+#        if( isYarpRunning == True ):
+#            yarp.Network.init()
+#            self.createPorts()
+#            self.openPorts()
+#            self.createImageArrays()
 
 
 #""""""""""""""""
@@ -121,6 +121,50 @@ class SAMpy:
         self.yarpImage.resize(self.imgWidthNew,self.imgWidthNew)
         self.yarpImage.setExternal(self.imageArray, self.imageArray.shape[1], self.imageArray.shape[0])
 
+    def getColumns(self, inFile, delim="\t", header=True):
+        """
+        Get columns of data from inFile. The order of the rows is respected
+    
+        :param inFile: column file separated by delim
+        :param header: if True the first line will be considered a header line
+        :returns: a tuple of 2 dicts (cols, indexToName). cols dict has keys that 
+        are headings in the inFile, and values are a list of all the entries in that
+        column. indexToName dict maps column index to names that are used as keys in 
+        the cols dict. The names are the same as the headings used in inFile. If
+        header is False, then column indices (starting from 0) are used for the 
+        heading names (i.e. the keys in the cols dict)
+        """
+        cols = {}
+        indexToName = {}
+        for lineNum, line in enumerate(inFile):
+            if lineNum == 0:
+                headings = line.split(delim)
+                i = 0
+                for heading in headings:
+                    heading = heading.strip()
+                    if header:
+                        cols[heading] = []
+                        indexToName[i] = heading
+                    else:
+                        # in this case the heading is actually just a cell
+                        cols[i] = [heading]
+                        indexToName[i] = i
+                    i += 1
+            else:
+                cells = line.split(delim)
+                i = 0
+                for cell in cells:
+                    cell = cell.strip()
+                    cols[indexToName[i]] += [cell]
+                    i += 1
+                
+        return cols, indexToName
+
+
+    def splitHandMovements(self, dataMovements):
+        
+        return 0
+
 #""""""""""""""""
 #Method to read face data previously collected to be used in the traning phase.
 #Here the loaded data is preprocessed to have the correct image size and one face per image.
@@ -131,94 +175,102 @@ class SAMpy:
 #
 #Outputs: None
 #""""""""""""""""
-    def readFaceData(self, root_data_dir, participant_index, pose_index):
+    def readData(self, root_data_dir):
         self.Y
         self.L
-        self.participant_index = participant_index
+#        self.action_index = action_index
 
         if not os.path.exists(root_data_dir):
             print "CANNOT FIND:" + root_data_dir
         else:
             print "PATH FOUND"
 
-	    ## Find and build index of available images.......
-        data_file_count=numpy.zeros([len(self.participant_index),len(pose_index)])
         data_file_database={}
-        for count_participant, current_participant in enumerate(self.participant_index):
-            data_file_database_part={}
-            for count_pose, current_pose in enumerate(pose_index):
-                current_data_dir=os.path.join(root_data_dir,current_participant+current_pose)
-                data_file_database_p=numpy.empty(0,dtype=[('orig_file_id','i2'),('file_id','i2'),('img_fname','a100')])
-                data_image_count=0
-                if os.path.exists(current_data_dir):
-                    for file in os.listdir(current_data_dir):
-	                    #parts = re.split("[-,\.]", file)
-                        fileName, fileExtension = os.path.splitext(file)
-                        if fileExtension==self.image_suffix: # Check for image file
-                            file_ttt=numpy.empty(1, dtype=[('orig_file_id','i2'),('file_id','i2'),('img_fname','a100')])
-                            file_ttt['orig_file_id'][0]=int(fileName)
-                            file_ttt['img_fname'][0]=file
-                            file_ttt['file_id'][0]=data_image_count
-                            data_file_database_p = numpy.append(data_file_database_p,file_ttt,axis=0)
-                            data_image_count += 1
-                    data_file_database_p=numpy.sort(data_file_database_p,order=['orig_file_id'])  
-                data_file_database_part[pose_index[count_pose]]=data_file_database_p
-                data_file_count[count_participant,count_pose]=len(data_file_database_p)
-            data_file_database[self.participant_index[count_participant]]=data_file_database_part
+        dataFile = file(root_data_dir+"/data.log")
 
-	    # To access use both dictionaries data_file_database['Luke']['LR']
-	    # Cutting indexes to smllest number of available files -> Using file count
-        min_no_images=int(numpy.min(data_file_count))
+    	cols, indexToName = self.getColumns(dataFile, " ", False)
+        dataFile.close();
+	rows = numpy.size(cols[2][0:]);
+        for i in range(len(cols)-2):
+            dataLog[i] = cols[i+2][0:]
 
-	    # Load image data into array......
-	    # Load first image to get sizes....
-        data_image=cv2.imread(os.path.join(root_data_dir,self.participant_index[0]+pose_index[0]+"/"+
-            data_file_database[self.participant_index[0]][pose_index[0]][0][2]))[:,:,(2,1,0)] # Convert BGR to RGB
+        dataLogSplitted = self.splitHandMovements(dataLog)
 
-	    # Data size
-        print "Found minimum number of images:" + str(min_no_images)
-        print "Image count:", data_file_count
-        print "Found image with dimensions" + str(data_image.shape)
-	#    imgplot = plt.imshow(data_image)#[:,:,(2,1,0)]) # convert BGR to RGB
-
-	    # Load all images....
-	    #Data Dimensions:
-	    #1. Pixels (e.g. 200x200)
-	    #2. Images 
-	    #3. Person
-	    #4. Movement (Static. up/down. left / right) 
-        set_x=int(data_image.shape[0])
-        set_y=int(data_image.shape[1])
-        #no_rgb=int(data_image.shape[2])
-        no_pixels=self.imgWidthNew*self.imgHeightNew #set_x*set_y
-        img_data=numpy.zeros([no_pixels, min_no_images, len(self.participant_index),len(pose_index)])
-        img_label_data=numpy.zeros([no_pixels, min_no_images, len(self.participant_index),len(pose_index)],dtype=int)
-	    #cv2.imshow("test", data_image)
-	    #cv2.waitKey(50)              
-        for count_pose, current_pose in enumerate(pose_index):
-            for count_participant, current_participant in enumerate(self.participant_index):
-                for current_image in range(min_no_images): 
-                    current_image_path=os.path.join(os.path.join(root_data_dir,self.participant_index[count_participant]+pose_index[count_pose]+"/"+
-                        data_file_database[self.participant_index[count_participant]][pose_index[count_pose]][current_image][2]))
-                    data_image=cv2.imread(current_image_path)
-	                # Check image is the same size if not... cut or reject
-                    if data_image.shape[0]<set_x or data_image.shape[1]<set_y:
-                        print "Image too small... EXITING:"
-                        print "Found image with dimensions" + str(data_image.shape)
-                        sys.exit(0)
-                    if data_image.shape[0]>set_x or data_image.shape[1]>set_y:
-                        print "Found image with dimensions" + str(data_image.shape)
-                        print "Image too big cutting to: x="+ str(set_x) + " y=" + str(set_y)
-                        data_image=data_image[:set_x,:set_y]
-                    data_image=cv2.resize(data_image, (self.imgWidthNew, self.imgHeightNew)) # New
-                    data_image=cv2.cvtColor(data_image, cv2.COLOR_BGR2GRAY) 
-                    # Data is flattened into single vector (inside matrix of all images) -> (from images)        
-                    img_data[:,current_image,count_participant,count_pose] = data_image.flatten()
-	                # Labelling with participant            
-                    img_label_data[:,current_image,count_participant,count_pose]=numpy.zeros(no_pixels,dtype=int)+count_participant
-
-        self.Y=img_data
-        self.L=img_label_data
+#        for count_participant, current_participant in enumerate(self.participant_index):
+#            data_file_database_part={}
+#            for count_pose, current_pose in enumerate(pose_index):
+#                current_data_dir=os.path.join(root_data_dir,current_participant+current_pose)
+#                data_file_database_p=numpy.empty(0,dtype=[('orig_file_id','i2'),('file_id','i2'),('img_fname','a100')])
+#                data_image_count=0
+#                if os.path.exists(current_data_dir):
+#                    for file in os.listdir(current_data_dir):
+#	                    #parts = re.split("[-,\.]", file)
+#                        fileName, fileExtension = os.path.splitext(file)
+#                        if fileExtension==self.image_suffix: # Check for image file
+#                            file_ttt=numpy.empty(1, dtype=[('orig_file_id','i2'),('file_id','i2'),('img_fname','a100')])
+#                            file_ttt['orig_file_id'][0]=int(fileName)
+#                            file_ttt['img_fname'][0]=file
+#                            file_ttt['file_id'][0]=data_image_count
+#                            data_file_database_p = numpy.append(data_file_database_p,file_ttt,axis=0)
+#                            data_image_count += 1
+#                    data_file_database_p=numpy.sort(data_file_database_p,order=['orig_file_id'])  
+#                data_file_database_part[pose_index[count_pose]]=data_file_database_p
+#                data_file_count[count_participant,count_pose]=len(data_file_database_p)
+#            data_file_database[self.participant_index[count_participant]]=data_file_database_part
+#
+#	    # To access use both dictionaries data_file_database['Luke']['LR']
+#	    # Cutting indexes to smllest number of available files -> Using file count
+#        min_no_images=int(numpy.min(data_file_count))
+#
+#	    # Load image data into array......
+#	    # Load first image to get sizes....
+#        data_image=cv2.imread(os.path.join(root_data_dir,self.participant_index[0]+pose_index[0]+"/"+
+#            data_file_database[self.participant_index[0]][pose_index[0]][0][2]))[:,:,(2,1,0)] # Convert BGR to RGB
+#
+#	    # Data size
+#        print "Found minimum number of images:" + str(min_no_images)
+#        print "Image count:", data_file_count
+#        print "Found image with dimensions" + str(data_image.shape)
+#	#    imgplot = plt.imshow(data_image)#[:,:,(2,1,0)]) # convert BGR to RGB
+#
+#	    # Load all images....
+#	    #Data Dimensions:
+#	    #1. Pixels (e.g. 200x200)
+#	    #2. Images 
+#	    #3. Person
+#	    #4. Movement (Static. up/down. left / right) 
+#        set_x=int(data_image.shape[0])
+#        set_y=int(data_image.shape[1])
+#        #no_rgb=int(data_image.shape[2])
+#        no_pixels=self.imgWidthNew*self.imgHeightNew #set_x*set_y
+#        img_data=numpy.zeros([no_pixels, min_no_images, len(self.participant_index),len(pose_index)])
+#        img_label_data=numpy.zeros([no_pixels, min_no_images, len(self.participant_index),len(pose_index)],dtype=int)
+#	    #cv2.imshow("test", data_image)
+#	    #cv2.waitKey(50)              
+#        for count_pose, current_pose in enumerate(pose_index):
+#            for count_participant, current_participant in enumerate(self.participant_index):
+#                for current_image in range(min_no_images): 
+#                    current_image_path=os.path.join(os.path.join(root_data_dir,self.participant_index[count_participant]+pose_index[count_pose]+"/"+
+#                        data_file_database[self.participant_index[count_participant]][pose_index[count_pose]][current_image][2]))
+#                    data_image=cv2.imread(current_image_path)
+#	                # Check image is the same size if not... cut or reject
+#                    if data_image.shape[0]<set_x or data_image.shape[1]<set_y:
+#                        print "Image too small... EXITING:"
+#                        print "Found image with dimensions" + str(data_image.shape)
+#                        sys.exit(0)
+#                    if data_image.shape[0]>set_x or data_image.shape[1]>set_y:
+#                        print "Found image with dimensions" + str(data_image.shape)
+#                        print "Image too big cutting to: x="+ str(set_x) + " y=" + str(set_y)
+#                        data_image=data_image[:set_x,:set_y]
+#                    data_image=cv2.resize(data_image, (self.imgWidthNew, self.imgHeightNew)) # New
+#                    data_image=cv2.cvtColor(data_image, cv2.COLOR_BGR2GRAY) 
+#                    # Data is flattened into single vector (inside matrix of all images) -> (from images)        
+#                    img_data[:,current_image,count_participant,count_pose] = data_image.flatten()
+#	                # Labelling with participant            
+#                    img_label_data[:,current_image,count_participant,count_pose]=numpy.zeros(no_pixels,dtype=int)+count_participant
+#
+#        self.Y=img_data
+#        self.L=img_label_data
 
 #""""""""""""""""
 #Method to process some important features from the face data required for the classification model such as mean and variance.
