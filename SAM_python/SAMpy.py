@@ -211,7 +211,8 @@ class SAMpy:
                         print "Image too big cutting to: x="+ str(set_x) + " y=" + str(set_y)
                         data_image=data_image[:set_x,:set_y]
                     data_image=cv2.resize(data_image, (self.imgWidthNew, self.imgHeightNew)) # New
-                    data_image=cv2.cvtColor(data_image, cv2.COLOR_BGR2GRAY)         
+                    data_image=cv2.cvtColor(data_image, cv2.COLOR_BGR2GRAY) 
+                    # Data is flattened into single vector (inside matrix of all images) -> (from images)        
                     img_data[:,current_image,count_participant,count_pose] = data_image.flatten()
 	                # Labelling with participant            
                     img_label_data[:,current_image,count_participant,count_pose]=numpy.zeros(no_pixels,dtype=int)+count_participant

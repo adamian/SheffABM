@@ -253,7 +253,7 @@ bool compareContourAreas(std::vector<cv::Point> contour1, std::vector<cv::Point>
     return ( i < j );
 }
 
-vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxSegments, Mat *returnMask, std::vector<std::vector<cv::Point> > *returnContours,bool displayFaces)
+vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxSegments, Mat *returnMask, std::vector<std::vector<cv::Point> > *returnContours, vector<RotatedRect> *rotatedBoundingBox, bool displayFaces)
 {
     // Segments items in gray image (img0)
     // minPixelSize= pixels, threshold for removing smaller regions, with less than minPixelSize pixels
@@ -302,6 +302,10 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
     
 //    cout << "No of contours =" << contours.size() << endl;
     vector<Rect> boundingBox;
+    
+    // LB testing
+    vector<RotatedRect> tempRotatedBoundingBox;
+    
     std::vector<std::vector<cv::Point> > tempReturnContours;
     int maxIterations = 0;
     
@@ -330,7 +334,14 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
 		        int righty = ((mask.cols-lines[2])*lines[1]/lines[0])+lines[3];
 		        //line(mask,Point(mask.cols-1,righty),Point(0,lefty),color,2);
 
-
+                // Fit rotated rect to contour
+                tempRotatedBoundingBox.push_back(minAreaRect( Mat(contours[i]) ));
+                
+                Point2f rectCentre=tempRotatedBoundingBox[contourCount].center;
+                rectCentre.x=rectCentre.x-padPixels;
+                rectCentre.y=rectCentre.y-padPixels;
+                tempRotatedBoundingBox[contourCount].center=rectCentre;
+                
 		        // Find line limits....
 		        //x,y,w,h = cv2.boundingRect(cnt)
 		        //cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
@@ -345,7 +356,6 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
 		        // Remove edge padding effects....
 		        boundingBox[contourCount].x=boundingBox[contourCount].x-padPixels;
 		        boundingBox[contourCount].y=boundingBox[contourCount].y-padPixels;
-		        
 		        boundingBox[contourCount]=checkRoiInImage(img0, boundingBox[contourCount]);
 		        
 		        contourCount++;
@@ -353,9 +363,12 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
 		        tempReturnContours.push_back(contours[i]);
 	        }
         }
-    
+        // Return contours
         returnContours->resize(tempReturnContours.size());
         *returnContours = tempReturnContours;
+        // Return rotated rects
+        rotatedBoundingBox->resize(tempRotatedBoundingBox.size());
+        *rotatedBoundingBox = tempRotatedBoundingBox;        
         
         // normalize so imwrite(...)/imshow(...) shows the mask correctly!
         normalize(mask.clone(), mask, 0.0, 255.0, CV_MINMAX, CV_8UC1);
@@ -686,7 +699,16 @@ Mat visionUtils::cannySegmentation(Mat img0, int minPixelSize, bool displayFaces
     return returnMask;
 }
 
+Mat visionUtils::drawRotatedRect(Mat image, RotatedRect rRect, Scalar colourIn)
+{
 
+Point2f vertices[4];
+rRect.points(vertices);
+for (int i = 0; i < 4; i++)
+    line(image, vertices[i], vertices[(i+1)%4], colourIn, 3); //Scalar(0,255,0));
+
+return image;
+}
 
 
 

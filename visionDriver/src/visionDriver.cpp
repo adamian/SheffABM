@@ -12,8 +12,8 @@ visionDriver::visionDriver()
 	// LB additional neck scale factor for masking the neck region..... basically add pixels south
 	neckScaleFactor = 40; // pixels south...
 
-	displayFaces = true;
-	displayBodies = true;
+	displayFaces = false;//true;
+	displayBodies = false; //true;
     utilsObj = new visionUtils();
     //detectorObj = new skinDetector();
     //Mat faceSegMaskInv;
@@ -22,15 +22,15 @@ visionDriver::visionDriver()
     firstLeftHandMovement = false;
     firstRightHandMovement = false;
     
-    left_hand_average_mc.x = 0;
-    left_hand_average_mc.y = 0;
-    right_hand_average_mc.x = 0;
-    right_hand_average_mc.y = 0;
+    left_hand_position.x = 0;
+    left_hand_position.y = 0;
+    right_hand_position.x = 0;
+    right_hand_position.y = 0;
     
-    previous_left_hand_average_mc.x = 0;
-    previous_left_hand_average_mc.y = 0;
-    previous_right_hand_average_mc.x = 0;
-    previous_right_hand_average_mc.y = 0;
+    previous_left_hand_position.x = 0;
+    previous_left_hand_position.y = 0;
+    previous_right_hand_position.x = 0;
+    previous_right_hand_position.y = 0;
     
     // Detect skin using default values for first go.......
 	hsvAdaptiveValues.clear();
@@ -55,6 +55,12 @@ bool visionDriver::updateModule()
 	    ImageOf<PixelRgb> *yarpImage = faceTrack.read();
 	    if (yarpImage!=NULL) 
 	    {
+	    
+	        // Init bodyPartLocations vector if anything found...
+	        for (int i; i<12;i++)
+	            bodyPartLocations[i]=-1.0; // -1 is no position found....
+	        bodyPosFound=false; // set flag off -> set to true when body part position found
+
 		    //Alternative way of creating an openCV compatible image
 		    //Takes approx twice as much time as uncomented implementation
 		    //Also generates IplImage instead of the more useable format Mat
@@ -67,39 +73,21 @@ bool visionDriver::updateModule()
 
             int height = yarpImage->height();
             int width = yarpImage->width();
-			
+		    
+		    // Haar cascades on GPU	
 		    captureFrameGPU.upload(captureFrameBGR);
 		    cv::gpu::cvtColor(captureFrameGPU,grayscaleFrameGPU,CV_BGR2GRAY);
 		    cv::gpu::equalizeHist(grayscaleFrameGPU,grayscaleFrameGPU);
-
-/*
-		    if(format_int == 0)
-		    {
-			    cv::cvtColor(captureFrame_cpuBayer,captureFrame_cpu,CV_RGB2BGR);
-		    }
-		    else
-		    {
-			    cv::cvtColor(captureFrame_cpuBayer,captureFrame_cpuBayer,CV_RGB2GRAY); //1D bayer image
-			    cv::cvtColor(captureFrame_cpuBayer,captureFrame_cpu,CV_BayerGB2BGR);	//rgb image out
-		    }
-
-		    captureFrame.upload(captureFrame_cpu);
-		    cv::gpu::cvtColor(captureFrame,grayscaleFrame,CV_BGR2GRAY);
-		    cv::gpu::equalizeHist(grayscaleFrame,grayscaleFrame);
-*/
-		
+		    // Face and Body
 		    noFaces = face_cascade.detectMultiScale(grayscaleFrameGPU,objBufFaceGPU,1.2,5,Size(30,30));
 		    noBodies = body_cascade.detectMultiScale(grayscaleFrameGPU,objBufBodyGPU,1.2,5,Size(100,100));
-
+		    
 			Mat skinImage;
 			Mat skinMaskDefault;
 			Mat skinHSV;
-			
-			//skinImage = detectorObj->detect(captureFrameBGR, displayFaces, &skinMaskDefault);
 			// Detect skin using default values.......
 			std::vector<int> hsvDefault;
-			
-			// LB: for first go this will use default values until updated by skin from face tracker....... hopefully!
+			// LB: this will always use the default values, to prevent runaway adaption!
             skinImage = utilsObj->skinDetect(captureFrameBGR, &skinHSV, &skinMaskDefault, hsvDefault, 400,7, 3, 0, displayFaces);
 
 			captureFrameFace=captureFrameBGR.clone();
@@ -186,6 +174,12 @@ bool visionDriver::updateModule()
 					Point pt2(facesOld[i].x, facesOld[i].y);
 					rectangle(captureFrameFace,pt1,pt2,Scalar(0,255,0),1,8,0); 	
 					
+				    // Add values to body part pos vector (Face x(0),y(1),z(2))
+                    bodyPartLocations[0]=int(facesOld[i].x+(facesOld[i].width/2));// Face  x
+                    bodyPartLocations[1]=int(facesOld[i].y+(facesOld[i].height/2));// Face y
+                    bodyPartLocations[2]=1.0;// Face z -> ++++++++++++++++++ SET AT DEFAULT 1 for NOW NEED TO UPDATE LATER...... STEREOVISION
+                    bodyPosFound=true; // position found -> set flag to on	
+					
 					// Text face onto picture
 					captureFrameFace=addText("Face", captureFrameFace, pt1, Scalar(0,255,0));
 					
@@ -193,7 +187,6 @@ bool visionDriver::updateModule()
 					posOutput[base] = i;
 					posOutput[base+1] = centrex;
 					posOutput[base+2] = centrey;
-
 
 					if( i == 0 )
 					{
@@ -203,8 +196,7 @@ bool visionDriver::updateModule()
 						posGazeOutput.addDouble(centrex);
 						posGazeOutput.addDouble(centrey);
 						posGazeOutput.addDouble(1.0);
-
-						gazePort.write(posGazeOutput);
+						gazePort.write(posGazeOutput);	
 					}
 
 				}
@@ -224,7 +216,6 @@ bool visionDriver::updateModule()
 						Mat temp2 = skinImage.operator()(facesOld[i]).clone();
 						resize(temp2,temp2,Size(faceSize,faceSize));
 						faceVecSkin.push_back(temp2);
-						
 					}
 				}
 
@@ -279,14 +270,12 @@ bool visionDriver::updateModule()
                             //if  (faceSegMask.at<int>(i,j)>0)
                             //{   // Check HSV is not zero....
                             if (faceHSV(i,j)[0]!=0 || faceHSV(i,j)[1]!=0 || faceHSV(i,j)[2]!=0)
-                            //if (faceHSV.at<Vec3b>(i,j)[0]!=0 || faceHSV.at<Vec3b>(i,j)[1]!=0 || faceHSV.at<Vec3b>(i,j)[2]!=0)
                             {
                                 // save HSV values from pixel in mask    
                                 hsvPixels[0].push_back(faceHSV(i,j)[0]); //H
                                 hsvPixels[1].push_back(faceHSV(i,j)[1]); //S
                                 hsvPixels[2].push_back(faceHSV(i,j)[2]); //V
                             }
-                            //}
                         }
                     }
                     
@@ -294,7 +283,7 @@ bool visionDriver::updateModule()
                     //imshow("HSV seg face",faceHSV);
                     
                     // Update adaptive skin detection vector.... for person specific detection....
-                    hsvAdaptiveValues = utilsObj-> updateHSVAdaptiveSkin(hsvPixels, displayFaces);
+                    hsvAdaptiveValues = utilsObj-> updateHSVAdaptiveSkin(hsvPixels, false);
                     
                     //cout << "h pixel values:" << hsvPixels[0] << endl;
                     //cout << "found " << hsvPixels[0].size() << " hsv pixels in mask" << endl;
@@ -309,14 +298,10 @@ bool visionDriver::updateModule()
                     cout << " Face segmentation unsuccessful" << endl;
                 }                           
 			}
-
-
 		    targetPort.write();
 		    waitKey(1);
 		    
-		    
-		    
-        // BODY TRACK
+            // BODY TRACK
 		    if(noBodies != 0)
 		    {
 			    cout << "Number of bodies: " << noBodies << endl;
@@ -397,15 +382,24 @@ bool visionDriver::updateModule()
 				sagittalSplit = int(bodiesOld[i].x+(bodiesOld[i].width/2));				
 				line(captureFrameBody,Point(sagittalSplit,0),Point(sagittalSplit,height),Scalar(0,0,255),1,8,0);
 				
+				
+
 				// LB: CHECK sagittal split is sensible -> around the middle of the image (15%of either side).....
 				// if not reject segmentation....
 				
 				if (sagittalSplit > skinMaskDefault.cols*0.85 || sagittalSplit < skinMaskDefault.cols*0.15)
 				{
-				cout << " Sagittal split line is too near edge -> rejecting body detection" << endl;
-				bodySegFlag=false;
-				}else{
-				bodySegFlag=true;				
+				    cout << " Sagittal split line is too near edge -> rejecting body detection" << endl;
+				    bodySegFlag=false;
+				}
+				else
+				{
+				    bodySegFlag=true;
+				    // Add values to body part pos vector (right arm x(3),y(4),z(5))
+                    bodyPartLocations[3]=int(bodiesOld[i].x+(bodiesOld[i].width/2));// Body  x
+                    bodyPartLocations[4]=int(bodiesOld[i].y+(bodiesOld[i].height/2));// Body y
+                    bodyPartLocations[5]=1.0;// Body z -> ++++++++++++++++++ SET AT DEFAULT 1 for NOW NEED TO UPDATE LATER...... STEREOVISION
+                    bodyPosFound=true; // position found -> set flag to on		
 				}
 				
 				Mat indices;
@@ -448,14 +442,11 @@ bool visionDriver::updateModule()
             if (!faceSegMaskInv.empty() && faceSegFlag && bodySegFlag)
             {
             
-            Mat skinImageTemp;
-            Mat skinHSVtemp;
-            Mat skinMask;
-            // LB redo skin masking but with adaptive filter 
-            skinImageTemp = utilsObj->skinDetect(captureFrameBGR, &skinHSVtemp, &skinMask, hsvAdaptiveValues, 400,7, 3, 0, displayFaces);
-            
-            
-            
+                Mat skinImageTemp;
+                Mat skinHSVtemp;
+                Mat skinMask;
+                // LB redo skin masking but with adaptive filter 
+                skinImageTemp = utilsObj->skinDetect(captureFrameBGR, &skinHSVtemp, &skinMask, hsvAdaptiveValues, 400,7, 3, 0, displayFaces);   
 //			    cout << skinMask.size() << " inv mask " << faceSegMskInv.size() << endl;
 	//		    cout << currentFaceRect.width << " h=" << currentFaceRect.height << endl;
 			    Mat rectMaskFaceOnly = Mat::zeros( skinMask.size(), CV_8UC1 );
@@ -478,14 +469,16 @@ bool visionDriver::updateModule()
                     				    
                 }
                 
-                // FOR SKELETON TRACKING draw over face in skin mask... facemask
+                // FOR ARM TRACKING draw over face in skin mask... facemask
 			    //rectangle(skinMask,pt1,pt2,cvScalar(0,0,0,0),-1,8,0); 	
 			    //if (displayBodies) imshow("Skin_mask_noface",skinMask);
 			    // Send to skeleton fn here
 			    Mat skelMat;
 			    //skelMat=utilsObj->skeletonDetect(skinMaskNoFace, imgBlurPixels, displayBodies);
 			    //vector<Rect> boundingBox = utilsObj->getArmRects(skinMaskNoFace, imgBlurPixels, &skelMat, displayFaces);
-		        vector<Rect> boundingBox = utilsObj->segmentLineBoxFit(skinMaskNoFace, 400, 2, &skelMat, &returnContours, displayFaces);
+			    
+			    // FIND LEFT AND RIGHT ARM REGIONS....
+		        vector<Rect> boundingBox = utilsObj->segmentLineBoxFit(skinMaskNoFace, 400, 2, &skelMat, &returnContours, &armRotatedRects, displayFaces);
 
 			    //check atleast two bounding boxes found for left and right arms...
 			    if (boundingBox.size()>1)
@@ -522,66 +515,67 @@ bool visionDriver::updateModule()
                         
                         }
                         
-                    
+                        // ######### LEFT ARM
+                        // Set positon left_hand_position -> uses centre of bouding rect
+                        left_hand_position=armRotatedRects[leftArmInd].center;
+                        circle(captureFrameFace, left_hand_position,10,Scalar(0,255,0),3);
 		            	//Draw left arm rectangles
 				        Point pt1(boundingBox[leftArmInd].x + boundingBox[leftArmInd].width, boundingBox[leftArmInd].y + boundingBox[leftArmInd].height);
 				        Point pt2(boundingBox[leftArmInd].x, boundingBox[leftArmInd].y);
 				        rectangle(captureFrameFace,pt1,pt2,Scalar(0,0,255),1,8,0);
+				        utilsObj->drawRotatedRect(captureFrameFace, armRotatedRects[leftArmInd], Scalar(255,0,0));
 				        captureFrameFace=addText("Left arm", captureFrameFace, pt1, Scalar(0,0,255));
 			            
+			            // ######### Right ARM
+                        // Set positon left_hand_position -> uses centre of bouding rect
+                        right_hand_position=armRotatedRects[rightArmInd].center;
+                        circle(captureFrameFace, right_hand_position,10,Scalar(0,255,0),3);
+                                                    
 		            	//Draw right arm rectangles
 				        Point pt3(boundingBox[rightArmInd].x + boundingBox[rightArmInd].width, boundingBox[rightArmInd].y + boundingBox[rightArmInd].height);
 				        Point pt4(boundingBox[rightArmInd].x, boundingBox[rightArmInd].y);
 				        rectangle(captureFrameFace,pt3,pt4,Scalar(0,0,255),1,8,0);
+				        utilsObj->drawRotatedRect(captureFrameFace, armRotatedRects[rightArmInd], Scalar(255,0,0));
 				        captureFrameFace=addText("Right arm", captureFrameFace, pt3, Scalar(0,0,255));			    
 			            
 			            // ###############################################
 			            // Extract arms -> for CamShift and Skeleton processing
 	                    // Original color versions
-			            Mat leftArmBGR=captureFrameBGR(boundingBox[leftArmInd]);
-			            Mat rightArmBGR=captureFrameBGR(boundingBox[rightArmInd]);
+			            //Mat leftArmBGR=captureFrameBGR(boundingBox[leftArmInd]);
+			            //Mat rightArmBGR=captureFrameBGR(boundingBox[rightArmInd]);
 			            
-//			            if (displayFaces) imshow("Left arm ",leftArmBGR);
-			            if (displayFaces) imshow("Right arm",rightArmBGR);
-			            
+                        //if (displayFaces) imshow("Left arm ",leftArmBGR);
+                        //if (displayFaces) imshow("Right arm",rightArmBGR);
+		                
+		                //int noRightHands = hand_cascade.detectMultiScale(grayscaleFrameGPU(boundingBox[rightArmInd]),objBufRightHandGPU,1.2,5,Size(10,10));			               	
+		                
 			            // skinMask
-			            Mat leftArmSkin=skinMask(boundingBox[leftArmInd]);
-			            Mat rightArmSkin=skinMask(boundingBox[rightArmInd]);
+			            // Mat leftArmSkin=skinMask(boundingBox[leftArmInd]);
+			            // Mat rightArmSkin=skinMask(boundingBox[rightArmInd]);
                         // Apply skeleton masking to arms....
-                        Mat leftskel = utilsObj->skeletonDetect(leftArmSkin, imgBlurPixels, displayFaces);
-                        Mat rightskel = utilsObj->skeletonDetect(rightArmSkin, imgBlurPixels, displayFaces);
+                        //Mat leftskel = utilsObj->skeletonDetect(leftArmSkin, imgBlurPixels, displayFaces);
+                        //Mat rightskel = utilsObj->skeletonDetect(rightArmSkin, imgBlurPixels, displayFaces);
                         // Get contours of regions....
-                        Mat leftArmSkelContours;
-                        
-//                        vector<Rect> leftboundingBox = utilsObj->segmentLineBoxFit(leftskel, 50, 1, &leftArmSkelContours, &returnContours, false); // was 3 contours...
-                        vector<Rect> leftboundingBox;
-  
-/*  
-        				ImageOf<PixelRgb> &leftArmImage = leftArmSkinPort.prepare();
-        				utilsObj->convertCvToYarp(leftArmSkin, leftArmImage);
-        				leftArmSkinPort.write();
+                        //Mat leftArmSkelContours;
+                        //vector<Rect> leftboundingBox;
 
-        				ImageOf<PixelRgb> &rightArmImage = rightArmSkinPort.prepare();
-        				utilsObj->convertCvToYarp(rightArmSkin, rightArmImage);
-        				rightArmSkinPort.write();
-*/
-                          
-  
                         // Defined in header file                      
 //                        Point average_mc;
 //                        Point previous_average_mc;
 //                        average_mc.x = 0;
 //                        average_mc.y = 0;
-
+                        /*
                         int windowSize = 20;
                         int limitWindow = 10;
 
                         left_hand_average_mc.x = 0;
                         left_hand_average_mc.y = 0;
 
+                        vector<RotatedRect> leftArmRotatedRect; 
+
                         for( int j = 0; j < windowSize; j++ )
                         {
-                        leftboundingBox = utilsObj->segmentLineBoxFit(leftskel, 50, 1, &leftArmSkelContours, &returnContours, false); // was 3 contours...
+                        leftboundingBox = utilsObj->segmentLineBoxFit(leftskel, 50, 1, &leftArmSkelContours, &returnContours, &leftArmRotatedRect, false); // was 3 contours...
                         if (displayFaces) imshow("Left arm skeleton contours",leftArmSkelContours);
                         // Find hand in image..... where there are most contours...
 
@@ -619,15 +613,9 @@ bool visionDriver::updateModule()
 //                            circle(captureFrameFace,left_hand_average_mc,10,Scalar(0,255,0),3);
                             
 //                            utilsObj->isHandMoving(left_hand_average_mc);
-                            
-/*
-    						Bottle leftHandPositionOutput;
-    						leftHandPositionOutput.clear();
-    						leftHandPositionOutput.addDouble(left_hand_average_mc.x);
-    						leftHandPositionOutput.addDouble(left_hand_average_mc.y);
-    						leftHandPort.write(leftHandPositionOutput);
-*/    						
+                               						
     						
+    						// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ COULD BE USEFUL -> furthest distance from centre
     						// LB Testing -> use distance from centre of person to predict hand location?!?!?!?
     						// Furthest will be least 
     						if (bodyCentre.x!=0)
@@ -668,46 +656,55 @@ bool visionDriver::updateModule()
                         }
 
                         circle(captureFrameFace,left_hand_average_mc,10,Scalar(0,255,0),3);
+                        */
                       
-                        if (leftboundingBox.size()>0 )
-                        {
-                       
-                            if( !firstLeftHandMovement )
-                            {
-                                previous_left_hand_average_mc = left_hand_average_mc;
-                                firstLeftHandMovement = true;
-                            }
-
-                            cout << "PREVIOUS POINT: " << left_hand_average_mc.x << ", " << left_hand_average_mc.y << endl;
-                            cout << "CURRENT POINT: " << previous_left_hand_average_mc.x << ", " << previous_left_hand_average_mc.y << endl;
-                                
-                            int relLeftXPosition = 0;
-                            int relLeftYPosition = 0;
-
-                            if( utilsObj->isHandMoving(left_hand_average_mc,previous_left_hand_average_mc, limitWindow) )
-                            {
-                                cout << "==================== LEFT HAND IS MOVING =======================" << endl;
-                                relLeftXPosition = left_hand_average_mc.x - previous_left_hand_average_mc.x;
-                                relLeftYPosition = left_hand_average_mc.y - previous_left_hand_average_mc.y;
-                            }
-//                            else
-//                                cout << "==== HAND IS NOT MOVING ====" << endl;
-
-    						Bottle leftHandPositionOutput;
-    						leftHandPositionOutput.clear();
-    						leftHandPositionOutput.addDouble(relLeftXPosition);
-    						leftHandPositionOutput.addDouble(relLeftYPosition);
-    						leftHandPort.write(leftHandPositionOutput);
-
-                                                            
-                            previous_left_hand_average_mc = left_hand_average_mc;                          
-                        }                                       
-
+                        //if (leftboundingBox.size()>0 )
+                        //{
                         
-                        Mat rightArmSkelContours;
+                        // @@@@@@@@@@@@@@@@@@@@@@ Are the hands moving @@@@@@@@@@@@@@@@@@@@@
+                        //Set number of pixels to detect hand movement....
+                        int limitWindow = 10;
+                        // IS the left hand moving
+                        if( !firstLeftHandMovement )
+                        {
+                            previous_left_hand_position = left_hand_position;
+                            firstLeftHandMovement = true;
+                        }
+
+                        cout << "PREVIOUS POINT: " << left_hand_position.x << ", " << left_hand_position.y << endl;
+                        cout << "CURRENT POINT: " << previous_left_hand_position.x << ", " << previous_left_hand_position.y << endl;
+                        
+                        // Relative positions (take difference from start.....)
+                        int relLeftXPosition = 0;
+                        int relLeftYPosition = 0;
+
+                        if( utilsObj->isHandMoving(left_hand_position,previous_left_hand_position, limitWindow) )
+                        {
+                            cout << "==================== LEFT HAND IS MOVING =======================" << endl;
+                            relLeftXPosition = left_hand_position.x - previous_left_hand_position.x;
+                            relLeftYPosition = left_hand_position.y - previous_left_hand_position.y;
+                        }
+
+                        // Send out hand positions over yarp
+						/*Bottle leftHandPositionOutput;
+						leftHandPositionOutput.clear();
+						leftHandPositionOutput.addDouble(relLeftXPosition);
+						leftHandPositionOutput.addDouble(relLeftYPosition);
+						leftHandPort.write(leftHandPositionOutput);                       
+                        */
+                        // Add values to body part pos vector (left arm x(6),y(7),z(8))
+                        bodyPartLocations[6]=relLeftXPosition;// left hand  x
+                        bodyPartLocations[7]=relLeftYPosition;// left hand  y
+                        bodyPartLocations[8]=1.0;// left hand  z -> ++++++++++++++++++ SET AT DEFAULT 1 for NOW NEED TO UPDATE LATER...... STEREOVISION
+                        bodyPosFound=true; // position found -> set flag to on
+                        previous_left_hand_position = left_hand_position;                          
+                        //}                                       
+
+ /*                       
+                       Mat rightArmSkelContours;
 
                         vector<Rect> rightboundingBox;
-                        
+                        vector<RotatedRect> rightArmRotatedRect; 
 //                        Point right_hand_average_mc;
                         right_hand_average_mc.x = 0;
                         right_hand_average_mc.y = 0;
@@ -715,8 +712,7 @@ bool visionDriver::updateModule()
 //                        int windowSize = 20;
                         for( int j = 0; j < windowSize; j++ )
                         {                       
-//                        vector<Rect> rightboundingBox = utilsObj->segmentLineBoxFit(rightskel, 50, 3, &rightArmSkelContours, &returnContours, false);
-                        rightboundingBox = utilsObj->segmentLineBoxFit(rightskel, 50, 1, &rightArmSkelContours, &returnContours, false);
+                        rightboundingBox = utilsObj->segmentLineBoxFit(rightskel, 50, 1, &rightArmSkelContours, &returnContours, &rightArmRotatedRect, false);
                         if (displayFaces) imshow("Right arm skeleton contours",rightArmSkelContours);
                         // Find hand in image..... where there are most contours...
 
@@ -753,13 +749,7 @@ bool visionDriver::updateModule()
                             
 //                            circle(captureFrameFace,right_hand_average_mc,10,Scalar(0,255,0),3);                            
 
-/*
-    						Bottle rightHandPositionOutput;
-    					    rightHandPositionOutput.clear();
-    						rightHandPositionOutput.addDouble(right_hand_average_mc.x);
-    						rightHandPositionOutput.addDouble(right_hand_average_mc.y);
-    						rightHandPort.write(rightHandPositionOutput);
-*/
+
                         }
                         }
                         
@@ -769,43 +759,44 @@ bool visionDriver::updateModule()
                         right_hand_average_mc.y = right_hand_average_mc.y + boundingBox[rightArmInd].y;
 
                         circle(captureFrameFace,right_hand_average_mc,10,Scalar(0,255,0),3);
-
-                        if (rightboundingBox.size()>0 )
+*/
+//                        if (rightboundingBox.size()>0 )
+//                        {
+                   
+                        if( !firstRightHandMovement )
                         {
-                       
-                            if( !firstRightHandMovement )
-                            {
-                                previous_right_hand_average_mc = right_hand_average_mc;
-                                firstRightHandMovement = true;
-                            }
-
-//                            cout << "PREVIOUS POINT: " << right_hand_average_mc.x << ", " << right_hand_average_mc.y << endl;
-//                            cout << "CURRENT POINT: " << previous_right_hand_average_mc.x << ", " << previous_right_hand_average_mc.y << endl;
-                                
-                            int relRightXPosition = 0;
-                            int relRightYPosition = 0;
-
-                            if( utilsObj->isHandMoving(right_hand_average_mc,previous_right_hand_average_mc, limitWindow) )
-                            {
-                                cout << "**************************** RIGHT HAND IS MOVING ***********************************" << endl;
-//                            else
-//                                cout << "==== HAND IS NOT MOVING ====" << endl;
-
-                                relRightXPosition = right_hand_average_mc.x - previous_right_hand_average_mc.x;
-                                relRightYPosition = right_hand_average_mc.y - previous_right_hand_average_mc.y;
-                            }
-//                            else
-//                                cout << "==== HAND IS NOT MOVING ====" << endl;
-
-    						Bottle rightHandPositionOutput;
-    						rightHandPositionOutput.clear();
-    						rightHandPositionOutput.addDouble(relRightXPosition);
-    						rightHandPositionOutput.addDouble(relRightYPosition);
-    						rightHandPort.write(rightHandPositionOutput);
-                            
-                                                            
-                            previous_right_hand_average_mc = right_hand_average_mc;                          
+                            previous_right_hand_position = right_hand_position;
+                            firstRightHandMovement = true;
                         }
+
+//                            cout << "PREVIOUS POINT: " << right_hand_position.x << ", " << right_hand_position.y << endl;
+//                            cout << "CURRENT POINT: " << previous_right_hand_position.x << ", " << previous_right_hand_position.y << endl;
+                            
+                        int relRightXPosition = 0;
+                        int relRightYPosition = 0;
+
+                        if( utilsObj->isHandMoving(right_hand_position,previous_right_hand_position, limitWindow) )
+                        {
+                            cout << "**************************** RIGHT HAND IS MOVING ***********************************" << endl;
+                            relRightXPosition = right_hand_position.x - previous_right_hand_position.x;
+                            relRightYPosition = right_hand_position.y - previous_right_hand_position.y;
+                        }
+
+						/*Bottle rightHandPositionOutput;
+						rightHandPositionOutput.clear();
+						rightHandPositionOutput.addDouble(relRightXPosition);
+						rightHandPositionOutput.addDouble(relRightYPosition);
+						rightHandPort.write(rightHandPositionOutput);*/
+						
+                        // Add values to body part pos vector (right arm x(9),y(10),z(11))
+                        bodyPartLocations[9]=relRightXPosition;// Right hand  x
+                        bodyPartLocations[10]=relRightYPosition;// Right hand  y
+                        bodyPartLocations[11]=1.0;// Right hand  z -> ++++++++++++++++++ SET AT DEFAULT 1 for NOW NEED TO UPDATE LATER...... STEREOVISION
+                        bodyPosFound=true; // position found -> set flag to on						
+						
+                                                 
+                        previous_right_hand_position = right_hand_position;                          
+//                        }
   
                     }
                     else
@@ -819,11 +810,20 @@ bool visionDriver::updateModule()
 		            cout << "No arms found....." << endl;	    
 			    }
 			    
-			    
-			    if( displayFaces )
+//			    if(displayFaces) 
+                    imshow("Face / Body / Arms", captureFrameFace);
+
+				// @@@@@@@@@' Send found body pos values out over YARP
+				// If any body part position has been found -> face, body, left hand, right hand
+				if (bodyPosFound)
 				{
-					imshow("Face & Arms", captureFrameFace);
-				} 
+				    Bottle bodyPartPosOutput;
+				    bodyPartPosOutput.clear();
+			        for (int i;i<12;i++)
+				        bodyPartPosOutput.addDouble(bodyPartLocations[i]); 
+				    bodyPartPosPort.write(bodyPartPosOutput);
+				}
+				
             }
 					    
 	    }
@@ -848,6 +848,9 @@ bool visionDriver::configure(ResourceFinder &rf)
     //syncPortConf = bGeneral.find("syncInPort").asString().c_str();
     faceCascadeFile = bGeneral.find("faceCascadeFile").asString().c_str();
     bodyCascadeFile = bGeneral.find("bodyCascadeFile").asString().c_str();
+    // LB testing
+    //handCascadeFile = bGeneral.find("handCascadeFile").asString().c_str();
+
 
     cout << "------------------------" << endl;
     cout << imageInPort.c_str() << endl;
@@ -857,15 +860,23 @@ bool visionDriver::configure(ResourceFinder &rf)
     //cout << syncPortConf << endl;
     //cout << skinMaskOutPort << endl;
     cout << faceCascadeFile << endl;
-    cout << bodyCascadeFile << endl;
+    // LB testing
+    //cout << handCascadeFile << endl;
     
-    leftHandPortName = "/visionDriver/leftHandPosition:o";
-    rightHandPortName = "/visionDriver/rightHandPosition:o";
+    //leftHandPortName = "/visionDriver/leftHandPosition:o";
+    //rightHandPortName = "/visionDriver/rightHandPosition:o";
+    bodyPartPosName="/visionDriver/bodyPartPosition:o";
 
-    leftArmSkinPortName = "/visionDriver/leftArmSkin:o";
-    rightArmSkinPortName = "/visionDriver/rightArmSkin:o";
+    //leftArmSkinPortName = "/visionDriver/leftArmSkin:o";
+    //rightArmSkinPortName = "/visionDriver/rightArmSkin:o";
     
     cout << "------------------------" << endl;
+
+
+    // Init bodyPartLocations vector if anything found...
+    bodyPartLocations.clear();
+    for (int i; i<12;i++)
+        bodyPartLocations.push_back(-1.0); // -1 is no position found....
 
     isGPUavailable = getCudaEnabledDeviceCount();
 
@@ -891,12 +902,13 @@ bool visionDriver::configure(ResourceFinder &rf)
 
 	gazeOut = gazePort.open(gazeOutPort.c_str());
 	
-	leftHandPort.open(leftHandPortName.c_str());
-	rightHandPort.open(rightHandPortName.c_str());
+	bodyPartPosPort.open(bodyPartPosName.c_str());
+	//leftHandPort.open(leftHandPortName.c_str());
+	//rightHandPort.open(rightHandPortName.c_str());
 
 
-	leftArmSkinPort.open(leftArmSkinPortName.c_str());
-	rightArmSkinPort.open(rightArmSkinPortName.c_str());
+	//leftArmSkinPort.open(leftArmSkinPortName.c_str());
+	//rightArmSkinPort.open(rightArmSkinPortName.c_str());
 
 	
 	//skinMaskOutOpen = skinMaskOut.open(skinMaskOutPort.c_str());
@@ -936,6 +948,8 @@ bool visionDriver::configure(ResourceFinder &rf)
 	
 	face_cascade.load(faceCascadeFile.c_str());
 	body_cascade.load(bodyCascadeFile.c_str());
+	// LB Test Hand cascade
+	//hand_cascade.load(handCascadeFile.c_str());
 }
 
 bool visionDriver::interruptModule()
@@ -945,7 +959,7 @@ bool visionDriver::interruptModule()
 
 double visionDriver::getPeriod()
 {
-    return 0.1;
+    return 0.01;
 }
 
 

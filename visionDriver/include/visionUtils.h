@@ -43,8 +43,11 @@ class visionUtils
         Mat segmentFace(Mat, Mat, bool, Mat *);
         Mat skeletonDetect(Mat, int, bool );
         // Segmentation tool, darws rect around region and can be updated to fit lines....
-        vector<Rect> segmentLineBoxFit(Mat, int, int, Mat *,  std::vector<std::vector<cv::Point> > *, bool);
-
+        vector<Rect> segmentLineBoxFit(Mat, int, int, Mat *,  std::vector<std::vector<cv::Point> > *, vector<RotatedRect> *, bool);
+        
+        // Draw rotatedRect
+        Mat drawRotatedRect(Mat, RotatedRect, Scalar);
+        
         bool isHandMoving(Point, Point, int);
         
         // adaptive HSV
