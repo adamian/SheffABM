@@ -24,7 +24,7 @@ import Driver
 
 
 
-action_index=('up','down','right','left')#'Michael','Andreas')
+action_index=('down','left','right','up')#'Michael','Andreas')
 
 # testing in pre-stored test data - FOR DEBUG
 def testDebug(SAMObject, Ytestn, Ltest, L, i=None):
@@ -262,6 +262,7 @@ if visualise_output:
 else:
     visualiseInfo=None
 
+testDebug(d.SAMObject, d.Ytest, d.Ltest, d.L)
 
 
 # # This is for visualising the mapping of the test face back to the internal memory
