@@ -49,6 +49,7 @@ class visionUtils
         Mat drawRotatedRect(Mat, RotatedRect, Scalar);
         
         bool isHandMoving(Point, Point, int);
+        int updateArmPoints(Point2f , Point2f *, int);
         
         // adaptive HSV
         std::vector<int> updateHSVAdaptiveSkin(std::vector<Mat>, bool);

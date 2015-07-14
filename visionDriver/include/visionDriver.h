@@ -167,6 +167,16 @@ class visionDriver: public RFModule
         Point left_hand_position;
         Point previous_right_hand_position;        
         Point previous_left_hand_position;        
+        
+        // Tracking of Arm points 
+        Point2f previousLeftArmPoints;
+        Point2f previousRightArmPoints;
+        // Index to points used to fix tracking....
+        vector<int> leftPointIndex[4];
+        vector<int> rightPointIndex[4];
+        bool calibratedLeftPoints;
+        bool calibratedRightPoints;
+        
 
     public:
         visionDriver();

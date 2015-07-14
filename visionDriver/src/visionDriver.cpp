@@ -34,7 +34,12 @@ visionDriver::visionDriver()
     
     // Detect skin using default values for first go.......
 	hsvAdaptiveValues.clear();
-
+	
+	// Compare point distances for tracking the same point....
+	calibratedLeftPoints = false;
+	calibratedRightPoints = false;
+	//leftArmPointIndex
+//	previousLeftArmPoints = new Point2f(4);
 }
 
 visionDriver::~visionDriver()
@@ -478,7 +483,7 @@ bool visionDriver::updateModule()
 			    //vector<Rect> boundingBox = utilsObj->getArmRects(skinMaskNoFace, imgBlurPixels, &skelMat, displayFaces);
 			    
 			    // FIND LEFT AND RIGHT ARM REGIONS....
-		        vector<Rect> boundingBox = utilsObj->segmentLineBoxFit(skinMaskNoFace, 400, 2, &skelMat, &returnContours, &armRotatedRects, displayFaces);
+		        vector<Rect> boundingBox = utilsObj->segmentLineBoxFit(skinMaskNoFace, 1000, 2, &skelMat, &returnContours, &armRotatedRects, displayFaces);
 
 			    //check atleast two bounding boxes found for left and right arms...
 			    if (boundingBox.size()>1)
@@ -517,8 +522,86 @@ bool visionDriver::updateModule()
                         
                         // ######### LEFT ARM
                         // Set positon left_hand_position -> uses centre of bouding rect
-                        left_hand_position=armRotatedRects[leftArmInd].center;
+                        //left_hand_position=armRotatedRects[leftArmInd].center;
+                        
+                        //Size leftBoxSize = armRotatedRects[leftArmInd].size();
+                        //left_hand_position=armRotatedRects[leftArmInd].center+int(leftBoxSize.height*0.4);
+                        
+                        Point2f leftArmPoints[4];                        
+                        armRotatedRects[leftArmInd].points(leftArmPoints);
+                        
+                        if( calibratedLeftPoints == false )
+                        {                            
+                            if( (abs(bodyCentre.x-armRotatedRects[leftArmInd].center.x) > 20.0) && (abs(bodyCentre.y-armRotatedRects[leftArmInd].center.y) > 20.0) )
+                            {
+                                cout << "=============================================================================" << endl;
+                                cout << "++++++++++++++++++++++++++++++CALIBRATING LEFT+++++++++++++++++++++++++++++++" << endl;
+                                cout << "=============================================================================" << endl;
+
+                                int longestLeftIndex = utilsObj->updateArmPoints(previousLeftArmPoints, leftArmPoints,1);   //finds initial longest point
+                                previousLeftArmPoints = leftArmPoints[longestLeftIndex];
+                            
+    //                            previousLeftArmPoints = leftArmPoints[0];
+                                calibratedLeftPoints = true;                             
+                            }                           
+                            // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ COULD BE USEFUL -> furthest distance from centre
+    						// LB Testing -> use distance from centre of person to predict hand location?!?!?!?
+    						// Furthest will be least 
+/*    						if (bodyCentre.x!=0)
+    						{
+    						    int greatestDistance=0;
+        						int temp;
+        						int xContour;
+        						int yContour;
+        						Point2f leftArmLoc;
+        						// Largest contour = 0 (hopefully), go through points...
+        						for (int i=0; i<4; i++)
+        						{
+            						// Classic pythagoras (no need to sqrt)
+            						
+            						temp=pow((bodyCentre.x-leftArmPoints[i].x),2) + pow((bodyCentre.y-leftArmPoints[i].y),2);
+            						if (temp>greatestDistance)
+            						{
+                						greatestDistance=temp;
+                						leftArmLoc.x=leftArmPoints[i].x;
+                						leftArmLoc.y=leftArmPoints[i].y;
+            						}	
+        						}
+        						//circle(captureFrameFace,leftArmLoc,10,Scalar(255,255,255),3);
+        						previousLeftArmPoints = leftArmLoc;        						
+    						}
+*/
+                        }
+                        
+                        
+                        // Find current point which is closest to previous point
+                        int closestLeftIndex = utilsObj->updateArmPoints(previousLeftArmPoints, leftArmPoints, 0);  //finds closest point
+                        cout << "Closest index: " << closestLeftIndex << endl;
+                        // Set left arm location
+                        left_hand_position=leftArmPoints[closestLeftIndex];
+                        // Update previous point
+                        previousLeftArmPoints=left_hand_position;
+                                            
+                        for (int i=0;i<4;i++)
+                        {
+                            char buffer[100];
+                            sprintf(buffer,"%d",i);
+                            putText(captureFrameFace, buffer, leftArmPoints[i], FONT_HERSHEY_SIMPLEX, 1, Scalar(0,0,255), 1, 8);
+                        }
+                        
+
+//                        previousLeftArmPoints = leftArmPoints[0;
+                        
+//                        if( armRotatedRects[leftArmInd].size.width < armRotatedRects[leftArmInd].size.height )
+//                            tAngle = 90 + armRotatedRects[leftArmInd].angle;
+                        
+//                        char buffer[100];
+//                        sprintf(buffer,"%f", tAngle);                     
+//                        putText(captureFrameFace, buffer, armRotatedRects[leftArmInd].center, FONT_HERSHEY_SIMPLEX, 1, Scalar(0,255,255), 2, 8);
+                        
+                        
                         circle(captureFrameFace, left_hand_position,10,Scalar(0,255,0),3);
+                        
 		            	//Draw left arm rectangles
 				        Point pt1(boundingBox[leftArmInd].x + boundingBox[leftArmInd].width, boundingBox[leftArmInd].y + boundingBox[leftArmInd].height);
 				        Point pt2(boundingBox[leftArmInd].x, boundingBox[leftArmInd].y);
@@ -528,8 +611,8 @@ bool visionDriver::updateModule()
 			            
 			            // ######### Right ARM
                         // Set positon left_hand_position -> uses centre of bouding rect
-                        right_hand_position=armRotatedRects[rightArmInd].center;
-                        circle(captureFrameFace, right_hand_position,10,Scalar(0,255,0),3);
+//                        right_hand_position=armRotatedRects[rightArmInd].center;
+//                        circle(captureFrameFace, right_hand_position,10,Scalar(0,255,0),3);
                                                     
 		            	//Draw right arm rectangles
 				        Point pt3(boundingBox[rightArmInd].x + boundingBox[rightArmInd].width, boundingBox[rightArmInd].y + boundingBox[rightArmInd].height);
@@ -663,7 +746,7 @@ bool visionDriver::updateModule()
                         
                         // @@@@@@@@@@@@@@@@@@@@@@ Are the hands moving @@@@@@@@@@@@@@@@@@@@@
                         //Set number of pixels to detect hand movement....
-                        int limitWindow = 10;
+                        int limitWindow = 5;
                         // IS the left hand moving
                         if( !firstLeftHandMovement )
                         {
@@ -671,8 +754,8 @@ bool visionDriver::updateModule()
                             firstLeftHandMovement = true;
                         }
 
-                        cout << "PREVIOUS POINT: " << left_hand_position.x << ", " << left_hand_position.y << endl;
-                        cout << "CURRENT POINT: " << previous_left_hand_position.x << ", " << previous_left_hand_position.y << endl;
+                        //cout << "PREVIOUS POINT: " << left_hand_position.x << ", " << left_hand_position.y << endl;
+                        //cout << "CURRENT POINT: " << previous_left_hand_position.x << ", " << previous_left_hand_position.y << endl;
                         
                         // Relative positions (take difference from start.....)
                         int relLeftXPosition = 0;
@@ -760,6 +843,70 @@ bool visionDriver::updateModule()
 
                         circle(captureFrameFace,right_hand_average_mc,10,Scalar(0,255,0),3);
 */
+
+
+                        Point2f rightArmPoints[4];
+                        armRotatedRects[rightArmInd].points(rightArmPoints);
+
+                        if( calibratedRightPoints == false )
+                        {
+                            if( (abs(bodyCentre.x-armRotatedRects[rightArmInd].center.x) > 20.0) && (abs(bodyCentre.y-armRotatedRects[rightArmInd].center.y) > 20.0) )
+                            {
+                                cout << "=============================================================================" << endl;
+                                cout << "++++++++++++++++++++++++++++++CALIBRATING RIGHT+++++++++++++++++++++++++++++++" << endl;
+                                cout << "=============================================================================" << endl;
+                                int longestRightIndex = utilsObj->updateArmPoints(previousRightArmPoints, rightArmPoints, 1);   //finds initial longest point
+                                previousRightArmPoints = rightArmPoints[longestRightIndex];
+
+    //                            previousRightArmPoints = rightArmPoints[0];
+                                calibratedRightPoints = true;
+                            }                           
+                            // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ COULD BE USEFUL -> furthest distance from centre
+    						// LB Testing -> use distance from centre of person to predict hand location?!?!?!?
+    						// Furthest will be least 
+/*    						if (bodyCentre.x!=0)
+    						{
+    						    int greatestDistance=0;
+        						int temp;
+        						int xContour;
+        						int yContour;
+        						Point2f rightArmLoc;
+        						// Largest contour = 0 (hopefully), go through points...
+        						for (int i=0; i<4; i++)
+        						{
+            						// Classic pythagoras (no need to sqrt)
+            						
+            						temp=pow((bodyCentre.x-rightArmPoints[i].x),2) + pow((bodyCentre.y-rightArmPoints[i].y),2);
+            						if (temp>greatestDistance)
+            						{
+                						greatestDistance=temp;
+                						rightArmLoc.x=rightArmPoints[i].x;
+                						rightArmLoc.y=rightArmPoints[i].y;
+            						}	
+        						}
+        						//circle(captureFrameFace,rightArmLoc,10,Scalar(255,255,255),3);
+        						previousRightArmPoints = rightArmLoc;        						
+    						}
+*/
+                        }
+                        // Find current point which is closest to previous point
+                        int closestRightIndex = utilsObj->updateArmPoints(previousRightArmPoints, rightArmPoints, 0);   //finds closest point
+                        cout << "Closest index: " << closestRightIndex << endl;
+                        // Set right arm location
+                        right_hand_position=rightArmPoints[closestRightIndex];
+                        // Update previous point
+                        previousRightArmPoints=right_hand_position;
+                                            
+                        for (int i=0;i<4;i++)
+                        {
+                            char buffer[100];
+                            sprintf(buffer,"%d",i);
+                            putText(captureFrameFace, buffer, rightArmPoints[i], FONT_HERSHEY_SIMPLEX, 1, Scalar(0,0,255), 1, 8);
+                        }
+
+                        circle(captureFrameFace, right_hand_position,10,Scalar(0,255,0),3);
+
+
 //                        if (rightboundingBox.size()>0 )
 //                        {
                    
@@ -803,10 +950,15 @@ bool visionDriver::updateModule()
 		            {
 		                // LB can ADD in here to find which is visibile using the sagittal split from the body tracker....
 		                cout << "Only one arm found....." << endl;	    
+
+    		            calibratedLeftPoints = false;
+		                calibratedRightPoints = false;
 			        }
 			    }
 			    else
 		        {
+		            calibratedLeftPoints = false;
+		            calibratedRightPoints = false;
 		            cout << "No arms found....." << endl;	    
 			    }
 			    
@@ -959,7 +1111,7 @@ bool visionDriver::interruptModule()
 
 double visionDriver::getPeriod()
 {
-    return 0.01;
+    return 0.1;
 }
 
 

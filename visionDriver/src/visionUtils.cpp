@@ -710,6 +710,92 @@ for (int i = 0; i < 4; i++)
 return image;
 }
 
+// Compares distance of current points vs previous single point and returns index to the closest (mode = 0) or longest (mode = 1)
+int visionUtils::updateArmPoints(Point2f previousPoint, Point2f *currentPoints, int mode)
+{
+
+//    int smallest_point=0; // init to zero and update
+//    double magPoints;
+    int final_mag = 0;
+    // loop through current points
+    double temp_mag;
+    // Run for first point -> init sort_test (to find smallest value)
+//    magnitude(currentPoints[0].x-previousPoint.x,currentPoints[0].y-previousPoint.y,sort_test);  
+    double magnitude;
+
+    magnitude = pow((currentPoints[0].x-previousPoint.x),2)+pow((currentPoints[0].y-previousPoint.y),2);
+    temp_mag = magnitude;
+    
+    cout << "magnitude[0]: " << magnitude << endl;
+    
+    for( int i = 1; i < 4; i++ )
+    {
+        // Pythagoras
+//        magnitude(currentPoints[i].x-previousPoint.x,currentPoints[i].y-previousPoint.y,magPoints);
+        magnitude = pow((currentPoints[i].x-previousPoint.x),2)+pow((currentPoints[i].y-previousPoint.y),2);
+//        cout << "magnitude " << i << ": " << magnitude << endl;
+        if( mode == 0 ) // closest point
+        {
+            if (magnitude <= temp_mag)
+            {
+                temp_mag = magnitude;
+                final_mag = i;
+            }
+        }
+        else if( mode == 1) //longest point
+        {
+            if (magnitude > temp_mag)
+            {
+                temp_mag = magnitude;
+                final_mag = i;
+            }
+        }
+        else
+        {
+            cout << "MODE not specified!" << endl;
+            return 0;
+        }
+    }
+
+    return final_mag; // index of current points closest to last previous point
+}
+
+
+/*
+// Compares distance of current vs previous of each of four points and fixes labels to fix the nearest
+Point2f visionUtils::updateArmPoints(Point2f *previousPoints, Point2f *currentPoints)
+{
+    vector<int> indices(4);
+    vector<double> magPoints(4);
+    double sort_test
+    int smallest_mag;
+//    cout << magPoints << endl;
+    // loop through current points
+    for (int j=0;j<4;j++)
+    {
+        double sort_test=50000;
+        // loop through previous points to find nearest
+        for( int i = 0; i < 4; i++ )
+        {
+            // Pythagoras
+            magnitude(currentPoints[j].x-previousPoints[i].x,*currentPoints[j].y-previousPoints[i].y,magPoints[i]);
+            if (magPoints[i]<sort_test)
+            {
+                sort_test=magPoints[i];
+                smallest_mag=i;
+            }
+            
+        }
+        // Set index with smallest mag and remove from vector....   
+        
+        indices[j] = smallest_mag;
+    }
+    
+    return magPoints;
+
+
+*/
+
 
 
 
