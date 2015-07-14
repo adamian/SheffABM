@@ -141,7 +141,11 @@ class LFM(object):
         then this means that there are K=3 different classes and the i-th row
         of the observables belongs to the first class.
         """
-        self.model.data_labels = labels
+        if len(labels.shape) == 1 or labels.shape[1] == 1:
+            self.model.data_labels = labels
+        else:
+            print "Warning: labels assumed to be in 1-of-K encoding!"
+            self.model.data_labels = np.argmax(labels,1)[:,None]
 
     def learn(self, optimizer='bfgs',max_iters=1000, init_iters=300, verbose=True):
         """

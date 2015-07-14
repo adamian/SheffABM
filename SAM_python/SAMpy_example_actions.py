@@ -30,13 +30,15 @@ mySAMpy = SAMpy_actions(True, imgH = 400, imgW = 400, imgHNew = 200, imgWNew = 2
 #experiment_number = 11
 
 # Location of face data
-root_data_dir="/home/icub/dataDump/actionData"
+#root_data_dir="/home/icub/dataDump/actionData"
+root_data_dir="D:/robotology/SheffABM/data/actionData"
 # Image format
 #image_suffix=".ppm"
 # Array of participants to be recognised
-#participant_index=('Luke','Michael','Adriel','Emma')
+participant_index=('Luke','Uriel')
 # Poses used during the data collection
-#pose_index=['Seg']
+hand_index=['left']
+action_index=['LR']
 # Use a subset of the data for training
 #Ntr=300
 
@@ -54,11 +56,11 @@ root_data_dir="/home/icub/dataDump/actionData"
 #save_model=True
 #visualise_output=True
 
-action_index = 1;
-hand_index = 2;
+#action_index = 1;
+#hand_index = 2;
 
 # Reading face data, preparation of data and training of the model
-mySAMpy.readData(root_data_dir)
+mySAMpy.readData(root_data_dir,participant_index,hand_index,action_index)
 #mySAMpy.prepareFaceData(model_type, Ntr, pose_selection)
 #mySAMpy.training(model_num_inducing, model_num_iterations, model_init_iterations, fname, save_model)
 

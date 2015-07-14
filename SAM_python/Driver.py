@@ -6,7 +6,7 @@ import pylab as pb
 import sys
 #import pickle
 import numpy
-#import os
+import os
 #import yarp
 #import cv2
 import GPy
