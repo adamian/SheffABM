@@ -209,27 +209,58 @@ class SAMpy_actions:
 #    - pose_index: array of poses from the face data collected
 #
 #Outputs: None
-#""""""""""""""""
-    def readData(self, root_data_dir):
+#""""""""""""""""(root_data_dir,participant_index,hand_index,action_index)
+    def readData(self, root_data_dir,participant_index,hand_index,action_index):
         self.Y
         self.L
-#        self.action_index = action_index
-
+        self.action_index = action_index
+        self.participant_index = participant_index
+        self.hand_index = hand_index
+        self.dataFileName="data.log"
+        # Check if root dir exists
         if not os.path.exists(root_data_dir):
-            print "CANNOT FIND:" + root_data_dir
+            print "CANNOT FIND: " + root_data_dir
         else:
-            print "PATH FOUND"
+            print "PATH FOUND: " + root_data_dir
 
-        data_file_database={}
-        dataFile = file(root_data_dir+"/data.log")
 
-    	cols, indexToName = self.getColumns(dataFile, " ", False)
-        dataFile.close();
-	rows = numpy.size(cols[2][0:]);
-        for i in range(len(cols)-2):
-            dataLog[i] = cols[i+2][0:]
+        #data_file_database={}
+        #dataFile = file(root_data_dir+"/data.log")
 
-        dataLogSplitted = self.splitHandMovements(dataLog)
+        # Generate directory names -> structure will likely change
+        # 1. Participant index
+        for partInd in range(len(self.participant_index)):
+            # 2. hand index            
+            for handInd in range(len(self.hand_index)):
+                # 3. action index
+                for actionInd in range(len(self.action_index)):
+                    # Check if root dir exists
+                    dir_string=os.path.join(root_data_dir,(self.participant_index[partInd] + "_" + self.hand_index[handInd]\
+                    + "_" + self.action_index[actionInd]))
+                    if not os.path.exists(dir_string):
+                        print "CANNOT FIND: " + dir_string
+                    else:
+                        print "PATH FOUND: " + dir_string
+                        # Check file in dir....
+                        dataFilePath=os.path.join(dir_string,self.dataFileName)
+                        if not os.path.exists(dataFilePath):
+                            print "CANNOT FIND: " + dataFilePath
+                        else:
+                            print "PATH FOUND: " + dataFilePath
+                            # Open file
+                            dataFile = open(dataFilePath, 'rb')
+                            cols, indexToName = self.getColumns(dataFile, " ", False)
+                            dataFile.close();
+                            rows = numpy.size(cols[2][0:]);
+                            for i in range(len(cols)-2):
+                                dataLog[i] = cols[i+2][0:]
+                            #dataLogSplit = self.splitHandMovements(dataLog)
+
+
+
+
+
+
 
 #        for count_participant, current_participant in enumerate(self.participant_index):
 #            data_file_database_part={}
