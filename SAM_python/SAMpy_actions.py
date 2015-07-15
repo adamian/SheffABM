@@ -208,7 +208,7 @@ class SAMpy_actions:
                     # Dump data to output vector
                     dataBlocks.append(tempData)
                     # Get time point
-                    timeVectorTemp=numpy.hstack([timeVectorTemp,float(dataLog[1][i])]) 
+                    timeVectorTemp=numpy.vstack([timeVectorTemp,[float(dataLog[1][i])]]) 
                     # Dump data to output vector
                     timeVector.append(timeVectorTemp)
                     # Reset temp data for next block
@@ -226,12 +226,12 @@ class SAMpy_actions:
                     if (i>1): # ignore very first value from log file 
                         tempData=numpy.array([float(dataLog[dataInd[0]][i-1]), float(dataLog[dataInd[1]][i-1]), float(dataLog[dataInd[2]][i-1])]);
                         # Get previous time point
-                        timeVectorTemp=numpy.array(float(dataLog[1][i-1])) 
+                        timeVectorTemp=numpy.array([float(dataLog[1][i-1])]) 
                         samplesFound = True
                 # add in latest non-zero value
                 tempData=numpy.vstack([tempData,[float(dataLog[dataInd[0]][i]), float(dataLog[dataInd[1]][i]), float(dataLog[dataInd[2]][i])]]);
                 # Get time point
-                timeVectorTemp=numpy.hstack([timeVectorTemp,float(dataLog[1][i])]) 
+                timeVectorTemp=numpy.vstack([timeVectorTemp,float(dataLog[1][i])]) 
             #print float(dataLog[dataInd[0]][i])
             #print float(dataLog[dataInd[1]][i])
             #print float(dataLog[dataInd[2]][i])
@@ -269,6 +269,7 @@ class SAMpy_actions:
 
         # Generate directory names -> structure will likely change
         # 1. Participant index
+        plot_count=1
         for partInd in range(len(self.participant_index)):
             # 2. hand index            
             for handInd in range(len(self.hand_index)):
@@ -295,27 +296,48 @@ class SAMpy_actions:
 #                            dataLog = numpy.zeros((len(cols)-2, rows))
 #                            for i in range(len(cols)-2):
 #                                dataLog[i] = cols #cols[i+2][0:]
-#                                print dataLog[i]                     
-
+#                                print dataLog[i] 
+                    
+                            dataLogAllBody = []
+                            timeLogAllBody = []
+                            
                             dataLogFace, timeVecFace = self.splitBodyPartMovements(cols,1) # get face data
+                            dataLogAllBody.append(dataLogFace)
+                            timeLogAllBody.append(timeVecFace)
+                            
                             dataLogBody, timeVecBody  = self.splitBodyPartMovements(cols,2) # get Body data
+                            dataLogAllBody.append(dataLogBody)
+                            timeLogAllBody.append(timeVecBody) 
+                                                       
                             dataLogLeftArm, timeVecLeftArm  = self.splitBodyPartMovements(cols,3) # get Left arm data
+                            dataLogAllBody.append(dataLogLeftArm)
+                            timeLogAllBody.append(timeVecLeftArm)
+                            
                             dataLogRightArm, timeVecRightArm  = self.splitBodyPartMovements(cols,4) # get Right Arm data
-                                                           
+                            dataLogAllBody.append(dataLogRightArm)
+                            timeLogAllBody.append(timeVecRightArm)
+                            
+                            plt.figure(plot_count)
+                            
+                            plt.hold(True)
+                            
+                            for bodyPart in range(len(dataLogAllBody)):
+                                print "Found " + str(len(dataLogAllBody[bodyPart])) + " actions"
+                                plt.subplot(len(dataLogAllBody),1,bodyPart+1)
+                                for currentAction in range(len(dataLogAllBody[bodyPart])):
+                                
+                                    plt_y_data=dataLogAllBody[bodyPart][currentAction][:,0]
+                                    plt_x_data=numpy.transpose(timeLogAllBody[bodyPart][currentAction][:,0])
+                                    #print plt_x_data
+                                    #print plt_y_data
+                                    
 
-                            
-                            plt_y_data=dataLogLeftArm[5][:,0]
-                            plt_x_data=timeVecLeftArm
-                            
-                            print plt_x_data
-                            print plt_y_data
-                            
-                            plt.figure(1)
-                            plt.plot(plt_x_data, plt_y_data)
-                            plt.show()
-
+                                    plt.plot(plt_x_data, plt_y_data, c=numpy.random.rand(3,1))
+            plot_count+=1
+            plt.title(self.participant_index[partInd] + " " + self.hand_index[handInd] + " " + self.action_index[actionInd])
+                            #plt.wait
                             #strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime())
-
+        plt.show(block=True)
 
 
 #        for count_participant, current_participant in enumerate(self.participant_index):
@@ -631,6 +653,7 @@ class SAMpy_actions:
                 break
 
         return imageFlatten_testing
+
 
 
 

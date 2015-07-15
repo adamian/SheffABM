@@ -758,47 +758,43 @@ int visionUtils::updateArmPoints(Point2f previousPoint, Point2f *currentPoints, 
 
 
 // Compares distance of current points vs previous single point and returns index to the closest (mode = 0) or longest (mode = 1)
-Point2f visionUtils::updateArmMiddlePoint(Point2f previousPoint, Point2f *currentPoints, int mode)
+vector<Point2f> visionUtils::updateArmMiddlePoint(Point2f previousPoint, Point2f *currentPoints, int mode)
 {
-    int final_mag = 0;
     double global_mag;
     double temp_mag;
     double magnitude;
-    vector<Point2f> tempCurrentPoints[4];
+    vector<Point2f> tempCurrentPoints;
+    vector<Point2f> smallestPoints;
     Point2f indices[2];
     Point2f middlePoint;
+    int indexToRemove = 0;
 
 
     for( int i = 0; i < 4; i++ )
-        tempCurrentPoints[i].push_back(currentPoints[i]);
+        tempCurrentPoints.push_back(currentPoints[i]);
 
-    cout << "TEMP_CURRENT_POINTS: ";
-    for( int i = 0; i < 4; i++ )
-        cout << tempCurrentPoints->at(i) << "  " << endl;
-
-
-    magnitude = pow((tempCurrentPoints->at(0).x-previousPoint.x),2)+pow((tempCurrentPoints->at(0).y-previousPoint.y),2);
+    magnitude = 100000;
     global_mag = magnitude;
-
-    tempCurrentPoints->erase(tempCurrentPoints->begin()+0);
 
     if( mode == 0 )
     {
         for( int j = 0; j < 2; j++ )
         {
             temp_mag = global_mag;
-            for( int i = 0; i < tempCurrentPoints->size(); i++ )
+            for( int i = 0; i < tempCurrentPoints.size(); i++ )
             {
-                magnitude = pow((tempCurrentPoints->at(i).x-previousPoint.x),2)+pow((tempCurrentPoints->at(i).y-previousPoint.y),2);
+                magnitude = pow((tempCurrentPoints.at(i).x-previousPoint.x),2)+pow((tempCurrentPoints.at(i).y-previousPoint.y),2);
                 if (magnitude <= temp_mag )
                 {
                     temp_mag = magnitude;
-                    final_mag = i;
-                    tempCurrentPoints->erase(tempCurrentPoints->begin()+i);
-                    indices[j].x = tempCurrentPoints->at(i).x;
-                    indices[j].y = tempCurrentPoints->at(j).y;
+                    indices[j].x = tempCurrentPoints.at(i).x;
+                    indices[j].y = tempCurrentPoints.at(i).y;
+		    indexToRemove = i;
                 }
             }
+            tempCurrentPoints.erase(tempCurrentPoints.begin()+indexToRemove);
+            previousPoint.x = indices[j].x;
+            previousPoint.y = indices[j].y;
         }
     }
     else if( mode == 1 )
@@ -806,71 +802,41 @@ Point2f visionUtils::updateArmMiddlePoint(Point2f previousPoint, Point2f *curren
         for( int j = 0; j < 2; j++ )
         {
             temp_mag = global_mag;
-            for( int i = 1; i < tempCurrentPoints->size(); i++ )
+            for( int i = 0; i < tempCurrentPoints.size(); i++ )
             {
-                magnitude = pow((tempCurrentPoints->at(i).x-previousPoint.x),2)+pow((tempCurrentPoints->at(i).y-previousPoint.y),2);
+                magnitude = pow((tempCurrentPoints.at(i).x-previousPoint.x),2)+pow((tempCurrentPoints.at(i).y-previousPoint.y),2);
                 if (magnitude > temp_mag)
                 {
                     temp_mag = magnitude;
-                    final_mag = i;
-                    tempCurrentPoints->erase(tempCurrentPoints->begin()+i);
-                    indices[j].x = tempCurrentPoints->at(i).x;
-                    indices[j].y = tempCurrentPoints->at(j).y;
+                    indices[j].x = tempCurrentPoints.at(i).x;
+                    indices[j].y = tempCurrentPoints.at(i).y;
+                    indexToRemove = i;
                 }
             }
+            tempCurrentPoints.erase(tempCurrentPoints.begin()+indexToRemove);
+            previousPoint.x = indices[j].x;
+            previousPoint.y = indices[j].y;
         }
     }
     else
     {
         cout << "MODE not specified!" << endl;
-        return previousPoint;
+
+        smallestPoints.push_back(previousPoint);    //first closest point
+        smallestPoints.push_back(previousPoint);    //first closest point
+        smallestPoints.push_back(previousPoint);    //first closest point
+
+        return smallestPoints;
     }
 
     middlePoint = currentPoints[0];
     middlePoint.x = (indices[0].x+indices[1].x)/2.0;
     middlePoint.y = (indices[0].y+indices[1].y)/2.0;
- 
-    return middlePoint;    //middle point from the two closest points 
+
+    smallestPoints.push_back(indices[0]);    //first closest point
+    smallestPoints.push_back(indices[1]);    //second closest point
+    smallestPoints.push_back(middlePoint);    //middle point
+
+    return smallestPoints;    //middle point from the two closest points 
 }
-
-
-/*
-// Compares distance of current vs previous of each of four points and fixes labels to fix the nearest
-Point2f visionUtils::updateArmPoints(Point2f *previousPoints, Point2f *currentPoints)
-{
-    vector<int> indices(4);
-    vector<double> magPoints(4);
-    double sort_test
-    int smallest_mag;
-//    cout << magPoints << endl;
-    // loop through current points
-    for (int j=0;j<4;j++)
-    {
-        double sort_test=50000;
-        // loop through previous points to find nearest
-        for( int i = 0; i < 4; i++ )
-        {
-            // Pythagoras
-            magnitude(currentPoints[j].x-previousPoints[i].x,*currentPoints[j].y-previousPoints[i].y,magPoints[i]);
-            if (magPoints[i]<sort_test)
-            {
-                sort_test=magPoints[i];
-                smallest_mag=i;
-            }
-            
-        }
-        // Set index with smallest mag and remove from vector....   
-        
-        indices[j] = smallest_mag;
-    }
-    
-    return magPoints;
-
-
-*/
-
-
-
-
-
 

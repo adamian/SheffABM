@@ -529,7 +529,7 @@ bool visionDriver::updateModule()
                         
                         Point2f leftArmPoints[4];                        
                         armRotatedRects[leftArmInd].points(leftArmPoints);
-                        Point2f leftArmMiddlePoint;
+                        vector<Point2f> leftArmMiddlePoint;
                         
                         if( calibratedLeftPoints == false )
                         {                            
@@ -541,7 +541,7 @@ bool visionDriver::updateModule()
 
                                 int longestLeftIndex = utilsObj->updateArmPoints(bodyCentre, leftArmPoints,1);   //finds initial longest point
                                 previousLeftArmPoints = leftArmPoints[longestLeftIndex];
-//                                leftArmMiddlePoint= utilsObj->updateArmMiddlePoint(bodyCentre, leftArmPoints,1);   //finds initial longest point
+                                leftArmMiddlePoint= utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,1);   //finds initial longest point
                             
     //                            previousLeftArmPoints = leftArmPoints[0];
                                 calibratedLeftPoints = true;                             
@@ -578,9 +578,15 @@ bool visionDriver::updateModule()
                         
                         // Find current point which is closest to previous point
                         int closestLeftIndex = utilsObj->updateArmPoints(previousLeftArmPoints, leftArmPoints, 0);  //finds closest point
+                        
                         leftArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,0);   //finds initial longest point
-                        cout << "Closest index: " << closestLeftIndex << endl;
-                        cout << "Middle point: " << leftArmMiddlePoint.x << ", " << leftArmMiddlePoint.y << endl;
+//                        leftArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,0);   //finds initial longest point
+                        
+//                        cout << "SIZE LEFT MIDDLE POINT VECTOR: " << leftArmMiddlePoint.size() << endl;
+//                        cout << "Smallest points: ["<<leftArmMiddlePoint.at(0).x<<", "<<leftArmMiddlePoint.at(0).y<<"],["<<leftArmMiddlePoint.at(1).x<<", "<< leftArmMiddlePoint.at(1).y<<"]"<<endl;
+                        
+//                        cout << "Closest index: " << closestLeftIndex << endl;
+//                        cout << "Middle point: " << leftArmMiddlePoint.x << ", " << leftArmMiddlePoint.y << endl;
                         // Set left arm location
                         left_hand_position=leftArmPoints[closestLeftIndex];
                         // Update previous point
@@ -605,7 +611,9 @@ bool visionDriver::updateModule()
                         
                         
                         circle(captureFrameFace, left_hand_position, 10, Scalar(0,255,0), 3);
-                        circle(captureFrameFace, leftArmMiddlePoint, 10, Scalar(80,80,80), 3);
+                        circle(captureFrameFace, leftArmMiddlePoint.at(0), 10, Scalar(255,255,0), 3);    //first closest point
+                        circle(captureFrameFace, leftArmMiddlePoint.at(1), 10, Scalar(255,255,0), 3);    //second closest point
+                        circle(captureFrameFace, leftArmMiddlePoint.at(2), 10, Scalar(255,0,255), 3);    //middle point
                         
 		            	//Draw left arm rectangles
 				        Point pt1(boundingBox[leftArmInd].x + boundingBox[leftArmInd].width, boundingBox[leftArmInd].y + boundingBox[leftArmInd].height);
@@ -852,6 +860,7 @@ bool visionDriver::updateModule()
 
                         Point2f rightArmPoints[4];
                         armRotatedRects[rightArmInd].points(rightArmPoints);
+                        vector<Point2f> rightArmMiddlePoint;
 
                         if( calibratedRightPoints == false )
                         {
@@ -862,6 +871,7 @@ bool visionDriver::updateModule()
 //                                cout << "=============================================================================" << endl;
                                 int longestRightIndex = utilsObj->updateArmPoints(bodyCentre, rightArmPoints, 1);   //finds initial longest point
                                 previousRightArmPoints = rightArmPoints[longestRightIndex];
+                                rightArmMiddlePoint= utilsObj->updateArmMiddlePoint(previousRightArmPoints, rightArmPoints,1);   //finds initial longest point
 
     //                            previousRightArmPoints = rightArmPoints[0];
                                 calibratedRightPoints = true;
@@ -896,6 +906,7 @@ bool visionDriver::updateModule()
                         }
                         // Find current point which is closest to previous point
                         int closestRightIndex = utilsObj->updateArmPoints(previousRightArmPoints, rightArmPoints, 0);   //finds closest point
+                        rightArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousRightArmPoints, rightArmPoints,0);   //finds initial longest point
 //                        cout << "Closest index: " << closestRightIndex << endl;
                         // Set right arm location
                         right_hand_position=rightArmPoints[closestRightIndex];
@@ -910,6 +921,10 @@ bool visionDriver::updateModule()
                         }
 
                         circle(captureFrameFace, right_hand_position,10,Scalar(0,255,0),3);
+                        circle(captureFrameFace, rightArmMiddlePoint.at(0), 10, Scalar(255,255,0), 3);    //first closest point
+                        circle(captureFrameFace, rightArmMiddlePoint.at(1), 10, Scalar(255,255,0), 3);    //second closest point
+                        circle(captureFrameFace, rightArmMiddlePoint.at(2), 10, Scalar(255,0,255), 3);    //middle point
+                        
 
 
 //                        if (rightboundingBox.size()>0 )
@@ -1116,7 +1131,7 @@ bool visionDriver::interruptModule()
 
 double visionDriver::getPeriod()
 {
-    return 0.5;
+    return 0.1;
 }
 
 
