@@ -99,7 +99,7 @@ bool visionDriver::updateModule()
 			
 		    if(noFaces != 0)
 		    {
-			    cout << "Number of faces " << noFaces << endl;
+//			    cout << "Number of faces " << noFaces << endl;
 			    std::vector<cv::Mat> faceVec;
 			    std::vector<cv::Mat> faceVecSkin;
 			
@@ -309,7 +309,7 @@ bool visionDriver::updateModule()
             // BODY TRACK
 		    if(noBodies != 0)
 		    {
-			    cout << "Number of bodies: " << noBodies << endl;
+//			    cout << "Number of bodies: " << noBodies << endl;
                 // copy in last skin image
 			    captureFrameBody=captureFrameBGR.clone();
 			    std::vector<cv::Mat> bodyVec;
@@ -529,17 +529,19 @@ bool visionDriver::updateModule()
                         
                         Point2f leftArmPoints[4];                        
                         armRotatedRects[leftArmInd].points(leftArmPoints);
+                        Point2f leftArmMiddlePoint;
                         
                         if( calibratedLeftPoints == false )
                         {                            
-                            if( (abs(bodyCentre.x-armRotatedRects[leftArmInd].center.x) > 20.0) && (abs(bodyCentre.y-armRotatedRects[leftArmInd].center.y) > 20.0) )
+                            if( (abs(bodyCentre.x-armRotatedRects[leftArmInd].center.x) > 40.0) && (abs(bodyCentre.y-armRotatedRects[leftArmInd].center.y) > 40.0) )
                             {
-                                cout << "=============================================================================" << endl;
-                                cout << "++++++++++++++++++++++++++++++CALIBRATING LEFT+++++++++++++++++++++++++++++++" << endl;
-                                cout << "=============================================================================" << endl;
+//                                cout << "=============================================================================" << endl;
+//                                cout << "++++++++++++++++++++++++++++++CALIBRATING LEFT+++++++++++++++++++++++++++++++" << endl;
+//                                cout << "=============================================================================" << endl;
 
-                                int longestLeftIndex = utilsObj->updateArmPoints(previousLeftArmPoints, leftArmPoints,1);   //finds initial longest point
+                                int longestLeftIndex = utilsObj->updateArmPoints(bodyCentre, leftArmPoints,1);   //finds initial longest point
                                 previousLeftArmPoints = leftArmPoints[longestLeftIndex];
+//                                leftArmMiddlePoint= utilsObj->updateArmMiddlePoint(bodyCentre, leftArmPoints,1);   //finds initial longest point
                             
     //                            previousLeftArmPoints = leftArmPoints[0];
                                 calibratedLeftPoints = true;                             
@@ -576,7 +578,9 @@ bool visionDriver::updateModule()
                         
                         // Find current point which is closest to previous point
                         int closestLeftIndex = utilsObj->updateArmPoints(previousLeftArmPoints, leftArmPoints, 0);  //finds closest point
+                        leftArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,0);   //finds initial longest point
                         cout << "Closest index: " << closestLeftIndex << endl;
+                        cout << "Middle point: " << leftArmMiddlePoint.x << ", " << leftArmMiddlePoint.y << endl;
                         // Set left arm location
                         left_hand_position=leftArmPoints[closestLeftIndex];
                         // Update previous point
@@ -600,7 +604,8 @@ bool visionDriver::updateModule()
 //                        putText(captureFrameFace, buffer, armRotatedRects[leftArmInd].center, FONT_HERSHEY_SIMPLEX, 1, Scalar(0,255,255), 2, 8);
                         
                         
-                        circle(captureFrameFace, left_hand_position,10,Scalar(0,255,0),3);
+                        circle(captureFrameFace, left_hand_position, 10, Scalar(0,255,0), 3);
+                        circle(captureFrameFace, leftArmMiddlePoint, 10, Scalar(80,80,80), 3);
                         
 		            	//Draw left arm rectangles
 				        Point pt1(boundingBox[leftArmInd].x + boundingBox[leftArmInd].width, boundingBox[leftArmInd].y + boundingBox[leftArmInd].height);
@@ -763,7 +768,7 @@ bool visionDriver::updateModule()
 
                         if( utilsObj->isHandMoving(left_hand_position,previous_left_hand_position, limitWindow) )
                         {
-                            cout << "==================== LEFT HAND IS MOVING =======================" << endl;
+//                            cout << "==================== LEFT HAND IS MOVING =======================" << endl;
                             relLeftXPosition = left_hand_position.x - previous_left_hand_position.x;
                             relLeftYPosition = left_hand_position.y - previous_left_hand_position.y;
                         }
@@ -850,12 +855,12 @@ bool visionDriver::updateModule()
 
                         if( calibratedRightPoints == false )
                         {
-                            if( (abs(bodyCentre.x-armRotatedRects[rightArmInd].center.x) > 20.0) && (abs(bodyCentre.y-armRotatedRects[rightArmInd].center.y) > 20.0) )
+                            if( (abs(bodyCentre.x-armRotatedRects[rightArmInd].center.x) > 40.0) && (abs(bodyCentre.y-armRotatedRects[rightArmInd].center.y) > 40.0) )
                             {
-                                cout << "=============================================================================" << endl;
-                                cout << "++++++++++++++++++++++++++++++CALIBRATING RIGHT+++++++++++++++++++++++++++++++" << endl;
-                                cout << "=============================================================================" << endl;
-                                int longestRightIndex = utilsObj->updateArmPoints(previousRightArmPoints, rightArmPoints, 1);   //finds initial longest point
+//                                cout << "=============================================================================" << endl;
+//                                cout << "++++++++++++++++++++++++++++++CALIBRATING RIGHT+++++++++++++++++++++++++++++++" << endl;
+//                                cout << "=============================================================================" << endl;
+                                int longestRightIndex = utilsObj->updateArmPoints(bodyCentre, rightArmPoints, 1);   //finds initial longest point
                                 previousRightArmPoints = rightArmPoints[longestRightIndex];
 
     //                            previousRightArmPoints = rightArmPoints[0];
@@ -891,7 +896,7 @@ bool visionDriver::updateModule()
                         }
                         // Find current point which is closest to previous point
                         int closestRightIndex = utilsObj->updateArmPoints(previousRightArmPoints, rightArmPoints, 0);   //finds closest point
-                        cout << "Closest index: " << closestRightIndex << endl;
+//                        cout << "Closest index: " << closestRightIndex << endl;
                         // Set right arm location
                         right_hand_position=rightArmPoints[closestRightIndex];
                         // Update previous point
@@ -924,7 +929,7 @@ bool visionDriver::updateModule()
 
                         if( utilsObj->isHandMoving(right_hand_position,previous_right_hand_position, limitWindow) )
                         {
-                            cout << "**************************** RIGHT HAND IS MOVING ***********************************" << endl;
+//                            cout << "**************************** RIGHT HAND IS MOVING ***********************************" << endl;
                             relRightXPosition = right_hand_position.x - previous_right_hand_position.x;
                             relRightYPosition = right_hand_position.y - previous_right_hand_position.y;
                         }
@@ -949,7 +954,7 @@ bool visionDriver::updateModule()
                     else
 		            {
 		                // LB can ADD in here to find which is visibile using the sagittal split from the body tracker....
-		                cout << "Only one arm found....." << endl;	    
+//		                cout << "Only one arm found....." << endl;	    
 
     		            calibratedLeftPoints = false;
 		                calibratedRightPoints = false;
@@ -959,7 +964,7 @@ bool visionDriver::updateModule()
 		        {
 		            calibratedLeftPoints = false;
 		            calibratedRightPoints = false;
-		            cout << "No arms found....." << endl;	    
+//		            cout << "No arms found....." << endl;	    
 			    }
 			    
 //			    if(displayFaces) 
@@ -1111,7 +1116,7 @@ bool visionDriver::interruptModule()
 
 double visionDriver::getPeriod()
 {
-    return 0.1;
+    return 0.5;
 }
 
 

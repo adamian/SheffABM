@@ -13,6 +13,7 @@
 #include <iostream>
 #include <math.h>
 #include <algorithm>
+#include <vector>
 
 using namespace yarp::os;
 using namespace yarp::sig;
@@ -50,7 +51,9 @@ class visionUtils
         
         bool isHandMoving(Point, Point, int);
         int updateArmPoints(Point2f , Point2f *, int);
-        
+        Point2f updateArmMiddlePoint(Point2f, Point2f *, int);
+        void updatePoint2fVector(Point2f *, int);
+
         // adaptive HSV
         std::vector<int> updateHSVAdaptiveSkin(std::vector<Mat>, bool);
         int drawHist(std::vector<Mat>, int);

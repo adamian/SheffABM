@@ -149,7 +149,7 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
     vector<Point> approx;
     approxPolyDP(hull[largest_contour_index], approx, 5, true);
     double area1 = contourArea(approx);
-    cout << "area0 =" << area0 << endl << "area1 =" << area1 << endl << "approx poly vertices: " << approx.size() << endl;
+//    cout << "area0 =" << area0 << endl << "area1 =" << area1 << endl << "approx poly vertices: " << approx.size() << endl;
     if  (area1<5000)
     {
         cout << "Hull area too small > returning...." << endl;
@@ -507,9 +507,9 @@ std::vector<int> visionUtils::updateHSVAdaptiveSkin(std::vector<Mat> pixelPlanes
     int r_min=r_mean[0] - r_stdDev[0]*3;
     int r_max=r_mean[0] + r_stdDev[0]*3;    
 
-    cout << "H vals min: " << b_min << " max: " << b_max << endl;
-    cout << "S vals min: " << g_min << " max: " << g_max << endl;
-    cout << "V vals min: " << r_min << " max: " << r_max << endl;
+//    cout << "H vals min: " << b_min << " max: " << b_max << endl;
+//    cout << "S vals min: " << g_min << " max: " << g_max << endl;
+//    cout << "V vals min: " << r_min << " max: " << r_max << endl;
 
     //// Make new adaptive skin detector HSV vector.....
     // Original values 0<H<0.25  -   0.15<S<0.9    -    0.2<V<0.95 
@@ -714,50 +714,123 @@ return image;
 int visionUtils::updateArmPoints(Point2f previousPoint, Point2f *currentPoints, int mode)
 {
 
-//    int smallest_point=0; // init to zero and update
-//    double magPoints;
     int final_mag = 0;
     // loop through current points
     double temp_mag;
     // Run for first point -> init sort_test (to find smallest value)
-//    magnitude(currentPoints[0].x-previousPoint.x,currentPoints[0].y-previousPoint.y,sort_test);  
     double magnitude;
 
     magnitude = pow((currentPoints[0].x-previousPoint.x),2)+pow((currentPoints[0].y-previousPoint.y),2);
     temp_mag = magnitude;
     
-    cout << "magnitude[0]: " << magnitude << endl;
-    
-    for( int i = 1; i < 4; i++ )
+    if( mode == 0 )
     {
-        // Pythagoras
-//        magnitude(currentPoints[i].x-previousPoint.x,currentPoints[i].y-previousPoint.y,magPoints);
-        magnitude = pow((currentPoints[i].x-previousPoint.x),2)+pow((currentPoints[i].y-previousPoint.y),2);
-//        cout << "magnitude " << i << ": " << magnitude << endl;
-        if( mode == 0 ) // closest point
+        for( int i = 1; i < 4; i++ )
         {
+            magnitude = pow((currentPoints[i].x-previousPoint.x),2)+pow((currentPoints[i].y-previousPoint.y),2);
             if (magnitude <= temp_mag)
             {
                 temp_mag = magnitude;
                 final_mag = i;
             }
         }
-        else if( mode == 1) //longest point
+    }
+    else if( mode == 1 )
+    {
+        for( int i = 1; i < 4; i++ )
         {
+            magnitude = pow((currentPoints[i].x-previousPoint.x),2)+pow((currentPoints[i].y-previousPoint.y),2);
             if (magnitude > temp_mag)
             {
                 temp_mag = magnitude;
                 final_mag = i;
             }
         }
-        else
-        {
-            cout << "MODE not specified!" << endl;
-            return 0;
-        }
+    }
+    else
+    {
+        cout << "MODE not specified!" << endl;
+        return 0;
     }
 
-    return final_mag; // index of current points closest to last previous point
+    return final_mag; // index of current point closest or longest to last previous point
+}
+
+
+// Compares distance of current points vs previous single point and returns index to the closest (mode = 0) or longest (mode = 1)
+Point2f visionUtils::updateArmMiddlePoint(Point2f previousPoint, Point2f *currentPoints, int mode)
+{
+    int final_mag = 0;
+    double global_mag;
+    double temp_mag;
+    double magnitude;
+    vector<Point2f> tempCurrentPoints[4];
+    Point2f indices[2];
+    Point2f middlePoint;
+
+
+    for( int i = 0; i < 4; i++ )
+        tempCurrentPoints[i].push_back(currentPoints[i]);
+
+    cout << "TEMP_CURRENT_POINTS: ";
+    for( int i = 0; i < 4; i++ )
+        cout << tempCurrentPoints->at(i) << "  " << endl;
+
+
+    magnitude = pow((tempCurrentPoints->at(0).x-previousPoint.x),2)+pow((tempCurrentPoints->at(0).y-previousPoint.y),2);
+    global_mag = magnitude;
+
+    tempCurrentPoints->erase(tempCurrentPoints->begin()+0);
+
+    if( mode == 0 )
+    {
+        for( int j = 0; j < 2; j++ )
+        {
+            temp_mag = global_mag;
+            for( int i = 0; i < tempCurrentPoints->size(); i++ )
+            {
+                magnitude = pow((tempCurrentPoints->at(i).x-previousPoint.x),2)+pow((tempCurrentPoints->at(i).y-previousPoint.y),2);
+                if (magnitude <= temp_mag )
+                {
+                    temp_mag = magnitude;
+                    final_mag = i;
+                    tempCurrentPoints->erase(tempCurrentPoints->begin()+i);
+                    indices[j].x = tempCurrentPoints->at(i).x;
+                    indices[j].y = tempCurrentPoints->at(j).y;
+                }
+            }
+        }
+    }
+    else if( mode == 1 )
+    {
+        for( int j = 0; j < 2; j++ )
+        {
+            temp_mag = global_mag;
+            for( int i = 1; i < tempCurrentPoints->size(); i++ )
+            {
+                magnitude = pow((tempCurrentPoints->at(i).x-previousPoint.x),2)+pow((tempCurrentPoints->at(i).y-previousPoint.y),2);
+                if (magnitude > temp_mag)
+                {
+                    temp_mag = magnitude;
+                    final_mag = i;
+                    tempCurrentPoints->erase(tempCurrentPoints->begin()+i);
+                    indices[j].x = tempCurrentPoints->at(i).x;
+                    indices[j].y = tempCurrentPoints->at(j).y;
+                }
+            }
+        }
+    }
+    else
+    {
+        cout << "MODE not specified!" << endl;
+        return previousPoint;
+    }
+
+    middlePoint = currentPoints[0];
+    middlePoint.x = (indices[0].x+indices[1].x)/2.0;
+    middlePoint.y = (indices[0].y+indices[1].y)/2.0;
+ 
+    return middlePoint;    //middle point from the two closest points 
 }
 
 

@@ -161,44 +161,83 @@ class SAMpy_actions:
         return cols, indexToName
 
 
-    def splitHandMovements(dataLog):
+    def splitBodyPartMovements(self, dataLog, bodyPartIndex):
 
-        sampleRight = False
-        sampleLeft = False
-        counterZeros = 0;
-        zeroCriteria = False;
-        tempRightData = []
-        tempLeftData = []
-        leftData = []
-        rightData = []
+        # Get data read from datalog
+        # bodyPartIndex = body part index
+        # e.g.
+        # bodyPartIndex = 1 # Face pos x,y,z
+        # bodyPartIndex = 2 # Body pos x,y,z
+        # bodyPartIndex = 3 # Left Arm pos x,y,z
+        # bodyPartIndex = 4 # Right Arm x,y,z                
+        
+        # Data log files is 14 cols
+        #1 some sort of index...
+        #2 time (gmtime)
+        #3 to 14 head, body, left, right arms
+        
+        samplesFound = False
+        counterZeros = 0 #numpy.zeros((1,3)); # define zero test x,y,z
+        tempData = numpy.empty((1,3),dtype=float)
+        timeVectorTemp = numpy.empty((1,1),dtype=float)
+        dataBlocks = [] # has to be list as variable size data
+        timeVector = [] # has to be list as variable size data
+        
+#        print numpy.shape(dataLog)
 
-        for i in range(len(dataLog[0])):
-            if( ( dataLog[0][i] > 0.1 ) and ( zeroCriteria == False ) ):
-                tempRightData.append([dataLog[0][i], dataLog[1][i]]);
-                sampleRight = True
-            elif( ( sampleRight == True ) and (zeroCriteria == True ) ):
-                rightData.append(tempRightData)
-                tempRightData = []
-                sampleRight = False
-
-            if( ( dataLog[0][i] < -0.1 ) and ( zeroCriteria == False ) ):
-                tempLeftData.append([dataLog[0][i], dataLog[1][i]]);
-                sampleLeft = True;
-            elif( ( sampleLeft == True ) and (zeroCriteria == True ) ):
-                leftData.append(tempLeftData)
-                tempLeftData = []
-                sampleLeft = False
-            
-            if( dataLog[0][i] == 0.0 ):
+        # Items to get from log file....
+        if (bodyPartIndex==1): # face
+            dataInd=numpy.array([2,3,4])
+        elif(bodyPartIndex==2): # body
+            dataInd=numpy.array([5,6,7])
+        elif(bodyPartIndex==3): # body
+            dataInd=numpy.array([8,9,10])
+        elif(bodyPartIndex==4): # body
+            dataInd=numpy.array([11,12,13])
+                        
+        # Loop through whole of datalog
+        for i in range(len(dataLog[dataInd[0]])):
+            # Checking for x,y,z zeros ######################################
+            #print "WARNING Z zero check switched off until we get the data" 
+            if( float(dataLog[dataInd[0]][i]) == 0.0 and float(dataLog[dataInd[1]][i]) == 0.0): #LB DISABLED FOR NOW AS z always ==1and dataLog[dataInd[2]][i] == 0.0 ):
                 counterZeros = counterZeros + 1;
+                # Checking for three (x,y,z) zeros in a row ######################################
+                if( counterZeros >= 3 and samplesFound == True):
+                    # Take last zero value (for output vector)
+                    tempData=numpy.vstack([tempData,[float(dataLog[dataInd[0]][i]), float(dataLog[dataInd[1]][i]), float(dataLog[dataInd[2]][i])]]);
+                    # Dump data to output vector
+                    dataBlocks.append(tempData)
+                    # Get time point
+                    timeVectorTemp=numpy.hstack([timeVectorTemp,float(dataLog[1][i])]) 
+                    # Dump data to output vector
+                    timeVector.append(timeVectorTemp)
+                    # Reset temp data for next block
+                    tempData = numpy.empty((1,3),dtype=float)
+                    # Reset timeVectorTemp
+                    timeVectorTemp=numpy.empty((1,1),dtype=float)
+                    # Reset counter
+                    counterZeros = 0
+                    # Reset samples found
+                    samplesFound = False
+                #print counterZeros        
+            else: # There is some movement so record it  
+                if (samplesFound == False): # case of first value
+                    # Init array with previous (zero) values
+                    if (i>1): # ignore very first value from log file 
+                        tempData=numpy.array([float(dataLog[dataInd[0]][i-1]), float(dataLog[dataInd[1]][i-1]), float(dataLog[dataInd[2]][i-1])]);
+                        # Get previous time point
+                        timeVectorTemp=numpy.array(float(dataLog[1][i-1])) 
+                        samplesFound = True
+                # add in latest non-zero value
+                tempData=numpy.vstack([tempData,[float(dataLog[dataInd[0]][i]), float(dataLog[dataInd[1]][i]), float(dataLog[dataInd[2]][i])]]);
+                # Get time point
+                timeVectorTemp=numpy.hstack([timeVectorTemp,float(dataLog[1][i])]) 
+            #print float(dataLog[dataInd[0]][i])
+            #print float(dataLog[dataInd[1]][i])
+            #print float(dataLog[dataInd[2]][i])
+            
 
-            if( counterZeros > 2 ):
-                zeroCriteria = True
-                counterZeros = 0
-            else:
-                zeroCriteria = False
-                
-        return leftData, rightData
+        return dataBlocks, timeVector # left Data, rightData
 
 #""""""""""""""""
 #Method to read face data previously collected to be used in the traning phase.
@@ -217,6 +256,7 @@ class SAMpy_actions:
         self.participant_index = participant_index
         self.hand_index = hand_index
         self.dataFileName="data.log"
+        dataLogLeftArm =[]
         # Check if root dir exists
         if not os.path.exists(root_data_dir):
             print "CANNOT FIND: " + root_data_dir
@@ -252,13 +292,29 @@ class SAMpy_actions:
                             cols, indexToName = self.getColumns(dataFile, " ", False)
                             dataFile.close();
                             rows = numpy.size(cols[2][0:]);
-                            for i in range(len(cols)-2):
-                                dataLog[i] = cols[i+2][0:]
-                            #dataLogSplit = self.splitHandMovements(dataLog)
+#                            dataLog = numpy.zeros((len(cols)-2, rows))
+#                            for i in range(len(cols)-2):
+#                                dataLog[i] = cols #cols[i+2][0:]
+#                                print dataLog[i]                     
 
+                            dataLogFace, timeVecFace = self.splitBodyPartMovements(cols,1) # get face data
+                            dataLogBody, timeVecBody  = self.splitBodyPartMovements(cols,2) # get Body data
+                            dataLogLeftArm, timeVecLeftArm  = self.splitBodyPartMovements(cols,3) # get Left arm data
+                            dataLogRightArm, timeVecRightArm  = self.splitBodyPartMovements(cols,4) # get Right Arm data
+                                                           
 
+                            
+                            plt_y_data=dataLogLeftArm[5][:,0]
+                            plt_x_data=timeVecLeftArm
+                            
+                            print plt_x_data
+                            print plt_y_data
+                            
+                            plt.figure(1)
+                            plt.plot(plt_x_data, plt_y_data)
+                            plt.show()
 
-
+                            #strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime())
 
 
 
