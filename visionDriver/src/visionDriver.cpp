@@ -465,7 +465,7 @@ bool visionDriver::updateModule()
                         {
                             bodyCentre.x=sagittalSplit;
                             bodyCentre.y=currentFaceRect.y+currentFaceRect.height;
-                            circle(captureFrameFace,bodyCentre,10,Scalar(147,20,255),3);
+                            circle(captureFrameFace,bodyCentre,10,Scalar(0,255,255),3);
                         
                         }
                         
@@ -487,13 +487,19 @@ bool visionDriver::updateModule()
                         }
                                                
                         // Find current point which is closest to previous point
-                        int closestLeftIndex = utilsObj->updateArmPoints(previousLeftArmPoints, leftArmPoints, 0);  //finds closest point
+                        //int closestLeftIndex = utilsObj->updateArmPoints(previousLeftArmPoints, leftArmPoints, 0);  //finds closest point
                         
                         leftArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,0);   //finds initial longest point
                         // Set left arm location
-                        left_hand_position=leftArmPoints[closestLeftIndex];
+                        //left_hand_position=leftArmPoints[closestLeftIndex];
                         // Update previous point
+
+                        left_hand_position = leftArmMiddlePoint.at(2);
+
                         previousLeftArmPoints=left_hand_position;
+                        
+                        //previousLeftArmPoints=leftArmPoints[closestLeftIndex];
+                        
                                             
 /*                        for (int i=0;i<4;i++)
                         {
@@ -502,15 +508,15 @@ bool visionDriver::updateModule()
                             putText(captureFrameFace, buffer, leftArmPoints[i], FONT_HERSHEY_SIMPLEX, 1, Scalar(0,0,255), 1, 8);
                         }
 */                                                
-                        circle(captureFrameFace, left_hand_position, 10, Scalar(0,255,0), 3);
-                        circle(captureFrameFace, leftArmMiddlePoint.at(0), 10, Scalar(255,255,0), 3);    //first closest point
-                        circle(captureFrameFace, leftArmMiddlePoint.at(1), 10, Scalar(255,255,0), 3);    //second closest point
+                        //circle(captureFrameFace, left_hand_position, 10, Scalar(0,255,0), 3);
+                        //circle(captureFrameFace, leftArmMiddlePoint.at(0), 10, Scalar(255,255,0), 3);    //first closest point
+                        //circle(captureFrameFace, leftArmMiddlePoint.at(1), 10, Scalar(255,255,0), 3);    //second closest point
                         circle(captureFrameFace, leftArmMiddlePoint.at(2), 10, Scalar(255,0,255), 3);    //middle point
                         
 		            	//Draw left arm rectangles
 				        Point pt1(boundingBox[leftArmInd].x + boundingBox[leftArmInd].width, boundingBox[leftArmInd].y + boundingBox[leftArmInd].height);
-				        Point pt2(boundingBox[leftArmInd].x, boundingBox[leftArmInd].y);
-				        rectangle(captureFrameFace,pt1,pt2,Scalar(0,0,255),1,8,0);
+				        //Point pt2(boundingBox[leftArmInd].x, boundingBox[leftArmInd].y);
+				        //rectangle(captureFrameFace,pt1,pt2,Scalar(0,0,255),1,8,0);
 				        utilsObj->drawRotatedRect(captureFrameFace, armRotatedRects[leftArmInd], Scalar(255,0,0));
 				        captureFrameFace=addText("Left arm", captureFrameFace, pt1, Scalar(0,0,255));
 			            
@@ -518,8 +524,8 @@ bool visionDriver::updateModule()
                                                     
 		            	//Draw right arm rectangles
 				        Point pt3(boundingBox[rightArmInd].x + boundingBox[rightArmInd].width, boundingBox[rightArmInd].y + boundingBox[rightArmInd].height);
-				        Point pt4(boundingBox[rightArmInd].x, boundingBox[rightArmInd].y);
-				        rectangle(captureFrameFace,pt3,pt4,Scalar(0,0,255),1,8,0);
+				        //Point pt4(boundingBox[rightArmInd].x, boundingBox[rightArmInd].y);
+				        //rectangle(captureFrameFace,pt3,pt4,Scalar(0,0,255),1,8,0);
 				        utilsObj->drawRotatedRect(captureFrameFace, armRotatedRects[rightArmInd], Scalar(255,0,0));
 				        captureFrameFace=addText("Right arm", captureFrameFace, pt3, Scalar(0,0,255));			    
 			            
@@ -574,23 +580,25 @@ bool visionDriver::updateModule()
                             }                           
                         }
                         // Find current point which is closest to previous point
-                        int closestRightIndex = utilsObj->updateArmPoints(previousRightArmPoints, rightArmPoints, 0);   //finds closest point
+                        //int closestRightIndex = utilsObj->updateArmPoints(previousRightArmPoints, rightArmPoints, 0);   //finds closest point
                         rightArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousRightArmPoints, rightArmPoints,0);   //finds initial longest point
                         // Set right arm location
-                        right_hand_position=rightArmPoints[closestRightIndex];
+                        //right_hand_position=rightArmPoints[closestRightIndex];
+                        right_hand_position = rightArmMiddlePoint.at(2);
+
                         // Update previous point
                         previousRightArmPoints=right_hand_position;
                                             
-                        for (int i=0;i<4;i++)
+/*                        for (int i=0;i<4;i++)
                         {
                             char buffer[100];
                             sprintf(buffer,"%d",i);
                             putText(captureFrameFace, buffer, rightArmPoints[i], FONT_HERSHEY_SIMPLEX, 1, Scalar(0,0,255), 1, 8);
                         }
-
-                        circle(captureFrameFace, right_hand_position,10,Scalar(0,255,0),3);
-                        circle(captureFrameFace, rightArmMiddlePoint.at(0), 10, Scalar(255,255,0), 3);    //first closest point
-                        circle(captureFrameFace, rightArmMiddlePoint.at(1), 10, Scalar(255,255,0), 3);    //second closest point
+*/
+                        //circle(captureFrameFace, right_hand_position,10,Scalar(0,255,0),3);
+                        //circle(captureFrameFace, rightArmMiddlePoint.at(0), 10, Scalar(255,255,0), 3);    //first closest point
+                        //circle(captureFrameFace, rightArmMiddlePoint.at(1), 10, Scalar(255,255,0), 3);    //second closest point
                         circle(captureFrameFace, rightArmMiddlePoint.at(2), 10, Scalar(255,0,255), 3);    //middle point
                         
                         if( !firstRightHandMovement )
