@@ -24,6 +24,7 @@ import cv2
 import GPy
 import time
 from scipy.spatial import distance
+from scipy.signal import savgol_filter
 import operator
 from ABM import ABM
 
@@ -176,6 +177,9 @@ class SAMpy_actions:
         #2 time (gmtime)
         #3 to 14 head, body, left, right arms
         
+        denoiseFlag=True # This will remove movements less than 4 steps and remove single movements (1 non-zero movement in vector)        
+        smoothFlag=True # Smooth data if required
+        
         samplesFound = False
         counterZeros = 0 #numpy.zeros((1,3)); # define zero test x,y,z
         tempData = numpy.empty((1,3),dtype=float)
@@ -185,7 +189,7 @@ class SAMpy_actions:
         
 #        print numpy.shape(dataLog)
 
-        # Items to get from log file....
+        # Items to Separate by action (sectioned by zero periods (in x and y)..),  from log file....
         if (bodyPartIndex==1): # face
             dataInd=numpy.array([2,3,4])
         elif(bodyPartIndex==2): # body
@@ -194,7 +198,10 @@ class SAMpy_actions:
             dataInd=numpy.array([8,9,10])
         elif(bodyPartIndex==4): # body
             dataInd=numpy.array([11,12,13])
-                        
+        
+        # To record very first data block... set to relative time from very first block
+        firstDataBlock = True
+        timeBaseline = 0.0
         # Loop through whole of datalog
         for i in range(len(dataLog[dataInd[0]])):
             # Checking for x,y,z zeros ######################################
@@ -203,12 +210,12 @@ class SAMpy_actions:
                 counterZeros = counterZeros + 1;
                 # Checking for three (x,y,z) zeros in a row ######################################
                 if( counterZeros >= 3 and samplesFound == True):
-                    # Take last zero value (for output vector)
-                    tempData=numpy.vstack([tempData,[float(dataLog[dataInd[0]][i]), float(dataLog[dataInd[1]][i]), float(dataLog[dataInd[2]][i])]]);
+                    # Take last zero value (for output vector) LB removed as isnt real!
+                    # tempData=numpy.vstack([tempData,[float(dataLog[dataInd[0]][i]), float(dataLog[dataInd[1]][i]), float(dataLog[dataInd[2]][i])]]);
                     # Dump data to output vector
                     dataBlocks.append(tempData)
-                    # Get time point
-                    timeVectorTemp=numpy.vstack([timeVectorTemp,[float(dataLog[1][i])]]) 
+                    # Get time point LB removed as extra point isnt real!
+                    #timeVectorTemp=numpy.vstack([timeVectorTemp,[float(dataLog[1][i])]]) 
                     # Dump data to output vector
                     timeVector.append(timeVectorTemp)
                     # Reset temp data for next block
@@ -222,21 +229,53 @@ class SAMpy_actions:
                 #print counterZeros        
             else: # There is some movement so record it  
                 if (samplesFound == False): # case of first value
+                    if (firstDataBlock ==  True):
+                        timeBaseline=float(dataLog[1][i-1])
+                        firstDataBlock = False
                     # Init array with previous (zero) values
                     if (i>1): # ignore very first value from log file 
                         tempData=numpy.array([float(dataLog[dataInd[0]][i-1]), float(dataLog[dataInd[1]][i-1]), float(dataLog[dataInd[2]][i-1])]);
                         # Get previous time point
-                        timeVectorTemp=numpy.array([float(dataLog[1][i-1])]) 
+                        timeVectorTemp=numpy.array([float(dataLog[1][i-1])-timeBaseline]) # Baseline time removed (from very first block)
                         samplesFound = True
                 # add in latest non-zero value
                 tempData=numpy.vstack([tempData,[float(dataLog[dataInd[0]][i]), float(dataLog[dataInd[1]][i]), float(dataLog[dataInd[2]][i])]]);
                 # Get time point
-                timeVectorTemp=numpy.vstack([timeVectorTemp,float(dataLog[1][i])]) 
+                timeVectorTemp=numpy.vstack([timeVectorTemp,float(dataLog[1][i])-timeBaseline]) # Baseline time removed (from very first block)
             #print float(dataLog[dataInd[0]][i])
             #print float(dataLog[dataInd[1]][i])
             #print float(dataLog[dataInd[2]][i])
+        
+        ############### De-noising data
+        dataBlocksTemp=dataBlocks        
+        #timeVectorTemp=timeVector
+        ### AGAIN WARNING NOT TESTING Z as always 1 -> needs implementing
+        if (denoiseFlag):
+            # Reverse counter for popping out to keep correct ind
+            for currentAction in range(len(dataBlocksTemp)-1,-1,-1):
+            # 1. Check values are above 3
+                # print dataBlocksTemp[currentAction][:,:2]            
+                if (numpy.max(numpy.abs(dataBlocksTemp[currentAction]))<=3):
+                    blockRM=dataBlocks.pop(currentAction)
+                    timeVector.pop(currentAction) # also remove from time vector
+                    print "Removing block: " + str(blockRM) + " as too small change"
+            # 2. Check if single non-zero vale
+                elif (numpy.size(numpy.nonzero(numpy.sum(numpy.abs(dataBlocksTemp[currentAction][:,:2]),axis=1)))<=3): # 3 for x,y,z
+                    blockRM=dataBlocks.pop(currentAction)
+                    timeVector.pop(currentAction) # also remove from time vector
+                    print "Removing block: " + str(blockRM) + " as one non-zero value"                
+        # Optional smoothing of data
+        if (smoothFlag):
+            for currentAction in range(len(dataBlocks)):
+                print dataBlocks[currentAction][:,0]
+                dataBlocks[currentAction][:,0]=savgol_filter(dataBlocks[currentAction][:,0],5,3)
+                dataBlocks[currentAction][:,1]=savgol_filter(dataBlocks[currentAction][:,1],5,3)
+                dataBlocks[currentAction][:,2]=savgol_filter(dataBlocks[currentAction][:,2],5,3)
+
             
 
+
+        
         return dataBlocks, timeVector # left Data, rightData
 
 #""""""""""""""""
@@ -256,13 +295,17 @@ class SAMpy_actions:
         self.participant_index = participant_index
         self.hand_index = hand_index
         self.dataFileName="data.log"
+        self.bodyPartNames=['Face','Body','Left Arm','Right Arm']
+        
+        # Max action time -> 5s will be used to generate fixed array for each action
+        self.maxActionTime = 5 # maximum action time in s        
+
         dataLogLeftArm =[]
         # Check if root dir exists
         if not os.path.exists(root_data_dir):
             print "CANNOT FIND: " + root_data_dir
         else:
             print "PATH FOUND: " + root_data_dir
-
 
         #data_file_database={}
         #dataFile = file(root_data_dir+"/data.log")
@@ -292,7 +335,7 @@ class SAMpy_actions:
                             dataFile = open(dataFilePath, 'rb')
                             cols, indexToName = self.getColumns(dataFile, " ", False)
                             dataFile.close();
-                            rows = numpy.size(cols[2][0:]);
+                            #rows = numpy.size(cols[2][0:]);
 #                            dataLog = numpy.zeros((len(cols)-2, rows))
 #                            for i in range(len(cols)-2):
 #                                dataLog[i] = cols #cols[i+2][0:]
@@ -300,44 +343,70 @@ class SAMpy_actions:
                     
                             dataLogAllBody = []
                             timeLogAllBody = []
-                            
-                            dataLogFace, timeVecFace = self.splitBodyPartMovements(cols,1) # get face data
-                            dataLogAllBody.append(dataLogFace)
-                            timeLogAllBody.append(timeVecFace)
-                            
-                            dataLogBody, timeVecBody  = self.splitBodyPartMovements(cols,2) # get Body data
-                            dataLogAllBody.append(dataLogBody)
-                            timeLogAllBody.append(timeVecBody) 
-                                                       
+                            partNameAllIndex=[]
+                            # LB COMMENTED HERE AS Body and Face DO NOT HAVE ANY RUNS OF ZEROS...
+                            # FACE                           
+#                            dataLogFace, timeVecFace = self.splitBodyPartMovements(cols,1) # get face data
+#                            dataLogAllBody.append(dataLogFace)
+#                            timeLogAllBody.append(timeVecFace)
+#                            partNameAllIndex.append(0)
+                            # BODY                            
+#                            dataLogBody, timeVecBody  = self.splitBodyPartMovements(cols,2) # get Body data
+#                            dataLogAllBody.append(dataLogBody)
+#                            timeLogAllBody.append(timeVecBody)
+#                            partNameAllIndex.append(1)
+                            # LEFT ARM                           
                             dataLogLeftArm, timeVecLeftArm  = self.splitBodyPartMovements(cols,3) # get Left arm data
                             dataLogAllBody.append(dataLogLeftArm)
                             timeLogAllBody.append(timeVecLeftArm)
-                            
+                            partNameAllIndex.append(2)
+                            # RIGHT ARM
                             dataLogRightArm, timeVecRightArm  = self.splitBodyPartMovements(cols,4) # get Right Arm data
                             dataLogAllBody.append(dataLogRightArm)
                             timeLogAllBody.append(timeVecRightArm)
+                            partNameAllIndex.append(3)
                             
-                            plt.figure(plot_count)
-                            
+                            figAll = plt.figure(plot_count)
                             plt.hold(True)
-                            
+                            figAll.canvas.set_window_title(self.participant_index[partInd] + " " + self.hand_index[handInd] + " " + self.action_index[actionInd])
+
+                            figNorm = plt.figure(plot_count+10)
+                            plt.hold(True)
+                            figNorm.canvas.set_window_title(self.participant_index[partInd] + " " + self.hand_index[handInd] + " " + self.action_index[actionInd])
+
                             for bodyPart in range(len(dataLogAllBody)):
                                 print "Found " + str(len(dataLogAllBody[bodyPart])) + " actions"
-                                plt.subplot(len(dataLogAllBody),1,bodyPart+1)
                                 for currentAction in range(len(dataLogAllBody[bodyPart])):
-                                
-                                    plt_y_data=dataLogAllBody[bodyPart][currentAction][:,0]
+                                    #  Plt data in time....
+                                    plt.figure(plot_count)
+                                    plt.subplot(len(dataLogAllBody),2,bodyPart+1)
+                                    plt_y_data=dataLogAllBody[bodyPart][currentAction]
                                     plt_x_data=numpy.transpose(timeLogAllBody[bodyPart][currentAction][:,0])
-                                    #print plt_x_data
-                                    #print plt_y_data
+                                    # Use same color throughout                                    
+                                    color_rand=numpy.random.rand(3,1)
+                                    plt.subplot(len(dataLogAllBody),2,((bodyPart+1)*2)-1)
+                                    plt.title("Movement in " + self.bodyPartNames[partNameAllIndex[bodyPart]] + " x")
+                                    plt.plot(plt_x_data, plt_y_data[:,0], c=color_rand)
+                                    plt.subplot(len(dataLogAllBody),2,(bodyPart+1)*2)
+                                    plt.title("Movement in " + self.bodyPartNames[partNameAllIndex[bodyPart]] + " y")
+                                    plt.plot(plt_x_data, plt_y_data[:,1], c=color_rand)                                    
                                     
-
-                                    plt.plot(plt_x_data, plt_y_data, c=numpy.random.rand(3,1))
+                                    # Plt data with zero time (all overlaid)
+                                    plt.figure(plot_count+10)
+                                    plt_y_data=dataLogAllBody[bodyPart][currentAction]
+                                    plt_x_data=numpy.transpose(timeLogAllBody[bodyPart][currentAction][:,0])-timeLogAllBody[bodyPart][currentAction][0]
+                                    plt.subplot(len(dataLogAllBody),2,((bodyPart+1)*2)-1)
+                                    plt.title("Time norm, move in " + self.bodyPartNames[partNameAllIndex[bodyPart]] + " x")
+                                    plt.plot(plt_x_data, plt_y_data[:,0], c=color_rand)
+                                    plt.subplot(len(dataLogAllBody),2,(bodyPart+1)*2)
+                                    plt.plot(plt_x_data, plt_y_data[:,1], c=color_rand)
+                                    plt.title("Time norm, move in " + self.bodyPartNames[partNameAllIndex[bodyPart]] + " y")                                    
+                                    
             plot_count+=1
-            plt.title(self.participant_index[partInd] + " " + self.hand_index[handInd] + " " + self.action_index[actionInd])
-                            #plt.wait
+
+            #plt.wait
                             #strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime())
-        plt.show(block=True)
+        plt.show()#block=True)
 
 
 #        for count_participant, current_participant in enumerate(self.participant_index):
@@ -654,7 +723,59 @@ class SAMpy_actions:
 
         return imageFlatten_testing
 
-
-
-
-
+    def smooth(x,window_len=11,window='hanning'):
+        """smooth the data using a window with requested size.
+        
+        This method is based on the convolution of a scaled window with the signal.
+        The signal is prepared by introducing reflected copies of the signal 
+        (with the window size) in both ends so that transient parts are minimized
+        in the begining and end part of the output signal.
+        
+        input:
+            x: the input signal 
+            window_len: the dimension of the smoothing window; should be an odd integer
+            window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
+                flat window will produce a moving average smoothing.
+    
+        output:
+            the smoothed signal
+            
+        example:
+    
+        t=linspace(-2,2,0.1)
+        x=sin(t)+randn(len(t))*0.1
+        y=smooth(x)
+        
+        see also: 
+        
+        numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve
+        scipy.signal.lfilter
+     
+        TODO: the window parameter could be the window itself if an array instead of a string
+        NOTE: length(output) != length(input), to correct this: return y[(window_len/2-1):-(window_len/2)] instead of just y.
+        """
+    
+        if x.ndim != 1:
+            raise ValueError, "smooth only accepts 1 dimension arrays."
+    
+        if x.size < window_len:
+            raise ValueError, "Input vector needs to be bigger than window size."
+    
+    
+        if window_len<3:
+            return x
+    
+    
+        if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
+            raise ValueError, "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
+    
+    
+        s=numpy.r_[x[window_len-1:0:-1],x,x[-1:-window_len:-1]]
+        #print(len(s))
+        if window == 'flat': #moving average
+            w=numpy.ones(window_len,'d')
+        else:
+            w=eval('numpy.'+window+'(window_len)')
+    
+        y=numpy.convolve(w/w.sum(),s,mode='valid')
+        return y
