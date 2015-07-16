@@ -52,7 +52,6 @@ class visionUtils
         bool isHandMoving(Point, Point, int);
         int updateArmPoints(Point2f , Point2f *, int);
         vector<Point2f> updateArmMiddlePoint(Point2f, Point2f *, int);
-        void updatePoint2fVector(Point2f *, int);
 
         // adaptive HSV
         std::vector<int> updateHSVAdaptiveSkin(std::vector<Mat>, bool);

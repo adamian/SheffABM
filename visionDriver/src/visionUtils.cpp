@@ -36,7 +36,6 @@ Rect visionUtils::checkRoiInImage(Mat src, Rect roi)
     int height = s.height;
     int width = s.width;
     
-    //cout << "Rect-> x:" << boundRect.x << " y:" << boundRect.y << " h:" << boundRect.height << " w:" << boundRect.width << endl;
     if (roi.x<0)
     {
         cout << "Trimming x from: " << roi.x << " to: 0" << endl;
@@ -389,19 +388,6 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
 
 bool visionUtils::isHandMoving(Point handPoints, Point previousHandPoints, int limit)
 {
-/*    vector<Point> windowMovement(2);
-    windowMovement[0].x = previousHandPoints.x - limit;
-    windowMovement[0].y = previousHandPoints.y - limit;
-    windowMovement[1].x = previousHandPoints.x + limit;
-    windowMovement[1].y = previousHandPoints.y + limit;
-
-    bool movement = false;
-    if( ( handPoints.x < windowMovement[0].x ) || ( handPoints.x > windowMovement[1].x ) )
-        movement = true;
-    if( ( handPoints.y < windowMovement[0].y ) || ( handPoints.y > windowMovement[1].y ) )
-        movement = true;
-*/        
-
     bool movement = false;
     if( ( handPoints.x < previousHandPoints.x - limit ) || ( handPoints.x > previousHandPoints.x + limit ) )
         movement = true;

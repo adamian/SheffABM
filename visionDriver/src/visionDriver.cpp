@@ -168,12 +168,6 @@ bool visionDriver::updateModule()
 
 					vecSizes.at<unsigned short>(i) = facesOld[i].width;
 
-/*					if(facesOld[i].width > maxSize)
-					{
-						maxSize = facesOld[i].width;
-						biggestFace = i;
-					}
-*/								
 					//required for rectangle faces in full image view
 					Point pt1(facesOld[i].x + facesOld[i].width, facesOld[i].y + facesOld[i].height);
 					Point pt2(facesOld[i].x, facesOld[i].y);
@@ -290,9 +284,6 @@ bool visionDriver::updateModule()
                     // Update adaptive skin detection vector.... for person specific detection....
                     hsvAdaptiveValues = utilsObj-> updateHSVAdaptiveSkin(hsvPixels, false);
                     
-                    //cout << "h pixel values:" << hsvPixels[0] << endl;
-                    //cout << "found " << hsvPixels[0].size() << " hsv pixels in mask" << endl;
-                    
                     faceSegMaskInv = faceSegMask.clone();
                     //imshow("facemaskinv",faceSegMaskInv);                 
                     faceSegFlag=true;
@@ -323,47 +314,9 @@ bool visionDriver::updateModule()
                 
 			    objBufBodyGPU.colRange(0,noBodies).download(vectBodyArr);
 
-//				Rect* bodiesNew = vectBodyArr.ptr<Rect>();
 				Rect* bodiesOld = vectBodyArr.ptr<Rect>();
 
-//				ImageOf<PixelRgb>& bodyImages = imageOut.prepare();
-
-/*
-				for(int i = 0; i<noBodies; i++)
-				{
-					int numel = bodiesOld.size();
-					if(i < numel)
-					{
-						centrex = bodiesNew[i].x;
-						centrey = bodiesNew[i].y;
-							
-						centrex_old = bodiesOld[i].x;
-						centrey_old = bodiesOld[i].y;
-
-						d = (centrex_old - centrex) + (centrey_old- centrey);
-						d = abs(d);
-
-						if(d > 10)
-						{
-							centrex_old = bodiesOld[i].x;
-							centrey_old = bodiesOld[i].y;
-							bodiesOld[i] = bodiesNew[i];
-						}
-					}		
-					else
-					{
-						centrex_old = bodiesNew[i].x;
-						centrey_old = bodiesNew[i].y;
-						centrex = centrex_old;
-						centrey = centrey_old;
-						bodiesOld.push_back(bodiesNew[i]);
-					}
-*/                            
-        
                 int i = 0;
-//                    bodiesOld.empty();
-//                    bodiesOld.push_back(bodiesNew[i]);
-//                    bodiesOld[i] = bodiesNew[i];
                 
                 // LB - expand rectangle using additional pixels in boxScaleFactor
                 if (boxScaleFactor != 0)
@@ -385,9 +338,7 @@ bool visionDriver::updateModule()
 
 				rectangle(captureFrameBody,pt1,pt2,Scalar(0,255,0),1,8,0); 
 				sagittalSplit = int(bodiesOld[i].x+(bodiesOld[i].width/2));				
-				line(captureFrameBody,Point(sagittalSplit,0),Point(sagittalSplit,height),Scalar(0,0,255),1,8,0);
-				
-				
+				line(captureFrameBody,Point(sagittalSplit,0),Point(sagittalSplit,height),Scalar(0,0,255),1,8,0);						
 
 				// LB: CHECK sagittal split is sensible -> around the middle of the image (15%of either side).....
 				// if not reject segmentation....
@@ -441,8 +392,6 @@ bool visionDriver::updateModule()
 		// #####################################################################
         // LB: Skeleton segmentation to find arms for action detection
         // ########################################################
-        
-        //cout << "Faceseg empty?: " << faceSegMaskInv.empty() << "face  seg flag" << faceSegFlag << " body seg flag:" << bodySegFlag << endl;
         
             if (!faceSegMaskInv.empty() && faceSegFlag && bodySegFlag)
             {
@@ -516,17 +465,11 @@ bool visionDriver::updateModule()
                         {
                             bodyCentre.x=sagittalSplit;
                             bodyCentre.y=currentFaceRect.y+currentFaceRect.height;
-                            circle(captureFrameFace,bodyCentre,10,Scalar(147,20,255),3);
+                            circle(captureFrameFace,bodyCentre,10,Scalar(0,255,255),3);
                         
                         }
                         
                         // ######### LEFT ARM
-                        // Set positon left_hand_position -> uses centre of bouding rect
-                        //left_hand_position=armRotatedRects[leftArmInd].center;
-                        
-                        //Size leftBoxSize = armRotatedRects[leftArmInd].size();
-                        //left_hand_position=armRotatedRects[leftArmInd].center+int(leftBoxSize.height*0.4);
-                        
                         Point2f leftArmPoints[4];                        
                         armRotatedRects[leftArmInd].points(leftArmPoints);
                         vector<Point2f> leftArmMiddlePoint;
@@ -535,228 +478,58 @@ bool visionDriver::updateModule()
                         {                            
                             if( (abs(bodyCentre.x-armRotatedRects[leftArmInd].center.x) > 40.0) && (abs(bodyCentre.y-armRotatedRects[leftArmInd].center.y) > 40.0) )
                             {
-//                                cout << "=============================================================================" << endl;
-//                                cout << "++++++++++++++++++++++++++++++CALIBRATING LEFT+++++++++++++++++++++++++++++++" << endl;
-//                                cout << "=============================================================================" << endl;
-
                                 int longestLeftIndex = utilsObj->updateArmPoints(bodyCentre, leftArmPoints,1);   //finds initial longest point
                                 previousLeftArmPoints = leftArmPoints[longestLeftIndex];
                                 leftArmMiddlePoint= utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,1);   //finds initial longest point
                             
-    //                            previousLeftArmPoints = leftArmPoints[0];
                                 calibratedLeftPoints = true;                             
                             }                           
-                            // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ COULD BE USEFUL -> furthest distance from centre
-    						// LB Testing -> use distance from centre of person to predict hand location?!?!?!?
-    						// Furthest will be least 
-/*    						if (bodyCentre.x!=0)
-    						{
-    						    int greatestDistance=0;
-        						int temp;
-        						int xContour;
-        						int yContour;
-        						Point2f leftArmLoc;
-        						// Largest contour = 0 (hopefully), go through points...
-        						for (int i=0; i<4; i++)
-        						{
-            						// Classic pythagoras (no need to sqrt)
-            						
-            						temp=pow((bodyCentre.x-leftArmPoints[i].x),2) + pow((bodyCentre.y-leftArmPoints[i].y),2);
-            						if (temp>greatestDistance)
-            						{
-                						greatestDistance=temp;
-                						leftArmLoc.x=leftArmPoints[i].x;
-                						leftArmLoc.y=leftArmPoints[i].y;
-            						}	
-        						}
-        						//circle(captureFrameFace,leftArmLoc,10,Scalar(255,255,255),3);
-        						previousLeftArmPoints = leftArmLoc;        						
-    						}
-*/
                         }
-                        
-                        
+                                               
                         // Find current point which is closest to previous point
-                        int closestLeftIndex = utilsObj->updateArmPoints(previousLeftArmPoints, leftArmPoints, 0);  //finds closest point
+                        //int closestLeftIndex = utilsObj->updateArmPoints(previousLeftArmPoints, leftArmPoints, 0);  //finds closest point
                         
                         leftArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,0);   //finds initial longest point
-//                        leftArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,0);   //finds initial longest point
-                        
-//                        cout << "SIZE LEFT MIDDLE POINT VECTOR: " << leftArmMiddlePoint.size() << endl;
-//                        cout << "Smallest points: ["<<leftArmMiddlePoint.at(0).x<<", "<<leftArmMiddlePoint.at(0).y<<"],["<<leftArmMiddlePoint.at(1).x<<", "<< leftArmMiddlePoint.at(1).y<<"]"<<endl;
-                        
-//                        cout << "Closest index: " << closestLeftIndex << endl;
-//                        cout << "Middle point: " << leftArmMiddlePoint.x << ", " << leftArmMiddlePoint.y << endl;
                         // Set left arm location
-                        left_hand_position=leftArmPoints[closestLeftIndex];
+                        //left_hand_position=leftArmPoints[closestLeftIndex];
                         // Update previous point
+
+                        left_hand_position = leftArmMiddlePoint.at(2);
+
                         previousLeftArmPoints=left_hand_position;
+                        
+                        //previousLeftArmPoints=leftArmPoints[closestLeftIndex];
+                        
                                             
-                        for (int i=0;i<4;i++)
+/*                        for (int i=0;i<4;i++)
                         {
                             char buffer[100];
                             sprintf(buffer,"%d",i);
                             putText(captureFrameFace, buffer, leftArmPoints[i], FONT_HERSHEY_SIMPLEX, 1, Scalar(0,0,255), 1, 8);
                         }
-                        
-
-//                        previousLeftArmPoints = leftArmPoints[0;
-                        
-//                        if( armRotatedRects[leftArmInd].size.width < armRotatedRects[leftArmInd].size.height )
-//                            tAngle = 90 + armRotatedRects[leftArmInd].angle;
-                        
-//                        char buffer[100];
-//                        sprintf(buffer,"%f", tAngle);                     
-//                        putText(captureFrameFace, buffer, armRotatedRects[leftArmInd].center, FONT_HERSHEY_SIMPLEX, 1, Scalar(0,255,255), 2, 8);
-                        
-                        
-                        circle(captureFrameFace, left_hand_position, 10, Scalar(0,255,0), 3);
-                        circle(captureFrameFace, leftArmMiddlePoint.at(0), 10, Scalar(255,255,0), 3);    //first closest point
-                        circle(captureFrameFace, leftArmMiddlePoint.at(1), 10, Scalar(255,255,0), 3);    //second closest point
+*/                                                
+                        //circle(captureFrameFace, left_hand_position, 10, Scalar(0,255,0), 3);
+                        //circle(captureFrameFace, leftArmMiddlePoint.at(0), 10, Scalar(255,255,0), 3);    //first closest point
+                        //circle(captureFrameFace, leftArmMiddlePoint.at(1), 10, Scalar(255,255,0), 3);    //second closest point
                         circle(captureFrameFace, leftArmMiddlePoint.at(2), 10, Scalar(255,0,255), 3);    //middle point
                         
 		            	//Draw left arm rectangles
 				        Point pt1(boundingBox[leftArmInd].x + boundingBox[leftArmInd].width, boundingBox[leftArmInd].y + boundingBox[leftArmInd].height);
-				        Point pt2(boundingBox[leftArmInd].x, boundingBox[leftArmInd].y);
-				        rectangle(captureFrameFace,pt1,pt2,Scalar(0,0,255),1,8,0);
+				        //Point pt2(boundingBox[leftArmInd].x, boundingBox[leftArmInd].y);
+				        //rectangle(captureFrameFace,pt1,pt2,Scalar(0,0,255),1,8,0);
 				        utilsObj->drawRotatedRect(captureFrameFace, armRotatedRects[leftArmInd], Scalar(255,0,0));
 				        captureFrameFace=addText("Left arm", captureFrameFace, pt1, Scalar(0,0,255));
 			            
 			            // ######### Right ARM
-                        // Set positon left_hand_position -> uses centre of bouding rect
-//                        right_hand_position=armRotatedRects[rightArmInd].center;
-//                        circle(captureFrameFace, right_hand_position,10,Scalar(0,255,0),3);
                                                     
 		            	//Draw right arm rectangles
 				        Point pt3(boundingBox[rightArmInd].x + boundingBox[rightArmInd].width, boundingBox[rightArmInd].y + boundingBox[rightArmInd].height);
-				        Point pt4(boundingBox[rightArmInd].x, boundingBox[rightArmInd].y);
-				        rectangle(captureFrameFace,pt3,pt4,Scalar(0,0,255),1,8,0);
+				        //Point pt4(boundingBox[rightArmInd].x, boundingBox[rightArmInd].y);
+				        //rectangle(captureFrameFace,pt3,pt4,Scalar(0,0,255),1,8,0);
 				        utilsObj->drawRotatedRect(captureFrameFace, armRotatedRects[rightArmInd], Scalar(255,0,0));
 				        captureFrameFace=addText("Right arm", captureFrameFace, pt3, Scalar(0,0,255));			    
 			            
-			            // ###############################################
-			            // Extract arms -> for CamShift and Skeleton processing
-	                    // Original color versions
-			            //Mat leftArmBGR=captureFrameBGR(boundingBox[leftArmInd]);
-			            //Mat rightArmBGR=captureFrameBGR(boundingBox[rightArmInd]);
-			            
-                        //if (displayFaces) imshow("Left arm ",leftArmBGR);
-                        //if (displayFaces) imshow("Right arm",rightArmBGR);
-		                
-		                //int noRightHands = hand_cascade.detectMultiScale(grayscaleFrameGPU(boundingBox[rightArmInd]),objBufRightHandGPU,1.2,5,Size(10,10));			               	
-		                
-			            // skinMask
-			            // Mat leftArmSkin=skinMask(boundingBox[leftArmInd]);
-			            // Mat rightArmSkin=skinMask(boundingBox[rightArmInd]);
-                        // Apply skeleton masking to arms....
-                        //Mat leftskel = utilsObj->skeletonDetect(leftArmSkin, imgBlurPixels, displayFaces);
-                        //Mat rightskel = utilsObj->skeletonDetect(rightArmSkin, imgBlurPixels, displayFaces);
-                        // Get contours of regions....
-                        //Mat leftArmSkelContours;
-                        //vector<Rect> leftboundingBox;
-
-                        // Defined in header file                      
-//                        Point average_mc;
-//                        Point previous_average_mc;
-//                        average_mc.x = 0;
-//                        average_mc.y = 0;
-                        /*
-                        int windowSize = 20;
-                        int limitWindow = 10;
-
-                        left_hand_average_mc.x = 0;
-                        left_hand_average_mc.y = 0;
-
-                        vector<RotatedRect> leftArmRotatedRect; 
-
-                        for( int j = 0; j < windowSize; j++ )
-                        {
-                        leftboundingBox = utilsObj->segmentLineBoxFit(leftskel, 50, 1, &leftArmSkelContours, &returnContours, &leftArmRotatedRect, false); // was 3 contours...
-                        if (displayFaces) imshow("Left arm skeleton contours",leftArmSkelContours);
-                        // Find hand in image..... where there are most contours...
-
-                        if (leftboundingBox.size()>0)
-                        {
-                            /// Get the moments
-                            vector<Moments> mu(returnContours.size() );
-                            for( int i = 0; i < returnContours.size(); i++ )
-                            { mu[i] = moments( returnContours[i], false ); }
-                            ///  Get the mass centers:
-                            vector<Point2f> mc( returnContours.size() );
-                            for( int i = 0; i < returnContours.size(); i++ )
-                            { mc[i] = Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 ); }
-                            
-//                            Point average_mc;
-//                            average_mc.x = 0;
-//                            average_mc.y = 0;
-                            
-                            for( int i = 0; i < returnContours.size(); i++ )
-                            {
-                                // Centre of mass method                                
-//                                left_hand_average_mc.x = left_hand_average_mc.x + mc[i].x;
-//                                left_hand_average_mc.y = left_hand_average_mc.y + mc[i].y;
-
-                                left_hand_average_mc.x = left_hand_average_mc.x + boundingBox[leftArmInd].x;
-                                left_hand_average_mc.y = left_hand_average_mc.y + boundingBox[leftArmInd].y;
-                            }
-                            
-                            left_hand_average_mc.x = left_hand_average_mc.x/returnContours.size();
-                            left_hand_average_mc.y = left_hand_average_mc.y/returnContours.size();
-                            
-//                            left_hand_average_mc.x = left_hand_average_mc.x + boundingBox[leftArmInd].x;
-//                            left_hand_average_mc.y = left_hand_average_mc.y + boundingBox[leftArmInd].y;
-                                                      
-//                            circle(captureFrameFace,left_hand_average_mc,10,Scalar(0,255,0),3);
-                            
-//                            utilsObj->isHandMoving(left_hand_average_mc);
-                               						
-    						
-    						// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ COULD BE USEFUL -> furthest distance from centre
-    						// LB Testing -> use distance from centre of person to predict hand location?!?!?!?
-    						// Furthest will be least 
-    						if (bodyCentre.x!=0)
-    						{
-    						    int greatestDistance=0;
-        						int temp;
-        						int xContour;
-        						int yContour;
-        						Point leftArmLoc;
-        						// Largest contour = 0 (hopefully), go through points...
-        						for (int i=0; i<returnContours[0].size(); i++)
-        						{
-            						// Classic pythagoras (no need to sqrt)
-            						xContour=returnContours[0][i].x+boundingBox[leftArmInd].x;
-            						yContour=returnContours[0][i].y+boundingBox[leftArmInd].y;
-            						
-            						temp=(bodyCentre.x-xContour)*(bodyCentre.x-xContour) + (bodyCentre.y-yContour)*(bodyCentre.y-yContour);
-            						if (temp>greatestDistance)
-            						{
-                						greatestDistance=temp;
-                						leftArmLoc.x=xContour;
-                						leftArmLoc.y=yContour;
-            						}	
-        						}
-        						circle(captureFrameFace,leftArmLoc,10,Scalar(255,255,255),3);
-        						
-    						}
-    						
-                        }
-                        }
-  
-                        if (leftboundingBox.size()>0 )
-                        {
-                        left_hand_average_mc.x = left_hand_average_mc.x/windowSize;
-                        left_hand_average_mc.y = left_hand_average_mc.y/windowSize;
-                        left_hand_average_mc.x = left_hand_average_mc.x + boundingBox[leftArmInd].x;
-                        left_hand_average_mc.y = left_hand_average_mc.y + boundingBox[leftArmInd].y;
-                        }
-
-                        circle(captureFrameFace,left_hand_average_mc,10,Scalar(0,255,0),3);
-                        */
                       
-                        //if (leftboundingBox.size()>0 )
-                        //{
-                        
                         // @@@@@@@@@@@@@@@@@@@@@@ Are the hands moving @@@@@@@@@@@@@@@@@@@@@
                         //Set number of pixels to detect hand movement....
                         int limitWindow = 5;
@@ -766,9 +539,6 @@ bool visionDriver::updateModule()
                             previous_left_hand_position = left_hand_position;
                             firstLeftHandMovement = true;
                         }
-
-                        //cout << "PREVIOUS POINT: " << left_hand_position.x << ", " << left_hand_position.y << endl;
-                        //cout << "CURRENT POINT: " << previous_left_hand_position.x << ", " << previous_left_hand_position.y << endl;
                         
                         // Relative positions (take difference from start.....)
                         int relLeftXPosition = 0;
@@ -776,7 +546,6 @@ bool visionDriver::updateModule()
 
                         if( utilsObj->isHandMoving(left_hand_position,previous_left_hand_position, limitWindow) )
                         {
-//                            cout << "==================== LEFT HAND IS MOVING =======================" << endl;
                             relLeftXPosition = left_hand_position.x - previous_left_hand_position.x;
                             relLeftYPosition = left_hand_position.y - previous_left_hand_position.y;
                         }
@@ -794,69 +563,6 @@ bool visionDriver::updateModule()
                         bodyPartLocations[8]=1.0;// left hand  z -> ++++++++++++++++++ SET AT DEFAULT 1 for NOW NEED TO UPDATE LATER...... STEREOVISION
                         bodyPosFound=true; // position found -> set flag to on
                         previous_left_hand_position = left_hand_position;                          
-                        //}                                       
-
- /*                       
-                       Mat rightArmSkelContours;
-
-                        vector<Rect> rightboundingBox;
-                        vector<RotatedRect> rightArmRotatedRect; 
-//                        Point right_hand_average_mc;
-                        right_hand_average_mc.x = 0;
-                        right_hand_average_mc.y = 0;
-
-//                        int windowSize = 20;
-                        for( int j = 0; j < windowSize; j++ )
-                        {                       
-                        rightboundingBox = utilsObj->segmentLineBoxFit(rightskel, 50, 1, &rightArmSkelContours, &returnContours, &rightArmRotatedRect, false);
-                        if (displayFaces) imshow("Right arm skeleton contours",rightArmSkelContours);
-                        // Find hand in image..... where there are most contours...
-
-                        if (rightboundingBox.size()>0)
-                        {
-                            /// Get the moments
-                            vector<Moments> mu(returnContours.size() );
-                            for( int i = 0; i < returnContours.size(); i++ )
-                            { mu[i] = moments( returnContours[i], false ); }
-                            ///  Get the mass centers:
-                            vector<Point2f> mc( returnContours.size() );
-                            for( int i = 0; i < returnContours.size(); i++ )
-                            { mc[i] = Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 ); }
-                            
-//                            Point right_hand_average_mc;
-//                            right_hand_average_mc.x = 0;
-//                            right_hand_average_mc.y = 0;
-                            
-                            for( int i = 0; i < returnContours.size(); i++ )
-                            {
-                                // Centre of mass method
-//                                right_hand_average_mc.x = right_hand_average_mc.x + mc[i].x;
-//                                right_hand_average_mc.y = right_hand_average_mc.y + mc[i].y;
-
-                                right_hand_average_mc.x = right_hand_average_mc.x + boundingBox[rightArmInd].x;
-                                right_hand_average_mc.y = right_hand_average_mc.y + boundingBox[rightArmInd].y;
-                            }
-                            
-                            right_hand_average_mc.x = right_hand_average_mc.x/returnContours.size();
-                            right_hand_average_mc.y = right_hand_average_mc.y/returnContours.size();
-                                                       
-//                            right_hand_average_mc.x = right_hand_average_mc.x + boundingBox[rightArmInd].x;
-//                            right_hand_average_mc.y = right_hand_average_mc.y + boundingBox[rightArmInd].y;
-                            
-//                            circle(captureFrameFace,right_hand_average_mc,10,Scalar(0,255,0),3);                            
-
-
-                        }
-                        }
-                        
-                        right_hand_average_mc.x = right_hand_average_mc.x/windowSize;
-                        right_hand_average_mc.y = right_hand_average_mc.y/windowSize;
-                        right_hand_average_mc.x = right_hand_average_mc.x + boundingBox[rightArmInd].x;
-                        right_hand_average_mc.y = right_hand_average_mc.y + boundingBox[rightArmInd].y;
-
-                        circle(captureFrameFace,right_hand_average_mc,10,Scalar(0,255,0),3);
-*/
-
 
                         Point2f rightArmPoints[4];
                         armRotatedRects[rightArmInd].points(rightArmPoints);
@@ -866,85 +572,46 @@ bool visionDriver::updateModule()
                         {
                             if( (abs(bodyCentre.x-armRotatedRects[rightArmInd].center.x) > 40.0) && (abs(bodyCentre.y-armRotatedRects[rightArmInd].center.y) > 40.0) )
                             {
-//                                cout << "=============================================================================" << endl;
-//                                cout << "++++++++++++++++++++++++++++++CALIBRATING RIGHT+++++++++++++++++++++++++++++++" << endl;
-//                                cout << "=============================================================================" << endl;
                                 int longestRightIndex = utilsObj->updateArmPoints(bodyCentre, rightArmPoints, 1);   //finds initial longest point
                                 previousRightArmPoints = rightArmPoints[longestRightIndex];
                                 rightArmMiddlePoint= utilsObj->updateArmMiddlePoint(previousRightArmPoints, rightArmPoints,1);   //finds initial longest point
 
-    //                            previousRightArmPoints = rightArmPoints[0];
                                 calibratedRightPoints = true;
                             }                           
-                            // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ COULD BE USEFUL -> furthest distance from centre
-    						// LB Testing -> use distance from centre of person to predict hand location?!?!?!?
-    						// Furthest will be least 
-/*    						if (bodyCentre.x!=0)
-    						{
-    						    int greatestDistance=0;
-        						int temp;
-        						int xContour;
-        						int yContour;
-        						Point2f rightArmLoc;
-        						// Largest contour = 0 (hopefully), go through points...
-        						for (int i=0; i<4; i++)
-        						{
-            						// Classic pythagoras (no need to sqrt)
-            						
-            						temp=pow((bodyCentre.x-rightArmPoints[i].x),2) + pow((bodyCentre.y-rightArmPoints[i].y),2);
-            						if (temp>greatestDistance)
-            						{
-                						greatestDistance=temp;
-                						rightArmLoc.x=rightArmPoints[i].x;
-                						rightArmLoc.y=rightArmPoints[i].y;
-            						}	
-        						}
-        						//circle(captureFrameFace,rightArmLoc,10,Scalar(255,255,255),3);
-        						previousRightArmPoints = rightArmLoc;        						
-    						}
-*/
                         }
                         // Find current point which is closest to previous point
-                        int closestRightIndex = utilsObj->updateArmPoints(previousRightArmPoints, rightArmPoints, 0);   //finds closest point
+                        //int closestRightIndex = utilsObj->updateArmPoints(previousRightArmPoints, rightArmPoints, 0);   //finds closest point
                         rightArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousRightArmPoints, rightArmPoints,0);   //finds initial longest point
-//                        cout << "Closest index: " << closestRightIndex << endl;
                         // Set right arm location
-                        right_hand_position=rightArmPoints[closestRightIndex];
+                        //right_hand_position=rightArmPoints[closestRightIndex];
+                        right_hand_position = rightArmMiddlePoint.at(2);
+
                         // Update previous point
                         previousRightArmPoints=right_hand_position;
                                             
-                        for (int i=0;i<4;i++)
+/*                        for (int i=0;i<4;i++)
                         {
                             char buffer[100];
                             sprintf(buffer,"%d",i);
                             putText(captureFrameFace, buffer, rightArmPoints[i], FONT_HERSHEY_SIMPLEX, 1, Scalar(0,0,255), 1, 8);
                         }
-
-                        circle(captureFrameFace, right_hand_position,10,Scalar(0,255,0),3);
-                        circle(captureFrameFace, rightArmMiddlePoint.at(0), 10, Scalar(255,255,0), 3);    //first closest point
-                        circle(captureFrameFace, rightArmMiddlePoint.at(1), 10, Scalar(255,255,0), 3);    //second closest point
+*/
+                        //circle(captureFrameFace, right_hand_position,10,Scalar(0,255,0),3);
+                        //circle(captureFrameFace, rightArmMiddlePoint.at(0), 10, Scalar(255,255,0), 3);    //first closest point
+                        //circle(captureFrameFace, rightArmMiddlePoint.at(1), 10, Scalar(255,255,0), 3);    //second closest point
                         circle(captureFrameFace, rightArmMiddlePoint.at(2), 10, Scalar(255,0,255), 3);    //middle point
                         
-
-
-//                        if (rightboundingBox.size()>0 )
-//                        {
-                   
                         if( !firstRightHandMovement )
                         {
                             previous_right_hand_position = right_hand_position;
                             firstRightHandMovement = true;
                         }
 
-//                            cout << "PREVIOUS POINT: " << right_hand_position.x << ", " << right_hand_position.y << endl;
-//                            cout << "CURRENT POINT: " << previous_right_hand_position.x << ", " << previous_right_hand_position.y << endl;
-                            
                         int relRightXPosition = 0;
                         int relRightYPosition = 0;
 
                         if( utilsObj->isHandMoving(right_hand_position,previous_right_hand_position, limitWindow) )
                         {
-//                            cout << "**************************** RIGHT HAND IS MOVING ***********************************" << endl;
                             relRightXPosition = right_hand_position.x - previous_right_hand_position.x;
                             relRightYPosition = right_hand_position.y - previous_right_hand_position.y;
                         }
@@ -959,8 +626,7 @@ bool visionDriver::updateModule()
                         bodyPartLocations[9]=relRightXPosition;// Right hand  x
                         bodyPartLocations[10]=relRightYPosition;// Right hand  y
                         bodyPartLocations[11]=1.0;// Right hand  z -> ++++++++++++++++++ SET AT DEFAULT 1 for NOW NEED TO UPDATE LATER...... STEREOVISION
-                        bodyPosFound=true; // position found -> set flag to on						
-						
+                        bodyPosFound=true; // position found -> set flag to on												
                                                  
                         previous_right_hand_position = right_hand_position;                          
 //                        }
