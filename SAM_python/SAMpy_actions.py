@@ -25,6 +25,7 @@ import GPy
 import time
 from scipy.spatial import distance
 from scipy.signal import savgol_filter
+from scipy.signal import medfilt
 import operator
 from ABM import ABM
 
@@ -54,6 +55,7 @@ class SAMpy_actions:
         self.imgHeightNew = imgHNew
         self.imgWidthNew = imgWNew
         self.image_suffix=".ppm"
+        self.plotFlag=True
 
         self.Y = None
         self.L = None
@@ -195,42 +197,57 @@ class SAMpy_actions:
         #3 to 14 head, body, left, right arms
         
         denoiseFlag=True # This will remove movements less than 4 steps and remove single movements (1 non-zero movement in vector)        
-        smoothFlag=True # Smooth data if required
-        
+        smoothFlag=False # Smooth data if required
+        zeroMeanData=[2,3,4,5,6,7,8,9,10,11,12] # -1=off, index to columns to zero mean -> Should only OPERATE ON FACE AND BODY DATA
+        preProcessData= [2,3,4,5,6,7]# -1 off, index to colums to filt currently medfilt. TODO Changes of less than three values about zeros are removed e.g. [0 0 # # 0 0]    
+                
         samplesFound = False
         counterZeros = 0 #numpy.zeros((1,3)); # define zero test x,y,z
-        tempData = numpy.empty((1,3),dtype=float)
-        timeVectorTemp = numpy.empty((1,1),dtype=float)
+        
         dataBlocks = [] # has to be list as variable size data
         timeVector = [] # has to be list as variable size data
         
         # Items to Separate by action (sectioned by zero periods (in x and y)..),  from log file....
-        if (bodyPartIndex==1): # face
-            dataInd=numpy.array([2,3,4])
+        # LB DISABLED FOR NOW AS z always ==1and dataLog[dataInd[2]][i] == 0.0 ):
+        if (bodyPartIndex==0): # Default mode looks at left and right arms to detect motion
+            dataInd=numpy.array([8,9,11,12]) #numpy.array([8,9,10,11,12,13])
+        elif (bodyPartIndex==1): # face
+            dataInd=numpy.array([2,3]) #numpy.array([2,3,4])
         elif(bodyPartIndex==2): # body
-            dataInd=numpy.array([5,6,7])
+            dataInd=numpy.array([5,6]) #numpy.array([5,6,7])
         elif(bodyPartIndex==3): # body
-            dataInd=numpy.array([8,9,10])
+            dataInd=numpy.array([8,9]) #numpy.array([8,9,10])
         elif(bodyPartIndex==4): # body
-            dataInd=numpy.array([11,12,13])
+            dataInd=numpy.array([11,12]) #numpy.array([11,12,13])
         
         # To record very first data block... set to relative time from very first block
         firstDataBlock = True
         timeBaseline = 0.0
         
         dataIndexTuple = numpy.array(range(2,14))
+        tempData = numpy.empty((1,len(dataIndexTuple)),dtype=float)
+        timeVectorTemp = numpy.empty((1,1),dtype=float)
         
+        if (zeroMeanData[0]!=-1):
+            # Body data
+            for currentXYZ in range (len(zeroMeanData)):
+                dataLog[:,currentXYZ]=dataLog[:,currentXYZ]-numpy.mean(dataLog[:,currentXYZ])
         
+        if (preProcessData[0]!=-1):
+            for currentCol in range(len(preProcessData)):
+                dataLog[:,currentCol]=medfilt(dataLog[:,currentCol],5)
+
         # Loop through whole of datalog
         for i in range(dataLog.shape[0]):
             # Checking for x,y,z zeros ######################################
             #print "WARNING Z zero check switched off until we get the data" 
-            if( dataLog[i][dataInd[0]] == 0.0 and dataLog[i][dataInd[1]] == 0.0): #LB DISABLED FOR NOW AS z always ==1and dataLog[dataInd[2]][i] == 0.0 ):
+            numpy.sum(dataLog[i][dataInd])
+            #if( dataLog[i][dataInd[0]] == 0.0 and dataLog[i][dataInd[1]] == 0.0): 
+            if (numpy.sum(numpy.abs(dataLog.astype(int)[i][dataInd]))==0):
                 counterZeros = counterZeros + 1;
                 # Checking for three (x,y,z) zeros in a row ######################################
                 if( counterZeros >= 3 and samplesFound == True):
                     # Take last zero value (for output vector) LB removed as isnt real!
-                    # tempData=numpy.vstack([tempData,[float(dataLog[dataInd[0]][i]), float(dataLog[dataInd[1]][i]), float(dataLog[dataInd[2]][i])]]);
                     # Dump data to output vector
                     dataBlocks.append(tempData)
                     # Get time point LB removed as extra point isnt real!
@@ -253,13 +270,11 @@ class SAMpy_actions:
                         firstDataBlock = False
                     # Init array with previous (zero) values
                     if (i>1): # ignore very first value from log file 
-                        # tempData=numpy.array([float(dataLog[dataInd[0]][i-1]), float(dataLog[dataInd[1]][i-1]), float(dataLog[dataInd[2]][i-1])]);
                         tempData=numpy.array(dataLog[i-1][dataIndexTuple]);
                         # Get previous time point
                         timeVectorTemp=numpy.array([dataLog[i-1][1]-timeBaseline]) # Baseline time removed (from very first block)
                         samplesFound = True
                 # add in latest non-zero value
-                #tempData=numpy.vstack([tempData,[float(dataLog[dataInd[0]][i]), float(dataLog[dataInd[1]][i]), float(dataLog[dataInd[2]][i])]]);
                 tempData=numpy.vstack([tempData,dataLog[i][dataIndexTuple]]);
                 # Get time point
                 timeVectorTemp=numpy.vstack([timeVectorTemp,dataLog[i][1]-timeBaseline]) # Baseline time removed (from very first block)
@@ -271,20 +286,25 @@ class SAMpy_actions:
         dataBlocksTemp=dataBlocks        
         #timeVectorTemp=timeVector
         ### AGAIN WARNING NOT TESTING Z as always 1 -> needs implementing
+        blockCount=0
         if (denoiseFlag):
             # Reverse counter for popping out to keep correct ind
             for currentAction in range(len(dataBlocksTemp)-1,-1,-1):
-            # 1. Check values are above 3
+            # 1. Check values are above 3 (in body part selected)
                 # print dataBlocksTemp[currentAction][:,:2]            
                 if (numpy.max(numpy.abs(dataBlocksTemp[currentAction][:,dataInd[:2]-2]))<=3):
-                    blockRM=dataBlocks.pop(currentAction)
+                    dataBlocks.pop(currentAction)
                     timeVector.pop(currentAction) # also remove from time vector
-                    print "Removing block: " + str(blockRM) + " as too small change"
+                    #print "Removing block: " + str(blockRM) + " as too small change"
+                    blockCount+=1
             # 2. Check if single non-zero vale
                 elif (numpy.size(numpy.nonzero(numpy.sum(numpy.abs(dataBlocksTemp[currentAction][:,dataInd[:2]-2]),axis=1)))<=3): # 3 for x,y,z
-                    blockRM=dataBlocks.pop(currentAction)
+                    dataBlocks.pop(currentAction)
                     timeVector.pop(currentAction) # also remove from time vector
-                    print "Removing block: " + str(blockRM) + " as one non-zero value"                
+                    #print "Removing block: " + str(blockRM) + " as one non-zero value"
+                    blockCount+=1
+            if (blockCount>0):
+                print "Removed " + str(blockCount) + " blocks as too short or too small a change"
         # Optional smoothing of data
         if (smoothFlag):
             for currentAction in range(len(dataBlocks)):
@@ -312,13 +332,11 @@ class SAMpy_actions:
         self.participant_index = participant_index
         self.hand_index = hand_index
         self.dataFileName="data.log"
-        self.bodyPartNames=['Face','Body','Left Arm','Right Arm']
+        self.bodyPartNames=['Face','Body','Left Arm','Right Arm','Left and Right Arms']
         self.bodyPartIndex=numpy.array([[0,1,2],[3,4,5],[6,7,8],[9,10,11]])
         
         # Max action time -> 5s will be used to generate fixed array for each action
         self.maxActionTime = 5 # maximum action time in s        
-
-        dataLogLeftArm =[]
         # Check if root dir exists
         if not os.path.exists(root_data_dir):
             print "CANNOT FIND: " + root_data_dir
@@ -331,6 +349,8 @@ class SAMpy_actions:
         # Generate directory names -> structure will likely change
         # 1. Participant index
         plot_count=1
+        test_count=1        
+        
         for partInd in range(len(self.participant_index)):
             # 2. hand index            
             for handInd in range(len(self.hand_index)):
@@ -352,89 +372,108 @@ class SAMpy_actions:
                             # Open file
                             dataFile = open(dataFilePath, 'rb')
                             logData = self.getColumns(dataFile, " ", False)
-                            dataFile.close();
-                            #rows = numpy.size(logData[2][0:]);
-#                            dataLog = numpy.zeros((len(logData)-2, rows))
-#                            for i in range(len(logData)-2):
-#                                dataLog[i] = logData #logData[i+2][0:]
-#                                print dataLog[i] 
-                    
-                            dataLogAllBody = []
-                            timeLogAllBody = []
-                            partNameAllIndex=[]
-                            # LB COMMENTED HERE AS Body and Face DO NOT HAVE ANY RUNS OF ZEROS...
-                            # FACE                           
-#                            dataLogFace, timeVecFace = self.splitBodyPartMovements(logData,1) # get face data
-#                            dataLogAllBody.append(dataLogFace)
-#                            timeLogAllBody.append(timeVecFace)
-#                            partNameAllIndex.append(0)
-                            # BODY                            
-#                            dataLogBody, timeVecBody  = self.splitBodyPartMovements(logData,2) # get Body data
-#                            dataLogAllBody.append(dataLogBody)
-#                            timeLogAllBody.append(timeVecBody)
-#                            partNameAllIndex.append(1)
-                            # LEFT ARM                           
-                            dataLogLeftArm, timeVecLeftArm  = self.splitBodyPartMovements(logData,3) # get Left arm data
-                            dataLogAllBody.append(dataLogLeftArm)
-                            timeLogAllBody.append(timeVecLeftArm)
-                            partNameAllIndex.append(2)
-                            # RIGHT ARM
-                            dataLogRightArm, timeVecRightArm  = self.splitBodyPartMovements(logData,4) # get Right Arm data
-                            dataLogAllBody.append(dataLogRightArm)
-                            timeLogAllBody.append(timeVecRightArm)
-                            partNameAllIndex.append(3)
-                            
-
-                            for bodyPartTested in range(len(dataLogAllBody)):
-                                print "Found " + str(len(dataLogAllBody[bodyPartTested])) + " actions"
-                                if (len(dataLogAllBody[bodyPartTested])>=1):
-                                    figAll = plt.figure(plot_count)
-                                    plt.hold(True)
-                                    figAll.canvas.set_window_title(self.participant_index[partInd] + " " + self.hand_index[handInd] + " " + self.action_index[actionInd])
+                            if (logData.size==0):
+                                print "Log Data empty skipping"
+                            else:
+                                dataFile.close();
+                                # Raw data plot
+                                plt.figure(test_count+500)
+                                plt.plot(range(0,logData.shape[0]),logData[:,8])
+                                plt.hold(True)
+                                #plt.plot(numpy.diff(logData[:,8]),c='r')
+                                # Sample rate check
+#                                ttt=numpy.diff(logData[:,1])#-logData[0,1])
+#                                ppp=ttt[ttt<1000.0]
+#                                ttt=ppp[ppp>-1000]
+#                                plt.figure(test_count+1000)
+#                                plt.plot(1/ttt)
+#                                plt.title("Sample rate")
+                                #print "Sample rate: " + str(1/numpy.mean(numpy.diff(logData[:,1])))                                
+                                test_count+=1
+                                #rows = numpy.size(logData[2][0:]);
+    #                            dataLog = numpy.zeros((len(logData)-2, rows))
+    #                            for i in range(len(logData)-2):
+    #                                dataLog[i] = logData #logData[i+2][0:]
+    #                                print dataLog[i]
+                                dataLogAllBody = []
+                                timeLogAllBody = []
+                                partNameAllIndex=[] 
+                                # Left And Right arms
+                                dataLogRightArm, timeVecRightArm  = self.splitBodyPartMovements(logData,4) # get Right Arm data
+                                dataLogAllBody.append(dataLogRightArm)
+                                timeLogAllBody.append(timeVecRightArm)
+                                partNameAllIndex.append(4)   
+                                # LB COMMENTED HERE AS Body and Face DO NOT HAVE ANY RUNS OF ZEROS...
+                                # FACE                           
+    #                            dataLogFace, timeVecFace = self.splitBodyPartMovements(logData,1) # get face data
+    #                            dataLogAllBody.append(dataLogFace)
+    #                            timeLogAllBody.append(timeVecFace)
+    #                            partNameAllIndex.append(0)
+                                # BODY                            
+    #                            dataLogBody, timeVecBody  = self.splitBodyPartMovements(logData,2) # get Body data
+    #                            dataLogAllBody.append(dataLogBody)
+    #                            timeLogAllBody.append(timeVecBody)
+    #                            partNameAllIndex.append(1)
+                                # LEFT ARM                           
+#                                dataLogLeftArm, timeVecLeftArm  = self.splitBodyPartMovements(logData,3) # get Left arm data
+#                                dataLogAllBody.append(dataLogLeftArm)
+#                                timeLogAllBody.append(timeVecLeftArm)
+#                                partNameAllIndex.append(2)
+                                # RIGHT ARM
+#                                dataLogRightArm, timeVecRightArm  = self.splitBodyPartMovements(logData,4) # get Right Arm data
+#                                dataLogAllBody.append(dataLogRightArm)
+#                                timeLogAllBody.append(timeVecRightArm)
+#                                partNameAllIndex.append(3)
+                                if (self.plotFlag):
+                                    for bodyPartTested in range(len(dataLogAllBody)):
+                                        print "Found " + str(len(dataLogAllBody[bodyPartTested])) + " actions"
+                                        if (len(dataLogAllBody[bodyPartTested])>=1):
+                                            figAll = plt.figure(plot_count)
+                                            plt.hold(True)
+                                            figAll.canvas.set_window_title("Testing: " + self.bodyPartNames[partNameAllIndex[bodyPartTested]] + "Subj: " + \
+                                                self.participant_index[partInd] + " " + self.hand_index[handInd] + " " + self.action_index[actionInd])
+                
+                                            figNorm = plt.figure(plot_count+1)
+                                            plt.hold(True)
+                                            figNorm.canvas.set_window_title("Testing: " + self.bodyPartNames[partNameAllIndex[bodyPartTested]] + "Subj: " + \
+                                                self.participant_index[partInd] + " " + self.hand_index[handInd] + " " + self.action_index[actionInd])
+            
+                                            for currentAction in range(len(dataLogAllBody[bodyPartTested])):
+                                                # Extract y data                                    
+                                                plt_y_data=dataLogAllBody[bodyPartTested][currentAction]
+                                                # Extract relevant x data (time vector)
+                                                plt_x_data=numpy.transpose(timeLogAllBody[bodyPartTested][currentAction][:,0])
+                                                plt_x_data_norm=numpy.transpose(timeLogAllBody[bodyPartTested][currentAction][:,0])-timeLogAllBody[bodyPartTested][currentAction][0]
+                                                # Generate and use same color throughout
+                                                color_rand=numpy.random.rand(3,1)
+                                                
+                                                for currentBodyPart in range(self.bodyPartIndex.shape[0]):
+                                                                                        
         
-                                    figNorm = plt.figure(plot_count+1)
-                                    plt.hold(True)
-                                    figNorm.canvas.set_window_title(self.participant_index[partInd] + " " + self.hand_index[handInd] + " " + self.action_index[actionInd])
-    
-
-                                    
-                                    for currentAction in range(len(dataLogAllBody[bodyPartTested])):
-                                        # Extract y data                                    
-                                        plt_y_data=dataLogAllBody[bodyPartTested][currentAction]
-                                        # Extract relevant x data (time vector)
-                                        plt_x_data=numpy.transpose(timeLogAllBody[bodyPartTested][currentAction][:,0])
-                                        plt_x_data_norm=numpy.transpose(timeLogAllBody[bodyPartTested][currentAction][:,0])-timeLogAllBody[bodyPartTested][currentAction][0]
-                                        # Generate and use same color throughout
-                                        color_rand=numpy.random.rand(3,1)
-                                        
-                                        for currentBodyPart in range(len(self.bodyPartNames)):
-                                                                                
-                                            
-    
-                                            #  Plt data in time....
-                                            plt.figure(plot_count)
-                                            plt.subplot(len(self.bodyPartNames),2,((currentBodyPart+1)*2)-1)
-                                            plt.title("Movement in " + self.bodyPartNames[currentBodyPart] + " x")
-                                            plt.plot(plt_x_data, plt_y_data[:,self.bodyPartIndex[currentBodyPart,0]], c=color_rand)
-                                            plt.subplot(len(self.bodyPartNames),2,(currentBodyPart+1)*2)
-                                            plt.title("Movement in " + self.bodyPartNames[currentBodyPart] + " y")
-                                            plt.plot(plt_x_data, plt_y_data[:,self.bodyPartIndex[currentBodyPart,1]], c=color_rand)                                    
-                                            
-                                            # Plt data with zero time (all overlaid)
-                                            plt.figure(plot_count+1)
-                                            plt.subplot(len(self.bodyPartNames),2,((currentBodyPart+1)*2)-1)
-                                            plt.title("Norm Movement in " + self.bodyPartNames[currentBodyPart] + " x")
-                                            plt.plot(plt_x_data_norm, plt_y_data[:,self.bodyPartIndex[currentBodyPart,0]], c=color_rand)
-                                            plt.subplot(len(self.bodyPartNames),2,(currentBodyPart+1)*2)
-                                            plt.plot(plt_x_data_norm, plt_y_data[:,self.bodyPartIndex[currentBodyPart,1]], c=color_rand)
-                                            plt.title("Norm Movement in " + self.bodyPartNames[currentBodyPart] + " y")
-                                            
-                                    plot_count+=2
+                                                    #  Plt data in time....
+                                                    plt.figure(plot_count)
+                                                    plt.subplot(self.bodyPartIndex.shape[0],2,((currentBodyPart+1)*2)-1)
+                                                    plt.title("Movement in " + self.bodyPartNames[currentBodyPart] + " x")
+                                                    plt.plot(plt_x_data, plt_y_data[:,self.bodyPartIndex[currentBodyPart,0]], c=color_rand)
+                                                    plt.subplot(self.bodyPartIndex.shape[0],2,(currentBodyPart+1)*2)
+                                                    plt.title("Movement in " + self.bodyPartNames[currentBodyPart] + " y")
+                                                    plt.plot(plt_x_data, plt_y_data[:,self.bodyPartIndex[currentBodyPart,1]], c=color_rand)                                    
+                                                    
+                                                    # Plt data with zero time (all overlaid)
+                                                    plt.figure(plot_count+1)
+                                                    plt.subplot(self.bodyPartIndex.shape[0],2,((currentBodyPart+1)*2)-1)
+                                                    plt.title("Norm Movement in " + self.bodyPartNames[currentBodyPart] + " x")
+                                                    plt.plot(plt_x_data_norm, plt_y_data[:,self.bodyPartIndex[currentBodyPart,0]], c=color_rand)
+                                                    plt.subplot(self.bodyPartIndex.shape[0],2,(currentBodyPart+1)*2)
+                                                    plt.plot(plt_x_data_norm, plt_y_data[:,self.bodyPartIndex[currentBodyPart,1]], c=color_rand)
+                                                    plt.title("Norm Movement in " + self.bodyPartNames[currentBodyPart] + " y")
+                                                    
+                                        plot_count+=2
 
             #plt.wait
                             #strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime())
         plt.show()#block=True)
-
+        ttt=1
 
 #        for count_participant, current_participant in enumerate(self.participant_index):
 #            data_file_database_part={}
