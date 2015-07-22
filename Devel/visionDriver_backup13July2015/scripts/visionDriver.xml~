@@ -1,0 +1,78 @@
+<application>
+  <name>Vision Driver</name>
+ <!-- <module>
+    <name>webcamToYarp</name>
+    <parameters>/webcamOut</parameters>
+    <node>localhost</node>
+  </module> //-->
+  <module>
+  <name>visionDriver</name>
+    <parameters></parameters>
+    <node>localhost</node>
+  </module>
+  <module>
+  <name>yarpview</name>
+    <parameters>--name /faceImgView:i</parameters>
+    <node>localhost</node>
+  </module>
+  <module>
+  <name>yarp</name>
+    <parameters>read /readFaceInfo:i</parameters>
+    <node>localhost</node>
+  </module>
+  <module>
+  <name>iSpeak</name>
+    <parameters>--package espeak --package_options "-ven+13 -p99 -s125"</parameters>
+    <node>icubsrv</node>
+  </module>
+ <!-- <connection>
+    <from>/webcamOut</from>
+    <to>/inputPort</to>
+    <protocol>udp</protocol>
+  </connection> //-->
+  <connection>
+    <from>/icub/cam/left</from>
+    <to>/visionDriver/image:i</to>
+    <protocol>udp+recv.bayer+method.nearest+mjpeg</protocol>
+  </connection>
+  <connection>
+    <from>/visionDriver/image:o</from>
+    <to>/faceImgView:i</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/visionDriver/image:o</from>
+    <to>/sam/imageData:i</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/visionDriver/vector:o</from>
+    <to>/readFaceInfo:i</to>
+    <protocol>udp</protocol>
+  </connection>
+<!--    <connection>
+	<from>/faceTrackerImg:o</from>
+    <to>/faceImgDump</to>
+    <protocol>udp</protocol>
+  </connection> //-->
+  <connection>
+    <from>/visionDriver/gaze:o</from>
+    <to>/iKinGazeCtrl/mono:i</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/sam/facePrediction:o</from>
+    <to>/iSpeak</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/sam/speakStatus:i</from>
+    <to>/iSpeak/rpc</to>
+    <protocol>tcp</protocol>
+  </connection>
+  <connection>
+    <from>/sam/syncPort:o</from>
+    <to>/visionDriver/sync:i</to>
+    <protocol>tcp</protocol>
+  </connection>
+</application>

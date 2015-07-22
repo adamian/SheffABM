@@ -1,0 +1,15 @@
+<application>
+	<name>Tracking_CamShift</name>
+	<module>
+		<name>objectTracking</name>
+		<parameters></parameters>
+        <node>localhost</node>
+        <stdio></stdio>
+	</module>
+
+	<connection>
+		<from>/icub/cam/left</from>
+		<to>/objectTracking:i</to>
+		<protocol>udp+mjpeg+recv.bayer+method.nearest</protocol>
+ 	</connection>
+</application>

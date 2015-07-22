@@ -1,0 +1,1 @@
+/home/icub/Documents/speechInteraction_script/build/CMakeFiles/speechInteraction.dir

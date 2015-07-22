@@ -13,7 +13,7 @@ import pylab as pb
 import sys
 import pickle
 import os
-import numpy
+import numpy as np
 import time
 import operator
 
@@ -33,13 +33,13 @@ def testDebug(SAMObject, Ytestn, Ltest, L, i=None):
     visualiseInfo['ax']=ax
     if i is None:
         Nstar = Ytestn.shape[0]
-        success_arr = numpy.repeat(False, Nstar)
-        uncert_arr = numpy.repeat(-numpy.inf, Nstar)
+        success_arr = np.repeat(False, Nstar)
+        uncert_arr = np.repeat(-np.inf, Nstar)
         for i in range(Nstar):
             mm,vv,pp=SAMObject.pattern_completion(Ytestn[i,:][None,:],visualiseInfo=visualiseInfo)
             #uncert_arr[i] = vv
             # find nearest neighbour of mm and SAMObject.model.X
-            dists = numpy.zeros((SAMObject.model.X.shape[0],1))
+            dists = np.zeros((SAMObject.model.X.shape[0],1))
  
             # print mm[0].values
          
@@ -62,7 +62,7 @@ def testDebug(SAMObject, Ytestn, Ltest, L, i=None):
     else:
         mm,vv,pp=SAMObject.pattern_completion(Ytestn[i,:][None,:],visualiseInfo=visualiseInfo)
         # find nearest neighbour of mm and SAMObject.model.X
-        dists = numpy.zeros((SAMObject.model.X.shape[0],1))
+        dists = np.zeros((SAMObject.model.X.shape[0],1))
 
         print "MM (1)"
         print mm[0].values
@@ -209,7 +209,7 @@ d.L = L
 
 Nts=d.Y.shape[0]-Ntr
 
-perm = numpy.random.permutation(d.Y.shape[0])
+perm = np.random.permutation(d.Y.shape[0])
 indTs = perm[0:Nts]
 indTs.sort()
 indTr = perm[Nts:Nts+Ntr]
@@ -242,7 +242,7 @@ if model_type == 'mrd':
     d.data_labels = d.L.copy()
 elif model_type == 'gp':
     d.X=d.Y.copy()
-    d.Y = {'L':d.Ln.copy()+0.08*numpy.random.randn(d.Ln.shape[0],d.Ln.shape[1])}
+    d.Y = {'L':d.Ln.copy()+0.08*np.random.randn(d.Ln.shape[0],d.Ln.shape[1])}
     d.data_labels = None
 elif model_type == 'bgplvm':
     d.X=None     
@@ -271,7 +271,7 @@ testDebug(d.SAMObject, d.Ytest, d.Ltest, d.L)
 #     visualiseInfo=dict()
 #     visualiseInfo['ax']=ax
 #     ytmp = mySAMpy.SAMObject.recall(0)
-#     ytmp = numpy.reshape(ytmp,(mySAMpy.imgHeightNew,mySAMpy.imgWidthNew))
+#     ytmp = np.reshape(ytmp,(mySAMpy.imgHeightNew,mySAMpy.imgWidthNew))
 #     fig_nn = pb.figure()
 #     pb.title('Training NN')
 #     pl_nn = fig_nn.add_subplot(111)

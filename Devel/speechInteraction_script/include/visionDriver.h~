@@ -1,0 +1,44 @@
+#include <opencv/cv.h>
+#include <opencv/cvaux.h>
+#include <opencv/highgui.h>
+#include <yarp/sig/all.h>
+#include <yarp/os/all.h>
+#include <yarp/dev/all.h>
+#include <opencv2/objdetect/objdetect.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <ctime>
+#include <opencv2/gpu/gpu.hpp>
+#include <opencv2/gpu/gpumat.hpp>
+#include <iostream>
+#include <math.h>
+#include <algorithm>
+
+using namespace yarp::os;
+using namespace yarp::sig;
+using namespace yarp::sig::draw;
+using namespace yarp::sig::file;
+using namespace cv;
+using namespace yarp::dev;
+using namespace std;
+using namespace cv::gpu;
+
+
+#define faceLimit 20
+
+
+class speechInteraction: public RFModule
+{
+    private:
+
+    public:
+        speechInteraction();
+        ~speechInteraction();
+        bool updateModule();
+        bool configure(ResourceFinder &);
+        bool interruptModule();
+        double getPeriod();
+        void CVtoYarp(Mat, ImageOf<PixelRgb> &);
+        Mat addText(string, Mat, Point, Scalar);
+};
+
