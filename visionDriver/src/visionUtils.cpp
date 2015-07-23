@@ -64,10 +64,9 @@ Rect visionUtils::checkRoiInImage(Mat src, Rect roi)
 
 Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat *skinSegMaskInv)
 {
-    RNG rng(12345); // for colour generation
 
     // Check mask and original image are the same size
-
+    //cout << "ERROR IS IN HERE" << endl;
     Size srcS = srcImage.size();
     int heightS = srcS.height;
     int widthS = srcS.width;
@@ -110,12 +109,8 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
     //Check minimum contour size and find largest....
     int largest_area=-1;
     int largest_contour_index=0;
-    
     for( int i = 0; i< contours.size(); i++ )
     {
-        Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
-        drawContours( drawingHull, contours, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
-        drawContours( drawingHull, hull, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
         if( contours[i].size() > minContourSize )
         { 
             double a=contourArea( contours[i],false);  //  Find the area of contour
@@ -123,14 +118,20 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
             {
                 largest_area=a;
                 largest_contour_index=i;  
-
             }
         }
     }
 
     if (displayFaces)
     {
-        namedWindow( "Contour Convex Hull", CV_WINDOW_AUTOSIZE );
+        RNG rng(12345); // for colour generation
+        
+        for( int i = 0; i< contours.size(); i++ )
+        {
+            Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+            drawContours( drawingHull, contours, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
+            drawContours( drawingHull, hull, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
+        }
         imshow( "Contour Convex Hull", drawingHull );
     }
 
@@ -144,12 +145,12 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
     }
 
     // Check area of hull and abort if neded  
-    double area0 = contourArea(hull[largest_contour_index]);
+ //   double area0 = contourArea(hull[largest_contour_index]);
     vector<Point> approx;
     approxPolyDP(hull[largest_contour_index], approx, 5, true);
     double area1 = contourArea(approx);
 //    cout << "area0 =" << area0 << endl << "area1 =" << area1 << endl << "approx poly vertices: " << approx.size() << endl;
-    if  (area1<5000)
+    if  (area1<4000)
     {
         cout << "Hull area too small > returning...." << endl;
         Mat ttt;
@@ -172,25 +173,6 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
     }
     else
     {
-        /// Take boxed region of face from original image data
-        // Copy inital image and section with bounding box
-        if (displayFaces)
-        {
-            Mat srcSegmented = srcImage.clone();
-            srcSegmented=srcSegmented(boundRect);
-            namedWindow( "Rect region orig", CV_WINDOW_NORMAL );
-            imshow("Rect region orig",srcSegmented);
-        }
-
-        // Repeat for mask image
-        if (displayFaces)
-        {      
-            Mat maskSegmented = maskImage.clone();
-            maskSegmented=maskSegmented(boundRect);
-            namedWindow( "Rect region, with SkinSeg", CV_WINDOW_NORMAL );
-            imshow("Rect region, with SkinSeg",maskSegmented);      
-        }
-
         /// Repeat boxing but for masked skin data (Hull)
         // Make binary mask using hull largest contour
         Mat srcSegSkin = Mat::zeros( srcImage.size(), CV_8UC3 );
@@ -200,18 +182,24 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
         srcSegSkin=srcSegSkin(boundRect);
         
         // Make face blocking mask (face pix = 0)
-//        Mat skinSegMaskInvTemp = Scalar::all(255)-skinSegMask;
         Mat skinSegMaskInvTemp = Mat::zeros( srcImage.size(), CV_8UC1 );
         bitwise_not(skinSegMaskInvTemp,*skinSegMaskInv,skinSegMask);
 
         if (displayFaces)
-        {
-            namedWindow( "Rect region, with hull region SkinSeg", CV_WINDOW_NORMAL );
+        {   // Take boxed region of face from original image data
+            // Copy inital image and section with bounding box
+            Mat srcSegmented = srcImage.clone();
+            srcSegmented=srcSegmented(boundRect);
+            imshow("Rect region orig",srcSegmented);   
+            Mat maskSegmented = maskImage.clone();
+            maskSegmented=maskSegmented(boundRect);
+            imshow("Rect region, with SkinSeg",maskSegmented);         
             imshow("Rect region, with hull region SkinSeg",srcSegSkin);      
         }      
 
         return(srcSegSkin);
     }
+    //cout << "ERROR IS Not IN HERE" << endl;
 }
 
 
@@ -265,7 +253,7 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
     //Canny(img0, img1, 100, 200, 3); //100, 200, 3);
     
     // LB: Zero pad image to remove edge effects when getting regions....	
-    int padPixels=20;
+    int padPixels=15;
     // Rect border added at start...
     Rect tempRect;
     tempRect.x=padPixels;
@@ -324,13 +312,13 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
 	        if (contourArea(Mat(contours[i]))>minPixelSize)
 	        {
 		        color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
-		        //drawContours(mask, contours, i, color, CV_FILLED);
 		        drawContours( mask, contours, i, color, 2, 8, hierarchy, 0, Point() );
-		        fitLine(Mat(contours[i]),lines,2,0,0.01,0.01);
-		        //lefty = int((-x*vy/vx) + y)
-		        //righty = int(((gray.shape[1]-x)*vy/vx)+y)
-		        int lefty = (-lines[2]*lines[1]/lines[0])+lines[3];
-		        int righty = ((mask.cols-lines[2])*lines[1]/lines[0])+lines[3];
+		        
+		        
+		        //fitLine(Mat(contours[i]),lines,2,0,0.01,0.01);
+		        
+		        //int lefty = (-lines[2]*lines[1]/lines[0])+lines[3];
+		        //int righty = ((mask.cols-lines[2])*lines[1]/lines[0])+lines[3];
 		        //line(mask,Point(mask.cols-1,righty),Point(0,lefty),color,2);
 
                 // Fit rotated rect to contour
@@ -518,7 +506,6 @@ std::vector<int> visionUtils::updateHSVAdaptiveSkin(std::vector<Mat> pixelPlanes
 
 Mat visionUtils::skinDetect(Mat captureframe, Mat *skinHSV, Mat *skinMask, std::vector<int> adaptiveHSV, int minPixelSize, int imgBlurPixels, int imgMorphPixels, int singleRegionChoice, bool displayFaces)
 {
-
 // Select single largest region from image, if singleRegionChoice is selected (=1)
 //    adaptiveHSV = Optional 6x1 vector of ints  -> send in empty or of size!= 6 to use defaults.... 
 //    adaptiveHSV = use range as in H[0]S[1]V[2] min and H[3]S[4]V[5] max       
@@ -545,7 +532,9 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 
 //cout << "Using HSV vals: " << adaptiveHSV << endl;
 
+
 	int step = 0;
+	Mat3b frameTemp;
 	Mat3b frame;
 	// Forcing resize to 640x480 -> all thresholds / pixel filters configured for this size.....
 	// Note returned to original size at end...
@@ -558,11 +547,22 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 	if (displayFaces)	imshow("Raw Image (A)",captureframe);
 	/* THRESHOLD ON HSV*/
 	// HSV data -> used to find skin
-	cvtColor(captureframe, frame, CV_BGR2HSV);
+	cvtColor(captureframe, frameTemp, CV_BGR2HSV);
 	//cvtColor(captureframe, frame, CV_BGR2HLS);
-	GaussianBlur(frame, frame, Size(imgBlurPixels,imgBlurPixels), 1, 1);
+	GaussianBlur(frameTemp, frameTemp, Size(imgBlurPixels,imgBlurPixels), 1, 1);
 	//medianBlur(frame, frame, 15);
-	for(int r=0; r<frame.rows; ++r){
+	// Threshold using skin values....
+    Mat frameThreshold = Mat::zeros(frameTemp.rows,frameTemp.cols, CV_8UC1);
+	
+	Mat hsvMin = (Mat_<int>(1,3) << adaptiveHSV[0], adaptiveHSV[1],adaptiveHSV[2] );
+	Mat hsvMax = (Mat_<int>(1,3) << adaptiveHSV[3], adaptiveHSV[4],adaptiveHSV[5] );
+	inRange(frameTemp,hsvMin ,hsvMax, frameThreshold);
+    
+	frameTemp.copyTo(frame,frameThreshold);
+
+	//imshow("Skin HSV (B)",frame);
+
+	/*for(int r=0; r<frame.rows; ++r){
 		for(int c=0; c<frame.cols; ++c) 
 			// 0<H<0.25  -   0.15<S<0.9    -    0.2<V<0.95
 			// Original values in 8bit (0 to 255) 5<H<17 - 38<S<250 - 51<V<242..................
@@ -579,7 +579,9 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 			for(int i=0; i<3; ++i) frame(r,c)[i] = 0;
 			}
 	}
+    */
 
+	
 	if (displayFaces)	imshow("Skin HSV (B)",frame);
 	/* BGR CONVERSION AND THRESHOLD */
 	Mat1b frame_gray;
@@ -587,17 +589,19 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 	// send HSV to skinHsv for return
 	*skinHSV=frame.clone();
 	
-	cvtColor(frame, frame, CV_HSV2BGR);
+	//cvtColor(frame, frame, CV_HSV2BGR);
 	cvtColor(frame, frame_gray, CV_BGR2GRAY);
 				
 				
 	// Adaptive thresholding technique
 	// 1. Threshold data to find main areas of skin
 	adaptiveThreshold(frame_gray,frame_gray,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY_INV,9,1);
+	
+	
 	if (displayFaces)	imshow("Adaptive_threshold (D1)",frame_gray);
+	
 	// 2. Fill in thresholded areas
 	morphologyEx(frame_gray, frame_gray, CV_MOP_CLOSE, Mat1b(imgMorphPixels,imgMorphPixels,1), Point(-1, -1), 2);
-	
 	
 	//GaussianBlur(frame_gray, frame_gray, Size((imgBlurPixels*2)+1,(imgBlurPixels*2)+1), 1, 1);
 	GaussianBlur(frame_gray, frame_gray, Size(imgBlurPixels,imgBlurPixels), 1, 1);
@@ -612,13 +616,14 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 		*skinMask = cannySegmentation(frame_gray, minPixelSize, displayFaces);
 	}
 
-
 	// Just return skin
 	Mat frame_skin;
 	captureframe.copyTo(frame_skin,*skinMask);  // Copy captureframe data to frame_skin, using mask from frame_ttt
 	// Resize image to original before return
 	resize(frame_skin,frame_skin,s);
+	
 	if (displayFaces)	imshow("Skin segmented",frame_skin);
+	
 	return frame_skin;	
 	waitKey(1);
 }
@@ -630,6 +635,7 @@ Mat visionUtils::cannySegmentation(Mat img0, int minPixelSize, bool displayFaces
 	// -1, returns largest region only
 	// pixels, threshold for removing smaller regions, with less than minPixelSize pixels
 	// 0, returns all detected segments
+	// converted to GPU -> NOT tested to speed up here!
 	
     // LB: Zero pad image to remove edge effects when getting regions....	
     int padPixels=20;
@@ -639,11 +645,18 @@ Mat visionUtils::cannySegmentation(Mat img0, int minPixelSize, bool displayFaces
     tempRect.y=padPixels;
     tempRect.width=img0.cols;
     tempRect.height=img0.rows;
+    
     Mat img1 = Mat::zeros(img0.rows+(padPixels*2), img0.cols+(padPixels*2), CV_8UC1);
     img0.copyTo(img1(tempRect));
     
+    gpu::GpuMat imgGPU;
+    imgGPU.upload(img1);
+    //cout << "Got here" << endl;
 	// apply your filter
-    Canny(img1, img1, 100, 200, 3); //100, 200, 3);
+	//Canny(img1, img1, 100, 200, 3); //100, 200, 3);
+    gpu::Canny(imgGPU, imgGPU, 100, 200, 3); //100, 200, 3);
+    
+    imgGPU.download(img1);
 
     // find the contours
     vector< vector<Point> > contours;
@@ -825,4 +838,21 @@ vector<Point2f> visionUtils::updateArmMiddlePoint(Point2f previousPoint, Point2f
 
     return smallestPoints;    //middle point from the two closest points 
 }
+
+double visionUtils::getFrameRate(clock_t start)
+{
+  // Fn to calc frame rate... must be initalised with start recording time using: 
+  // clock_t start = clock();
+  // then called with this clock time... (start)
+  // uses std ctime lib
+    
+  // End - time in microseconds
+  clock_t finish = clock();
+
+  // Measure time elapsed
+  double frameRate = 1.0/(double(finish - start) / CLOCKS_PER_SEC);
+  return frameRate;
+}
+
+
 

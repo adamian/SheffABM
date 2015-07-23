@@ -59,6 +59,9 @@ class visionUtils
         
         // Skin detection
         Mat skinDetect(Mat, Mat *, Mat *, std::vector<int>, int, int, int, int, bool);
-        Mat cannySegmentation(Mat, int, bool);        
+        Mat cannySegmentation(Mat, int, bool);  
+        
+        // frame rate calc for perf measurement
+        double getFrameRate(clock_t);     
 };
 

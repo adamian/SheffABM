@@ -15,6 +15,10 @@ visionDriver::visionDriver()
 	displayFaces = false;//true;
 	displayBodies = false; //true;
     utilsObj = new visionUtils();
+    
+    
+    addFrameRate = true; // optional frameRate control
+    
     //detectorObj = new skinDetector();
     //Mat faceSegMaskInv;
     faceSegFlag=false;
@@ -48,6 +52,16 @@ visionDriver::~visionDriver()
 
 bool visionDriver::updateModule()
 {
+
+
+//    if (addFrameRate)
+//    {
+         
+//    }
+    
+    startTime = clock();
+    
+    
     inCount = faceTrack.getInputCount();
     outCount = targetPort.getOutputCount();
 
@@ -63,7 +77,7 @@ bool visionDriver::updateModule()
 	    
 	        // Init bodyPartLocations vector if anything found...
 	        for (int i; i<12;i++)
-	            bodyPartLocations[i]=-1.0; // -1 is no position found....
+	            bodyPartLocations[i]=0.0; // 0 is no position found....
 	        bodyPosFound=false; // set flag off -> set to true when body part position found
 
 		    //Alternative way of creating an openCV compatible image
@@ -93,31 +107,38 @@ bool visionDriver::updateModule()
 			// Detect skin using default values.......
 			std::vector<int> hsvDefault;
 			// LB: this will always use the default values, to prevent runaway adaption!
+			
+			
             skinImage = utilsObj->skinDetect(captureFrameBGR, &skinHSV, &skinMaskDefault, hsvDefault, 400,7, 3, 0, displayFaces);
 
 			captureFrameFace=captureFrameBGR.clone();
-			
+			//cout << "Got to face seg 0..." << endl;        
+			// Check if face found
 		    if(noFaces != 0)
 		    {
 //			    cout << "Number of faces " << noFaces << endl;
-			    std::vector<cv::Mat> faceVec;
-			    std::vector<cv::Mat> faceVecSkin;
+			    //std::vector<cv::Mat> faceVec;
+			    //std::vector<cv::Mat> faceVecSkin;
 			
 			    noFaces = 1;
 
-			    Mat vecSizes = Mat::zeros(noFaces,1,CV_16UC1);
-			    Mat allFaces(faceSize,1,CV_8UC3,count);
-                Mat allFacesSkin(faceSize,1,CV_8UC3,count);
-                
+			    // Mat vecSizes = Mat::zeros(noFaces,1,CV_16UC1);
+			    Mat allFaces;//(faceSize,1,CV_8UC3,count);
+                Mat allFacesSkin;//(faceSize,1,CV_8UC3,count);
+                //cout << "Got to face seg 0.1 ..." << endl;        
+                // Get face cascadde info back from GPU
 			    objBufFaceGPU.colRange(0,noFaces).download(vectFaceArr);
 
-				Rect* facesNew = vectFaceArr.ptr<Rect>();
+                //cout << "Got to face seg 0.2 ..." << endl;        				
 				yarp::sig::Vector& posOutput = targetPort.prepare();
 				posOutput.resize(noFaces*3); //each face in the list has a number id, x centre and y centre
 
 				ImageOf<PixelRgb>& faceImages = imageOut.prepare();
-
-				for(int i = 0; i<noFaces; i++)
+                //cout << "Got to face seg 0.3 ..." << endl;                        
+                int i = 0;
+                //Rect* facesNew = vectFaceArr.ptr<Rect>();
+                // single face disabled
+				/*for(int i = 0; i<noFaces; i++)
 				{
 					int numel = facesOld.size();
 					if(i < numel)
@@ -146,7 +167,11 @@ bool visionDriver::updateModule()
 						centrey = centrey_old;
 						facesOld.push_back(facesNew[i]);
 					}
-                            
+                    */
+                    
+                    
+                    Rect* facesOld = vectFaceArr.ptr<Rect>();
+                    //cout << "Got to face seg 0.4 ..." << endl;                                    
                     // LB - expand rectangle using additional pixels in boxScaleFactor
                     if (boxScaleFactor != 0)
                     {
@@ -158,7 +183,7 @@ bool visionDriver::updateModule()
                         // WARNING -> MIGHT produce distortions -> could reject image instead...
                         facesOld[i]=utilsObj->checkRoiInImage(captureFrameRaw, facesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
                     }
-
+			        //cout << "Got to face seg 1..." << endl;        
 					// Add extra pixels to bottom to remove neck skin region...
 					if (neckScaleFactor !=0)
 					{
@@ -166,7 +191,7 @@ bool visionDriver::updateModule()
 						facesOld[i]=utilsObj->checkRoiInImage(captureFrameRaw, facesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
 					}
 
-					vecSizes.at<unsigned short>(i) = facesOld[i].width;
+					//vecSizes.at<unsigned short>(i) = facesOld[i].width;
 
 					//required for rectangle faces in full image view
 					Point pt1(facesOld[i].x + facesOld[i].width, facesOld[i].y + facesOld[i].height);
@@ -187,41 +212,46 @@ bool visionDriver::updateModule()
 					posOutput[base+1] = centrex;
 					posOutput[base+2] = centrey;
 
-					if( i == 0 )
-					{
-						Bottle posGazeOutput;
-						posGazeOutput.clear();
-						posGazeOutput.addString("left");
-						posGazeOutput.addDouble(centrex);
-						posGazeOutput.addDouble(centrey);
-						posGazeOutput.addDouble(1.0);
-						gazePort.write(posGazeOutput);	
-					}
+					//if( i == 0 )
+					//{
+					// Send position of face in image to iKinGazeCtrl
+					Bottle posGazeOutput;
+					posGazeOutput.clear();
+					posGazeOutput.addString("left");
+					posGazeOutput.addDouble(centrex);
+					posGazeOutput.addDouble(centrey);
+					posGazeOutput.addDouble(1.0);
+					gazePort.write(posGazeOutput);	
+					//}
+			    //cout << "Got to face seg 2..." << endl;        
+				//}
 
-				}
-
-				Mat indices;
-				sortIdx(vecSizes, indices, SORT_EVERY_COLUMN | SORT_DESCENDING);
+				//Mat indices;
+				//sortIdx(vecSizes, indices, SORT_EVERY_COLUMN | SORT_DESCENDING);
 					
-				for(int i = 0; i<noFaces; i++)
-				{
+				//for(int i = 0; i<noFaces; i++)
+				//{
 					if(facesOld[i].area() != 0)
 					{
 					    // Standard image facedetector, take original image
-						Mat temp = captureFrameBGR.operator()(facesOld[i]).clone();
-						resize(temp,temp,Size(faceSize,faceSize));
-						faceVec.push_back(temp);
+					    // Take face from original data
+						//Mat temp = captureFrameBGR.operator()(facesOld[i]).clone();
+						allFaces = captureFrameBGR.operator()(facesOld[i]).clone();
+						// Resixe image 
+						resize(allFaces,allFaces,Size(faceSize,faceSize));
+						//faceVec.push_back(allFaces);
 						// LB processed skin segmented data
-						Mat temp2 = skinImage.operator()(facesOld[i]).clone();
-						resize(temp2,temp2,Size(faceSize,faceSize));
-						faceVecSkin.push_back(temp2);
+						//Mat temp2 = skinImage.operator()(facesOld[i]).clone();
+						allFacesSkin = skinImage.operator()(facesOld[i]).clone();
+						resize(allFacesSkin,allFacesSkin,Size(faceSize,faceSize));
+						//faceVecSkin.push_back(temp2);
 					}
-				}
+				//}
 
 				//hconcat(faceVec,allFaces); // LB original code -> segmented face from original data
-				hconcat(faceVec,allFaces);					
-                hconcat(faceVecSkin,allFacesSkin);
-                        
+				//hconcat(faceVec,allFaces);					
+                //hconcat(faceVecSkin,allFacesSkin);
+                //cout << "Got to face seg 3..." << endl;        
 				if( displayFaces )
 				{
 					imshow("faces",allFaces);
@@ -232,7 +262,6 @@ bool visionDriver::updateModule()
                 // LB: Segment out just face....
                 
                 Mat1b faceSegMask;
-                
                 Mat faceSegmented=utilsObj->segmentFace(allFaces,allFacesSkin,displayFaces,&faceSegMask); 
                
                 //cout << "Is face seg empty: " <<  faceSegmented.empty() << endl;
@@ -242,6 +271,7 @@ bool visionDriver::updateModule()
                     currentFaceRect=facesOld[0];
                     // Resize to standard
                     resize(faceSegmented,faceSegmented,Size(faceSize,faceSize));
+                    // Send segmented face to yarp output... e.g. SAM face recog
                     utilsObj->convertCvToYarp(faceSegmented,faceImages);
                     imageOut.write();
                     //cout << "Sending face to output port" << endl;
@@ -278,7 +308,7 @@ bool visionDriver::updateModule()
                         }
                     }
                     
-                    
+                    //cout << "Got to face seg 4..." << endl;        
                     //imshow("HSV seg face",faceHSV);
                     
                     // Update adaptive skin detection vector.... for person specific detection....
@@ -296,21 +326,20 @@ bool visionDriver::updateModule()
 			}
 		    targetPort.write();
 		    waitKey(1);
-		    
+		    //cout << "Got to body seg 0..." << endl;
             // BODY TRACK
 		    if(noBodies != 0)
 		    {
 //			    cout << "Number of bodies: " << noBodies << endl;
                 // copy in last skin image
 			    captureFrameBody=captureFrameBGR.clone();
-			    std::vector<cv::Mat> bodyVec;
-			    std::vector<cv::Mat> bodyVecSkin;
+			    //std::vector<cv::Mat> bodyVec;
+			    //std::vector<cv::Mat> bodyVecSkin;
 			
 			    noBodies = 1;
 
-			    Mat vecSizes = Mat::zeros(noBodies,1,CV_16UC1);
-			    Mat allBodies(bodySize,1,CV_8UC3,count);
-                Mat allBodiesSkin(bodySize,1,CV_8UC3,count);
+			    Mat allBodies;//(bodySize,1,CV_8UC3,count);
+                Mat allBodiesSkin;//(bodySize,1,CV_8UC3,count);
                 
 			    objBufBodyGPU.colRange(0,noBodies).download(vectBodyArr);
 
@@ -329,20 +358,27 @@ bool visionDriver::updateModule()
                     // WARNING -> MIGHT produce distortions -> could reject image instead...
                     bodiesOld[i]=utilsObj->checkRoiInImage(captureFrameRaw, bodiesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
                 }
-
-				vecSizes.at<unsigned short>(i) = bodiesOld[i].width;
+                
+                //Mat vecSizes = Mat::zeros(noBodies,1,CV_16UC1);
+				//vecSizes.at<unsigned short>(i) = bodiesOld[i].width;
 							
-				//required for rectangle faces in full image view
-				Point pt1(bodiesOld[i].x + bodiesOld[i].width, bodiesOld[i].y + bodiesOld[i].height);
-				Point pt2(bodiesOld[i].x, bodiesOld[i].y);
-
-				rectangle(captureFrameBody,pt1,pt2,Scalar(0,255,0),1,8,0); 
-				sagittalSplit = int(bodiesOld[i].x+(bodiesOld[i].width/2));				
-				line(captureFrameBody,Point(sagittalSplit,0),Point(sagittalSplit,height),Scalar(0,0,255),1,8,0);						
-
+							
+				//cout << "Got to body seg 1..." << endl;	
+				if( displayBodies )
+				{		
+				    //Draw rectangle for body and line down centre
+				    Point pt1(bodiesOld[i].x + bodiesOld[i].width, bodiesOld[i].y + bodiesOld[i].height);
+				    Point pt2(bodiesOld[i].x, bodiesOld[i].y);
+				    rectangle(captureFrameBody,pt1,pt2,Scalar(0,255,0),1,8,0);			
+				    line(captureFrameBody,Point(sagittalSplit,0),Point(sagittalSplit,height),Scalar(0,0,255),1,8,0);						
+                    imshow("Body seg",captureFrameBody);
+                }
+                
 				// LB: CHECK sagittal split is sensible -> around the middle of the image (15%of either side).....
-				// if not reject segmentation....
+				// Body split using centre of body region found...
+				sagittalSplit = int(bodiesOld[i].x+(bodiesOld[i].width/2));
 				
+				// if not reject segmentation....
 				if (sagittalSplit > skinMaskDefault.cols*0.85 || sagittalSplit < skinMaskDefault.cols*0.15)
 				{
 				    cout << " Sagittal split line is too near edge -> rejecting body detection" << endl;
@@ -358,90 +394,82 @@ bool visionDriver::updateModule()
                     bodyPosFound=true; // position found -> set flag to on		
 				}
 				
-				Mat indices;
-				sortIdx(vecSizes, indices, SORT_EVERY_COLUMN | SORT_DESCENDING);
+				//Mat indices;
+				//sortIdx(vecSizes, indices, SORT_EVERY_COLUMN | SORT_DESCENDING);
 					
-				for(int i = 0; i<noBodies; i++)
-				{
+				//for(int i = 0; i<noBodies; i++)
+				//{
+				//cout << "Got to body seg 2..." << endl;
 					if(bodiesOld[i].area() != 0)
 					{
 					    // Standard image facedetector, take original image
-						Mat temp = captureFrameBGR.operator()(bodiesOld[i]).clone();
-						resize(temp,temp,Size(bodySize,bodySize));
-						bodyVec.push_back(temp);
+						//Mat temp = captureFrameBGR.operator()(bodiesOld[i]).clone();
+						allBodies = captureFrameBGR.operator()(bodiesOld[i]).clone();
+						resize(allBodies,allBodies,Size(bodySize,bodySize));
+						//bodyVec.push_back(allBodies);
 						// LB processed skin segmented data
-						Mat temp2 = skinImage.operator()(bodiesOld[i]).clone();
-						resize(temp2,temp2,Size(bodySize,bodySize));
-						bodyVecSkin.push_back(temp2);
+						allBodiesSkin = skinImage.operator()(bodiesOld[i]).clone();
+						resize(allBodiesSkin,allBodiesSkin,Size(bodySize,bodySize));
+						//bodyVecSkin.push_back(temp2);
 						
 					}
-				}
+				//}
 
 				//hconcat(faceVec,allFaces); // LB original code -> segmented face from original data
-				hconcat(bodyVec,allBodies);					
-                hconcat(bodyVecSkin,allBodiesSkin);
+				//hconcat(bodyVec,allBodies);					
+                //hconcat(bodyVecSkin,allBodiesSkin);
                         
-				if( displayBodies )
-				{
-					//imshow("bodies",allBodies);
-					//imshow("bodies Skin",allBodiesSkin);
-					imshow("Body seg",captureFrameBody);
-				}
 			}
 			
 		// #####################################################################
         // LB: Skeleton segmentation to find arms for action detection
         // ########################################################
-        
             if (!faceSegMaskInv.empty() && faceSegFlag && bodySegFlag)
             {
-            
+                //cout << "Got to arm seg 1..." << endl;
                 Mat skinImageTemp;
                 Mat skinHSVtemp;
                 Mat skinMask;
                 // LB redo skin masking but with adaptive filter 
                 skinImageTemp = utilsObj->skinDetect(captureFrameBGR, &skinHSVtemp, &skinMask, hsvAdaptiveValues, 400,7, 3, 0, displayFaces);   
-//			    cout << skinMask.size() << " inv mask " << faceSegMskInv.size() << endl;
-	//		    cout << currentFaceRect.width << " h=" << currentFaceRect.height << endl;
+
+                // LB: Remove face skin region.... this could be improved!!!!!
 			    Mat rectMaskFaceOnly = Mat::zeros( skinMask.size(), CV_8UC1 );
 			    Mat skinMaskNoFace;
 			    Mat faceSegTemp;
-			    //resize(faceSegMaskInv,faceSegTemp,Size(currentFaceRect.height,currentFaceRect.width));
-				resize(faceSegMaskInv,faceSegTemp,Size(currentFaceRect.width,currentFaceRect.height));//Size(currentFaceRect.height,currentFaceRect.width));
+				resize(faceSegMaskInv,faceSegTemp,Size(currentFaceRect.width,currentFaceRect.height));
 			    faceSegTemp.copyTo(rectMaskFaceOnly(currentFaceRect) );
-		        //threshold(rectMaskFaceOnly, rectMaskFaceOnly, 127, 255, THRESH_BINARY);
 			    bitwise_not(rectMaskFaceOnly,rectMaskFaceOnly);
-		        //threshold(skinMask, skinMask, 127, 255, THRESH_BINARY);
 		        bitwise_and(rectMaskFaceOnly,skinMask,skinMaskNoFace);
-		        
+                //cout << "Got to arm seg 2..." << endl;		        
 		        if( displayBodies )
 		        {
 			        imshow("Rectangle mask face",rectMaskFaceOnly);
-			        //imshow("skinmask face",skinMask);
                     imshow("skinmask no face :)",skinMaskNoFace);	
-                    imshow("skin seg WITH ADAPTIVE SKIN SEG...... ",skinImageTemp);
-                    				    
+                    imshow("skin seg WITH ADAPTIVE SKIN SEG...... ",skinImageTemp); 				    
                 }
                 
                 // FOR ARM TRACKING draw over face in skin mask... facemask
-			    //rectangle(skinMask,pt1,pt2,cvScalar(0,0,0,0),-1,8,0); 	
-			    //if (displayBodies) imshow("Skin_mask_noface",skinMask);
 			    // Send to skeleton fn here
 			    Mat skelMat;
 			    //skelMat=utilsObj->skeletonDetect(skinMaskNoFace, imgBlurPixels, displayBodies);
-			    //vector<Rect> boundingBox = utilsObj->getArmRects(skinMaskNoFace, imgBlurPixels, &skelMat, displayFaces);
 			    
 			    // FIND LEFT AND RIGHT ARM REGIONS....
+			    // LB: currently to set to a minimum of two regions > has to find both arms!
 		        vector<Rect> boundingBox = utilsObj->segmentLineBoxFit(skinMaskNoFace, 1000, 2, &skelMat, &returnContours, &armRotatedRects, displayFaces);
-
-			    //check atleast two bounding boxes found for left and right arms...
+		        
+		        // LB -> SKELMAT not used could remove to speed up!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!^^^^^!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
+		        
+		        
+			    //check atleast two bounding boxes found for left and right arms... > has to find both arms!
+			    //cout << "Got to arm seg 3..." << endl;
 			    if (boundingBox.size()>1)
 			    {
-			        
                     int leftArmInd=0;
                     int rightArmInd=0;
                     int testInXMost=0;
                     int testInXLeast=captureFrameFace.cols;
+			        // Find boxes for left and right arms..... could be improved to cope with x-over the centre line of person!
 			        
 			        for (int i = 0; i<boundingBox.size(); i++)
 			        {
@@ -455,8 +483,8 @@ bool visionDriver::updateModule()
 			            leftArmInd=i;
 			            }			        
                      }
-
-                    // Check both boudingBoxes arent the same for left and right 
+                    //cout << "Got to arm seg 4..." << endl;
+                    // Check both boundingBoxes aren't the same for left and right 
                     if (rightArmInd!=leftArmInd)
                     {
                     
@@ -465,6 +493,7 @@ bool visionDriver::updateModule()
                         {
                             bodyCentre.x=sagittalSplit;
                             bodyCentre.y=currentFaceRect.y+currentFaceRect.height;
+                            // Draw circle at centre below face
                             circle(captureFrameFace,bodyCentre,10,Scalar(0,255,255),3);
                         
                         }
@@ -474,6 +503,7 @@ bool visionDriver::updateModule()
                         armRotatedRects[leftArmInd].points(leftArmPoints);
                         vector<Point2f> leftArmMiddlePoint;
                         
+                        // Find middle point at base of left arm and track...
                         if( calibratedLeftPoints == false )
                         {                            
                             if( (abs(bodyCentre.x-armRotatedRects[leftArmInd].center.x) > 40.0) && (abs(bodyCentre.y-armRotatedRects[leftArmInd].center.y) > 40.0) )
@@ -481,26 +511,19 @@ bool visionDriver::updateModule()
                                 int longestLeftIndex = utilsObj->updateArmPoints(bodyCentre, leftArmPoints,1);   //finds initial longest point
                                 previousLeftArmPoints = leftArmPoints[longestLeftIndex];
                                 leftArmMiddlePoint= utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,1);   //finds initial longest point
-                            
                                 calibratedLeftPoints = true;                             
                             }                           
                         }
-                                               
+                        //cout << "Got to arm seg 5..." << endl;                 
                         // Find current point which is closest to previous point
                         //int closestLeftIndex = utilsObj->updateArmPoints(previousLeftArmPoints, leftArmPoints, 0);  //finds closest point
-                        
                         leftArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,0);   //finds initial longest point
                         // Set left arm location
-                        //left_hand_position=leftArmPoints[closestLeftIndex];
                         // Update previous point
-
                         left_hand_position = leftArmMiddlePoint.at(2);
-
                         previousLeftArmPoints=left_hand_position;
                         
-                        //previousLeftArmPoints=leftArmPoints[closestLeftIndex];
-                        
-                                            
+             
 /*                        for (int i=0;i<4;i++)
                         {
                             char buffer[100];
@@ -520,8 +543,7 @@ bool visionDriver::updateModule()
 				        utilsObj->drawRotatedRect(captureFrameFace, armRotatedRects[leftArmInd], Scalar(255,0,0));
 				        captureFrameFace=addText("Left arm", captureFrameFace, pt1, Scalar(0,0,255));
 			            
-			            // ######### Right ARM
-                                                    
+			            // ######### Right ARM                           
 		            	//Draw right arm rectangles
 				        Point pt3(boundingBox[rightArmInd].x + boundingBox[rightArmInd].width, boundingBox[rightArmInd].y + boundingBox[rightArmInd].height);
 				        //Point pt4(boundingBox[rightArmInd].x, boundingBox[rightArmInd].y);
@@ -532,7 +554,7 @@ bool visionDriver::updateModule()
                       
                         // @@@@@@@@@@@@@@@@@@@@@@ Are the hands moving @@@@@@@@@@@@@@@@@@@@@
                         //Set number of pixels to detect hand movement....
-                        int limitWindow = 5;
+                        int limitWindow = 3; // ################################### WARNING LB MOD HERE FROM 5 to 3.....
                         // IS the left hand moving
                         if( !firstLeftHandMovement )
                         {
@@ -551,19 +573,16 @@ bool visionDriver::updateModule()
                         }
 
                         // Send out hand positions over yarp
-						/*Bottle leftHandPositionOutput;
-						leftHandPositionOutput.clear();
-						leftHandPositionOutput.addDouble(relLeftXPosition);
-						leftHandPositionOutput.addDouble(relLeftYPosition);
-						leftHandPort.write(leftHandPositionOutput);                       
-                        */
                         // Add values to body part pos vector (left arm x(6),y(7),z(8))
                         bodyPartLocations[6]=relLeftXPosition;// left hand  x
                         bodyPartLocations[7]=relLeftYPosition;// left hand  y
                         bodyPartLocations[8]=1.0;// left hand  z -> ++++++++++++++++++ SET AT DEFAULT 1 for NOW NEED TO UPDATE LATER...... STEREOVISION
                         bodyPosFound=true; // position found -> set flag to on
                         previous_left_hand_position = left_hand_position;                          
-
+                        //cout << "Got to arm seg 5..." << endl;
+                        // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                        // REPEAT IT ALL FOR the Right Arm
+                        // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                         Point2f rightArmPoints[4];
                         armRotatedRects[rightArmInd].points(rightArmPoints);
                         vector<Point2f> rightArmMiddlePoint;
@@ -647,9 +666,20 @@ bool visionDriver::updateModule()
 		            calibratedRightPoints = false;
 //		            cout << "No arms found....." << endl;	    
 			    }
-			    
+			                    //cout << "Got to end..." << endl;
 //			    if(displayFaces) 
-                    imshow("Face / Body / Arms", captureFrameFace);
+                // Main display here..... ALways on -> shows Face / Body and arms with hand locations detected
+                if (addFrameRate)
+                {
+                    double frameRate = utilsObj->getFrameRate(startTime);
+                    
+                    std::stringstream ss(stringstream::in | stringstream::out);
+                    ss << setprecision(2) << frameRate <<  " fps";
+                    std::string str = ss.str();   
+                    captureFrameFace=addText(str, captureFrameFace, Point2f(200,15), Scalar(0,0,255));		
+                }
+                
+                imshow("Face / Body / Arms", captureFrameFace);
 
 				// @@@@@@@@@' Send found body pos values out over YARP
 				// If any body part position has been found -> face, body, left hand, right hand
@@ -714,7 +744,7 @@ bool visionDriver::configure(ResourceFinder &rf)
     // Init bodyPartLocations vector if anything found...
     bodyPartLocations.clear();
     for (int i; i<12;i++)
-        bodyPartLocations.push_back(-1.0); // -1 is no position found....
+        bodyPartLocations.push_back(0.0); // 0.0 is no position found....
 
     isGPUavailable = getCudaEnabledDeviceCount();
 
@@ -797,7 +827,7 @@ bool visionDriver::interruptModule()
 
 double visionDriver::getPeriod()
 {
-    return 0.1;
+    return 0.01;
 }
 
 

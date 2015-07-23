@@ -50,7 +50,8 @@ class visionDriver: public RFModule
 	    int poll;
 	    bool displayFaces;
 	    bool displayBodies;
-
+        bool addFrameRate;
+        clock_t startTime;
         
         // 12 value Vector of bodyPartLocations
         // Face (x,y,z), Body (x,y,z), Left Arm (x,y,z), Right arm (x,y,z)...
