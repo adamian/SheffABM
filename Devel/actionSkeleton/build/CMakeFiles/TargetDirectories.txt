@@ -1,1 +1,0 @@
-/home/icub/SheffABM/facetracker/actionSkeleton/build/CMakeFiles/actionSkeleton.dir
