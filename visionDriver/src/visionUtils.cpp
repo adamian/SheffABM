@@ -40,13 +40,13 @@ Rect visionUtils::checkRoiInImage(Mat src, Rect roi)
     
     if (roi.x<0)
     {
-        cout << "Trimming x from: " << roi.x << " to: 0" << endl;
+        //cout << "Trimming x from: " << roi.x << " to: 0" << endl;
         //roi.x=0;
         roi=Rect(0,roi.y,roi.width,roi.height);
     }
     if (roi.y<0)
     {
-        cout << "Trimming y from: " << roi.y << " to: 0" << endl;
+        //cout << "Trimming y from: " << roi.y << " to: 0" << endl;
         //roi.y=0;
         roi=Rect(roi.x,0,roi.width,roi.height);        
     }
@@ -55,14 +55,14 @@ Rect visionUtils::checkRoiInImage(Mat src, Rect roi)
         int temp=roi.width;
         //roi.width=width-roi.x;
         roi=Rect(roi.x,roi.y,width-roi.x,roi.height);         
-        cout << "Trimming width from: " << temp << " to: " << roi.width << endl; 
+        //cout << "Trimming width from: " << temp << " to: " << roi.width << endl; 
     }
     if ((roi.height+roi.y)>height)
     {
         int temp=roi.height;
         //roi.height=height-roi.y;
         roi=Rect(roi.x,roi.y,roi.width,height-roi.y); 
-        cout << "Trimming height from: " << temp << " to: " << roi.height << endl; 
+        //cout << "Trimming height from: " << temp << " to: " << roi.height << endl; 
     }
     return roi;
 }

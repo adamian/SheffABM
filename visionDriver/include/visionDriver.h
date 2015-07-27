@@ -67,7 +67,7 @@ class visionDriver: public RFModule
         bool bodySegFlag;
 
 	    BufferedPort< ImageOf<PixelRgb> > faceTrack;	
-	    BufferedPort< yarp::sig::Vector > targetPort;	//init output port
+	    //BufferedPort< yarp::sig::Vector > targetPort;	//init output port
 	    BufferedPort< ImageOf<PixelRgb> > imageOut;
 
 	    Port gazePort;	//x and y position for gaze controller
@@ -85,7 +85,7 @@ class visionDriver: public RFModule
 	    bool gazeOut;
 
     	int inCount;
-    	int outCount;
+    	//int outCount;
 
 
     	Mat vectFaceArr;
@@ -107,10 +107,10 @@ class visionDriver: public RFModule
         int noBodies;
         int faceSize;
         int bodySize;
-		int centrex;
-        int centrey;
-        int centrex_old;
-        int centrey_old;
+		//int centrex;
+        //int centrey;
+        //int centrex_old;
+        //int centrey_old;
         int d;
 		bool inStatus;
         int boxScaleFactor; //Additional pixels for box sizing

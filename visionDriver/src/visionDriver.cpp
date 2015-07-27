@@ -62,9 +62,9 @@ bool visionDriver::updateModule()
     }
     
     inCount = faceTrack.getInputCount();
-    outCount = targetPort.getOutputCount();
+    //outCount = targetPort.getOutputCount();
 
-    if(inCount == 0 || outCount == 0)
+    if(inCount == 0) // || outCount == 0)
     {
 	    cout << "Awaiting input and output connections" << endl;
     }
@@ -114,7 +114,7 @@ bool visionDriver::updateModule()
 		    cv::gpu::equalizeHist(grayscaleFrameGPU,grayscaleFrameGPU);
 		    // Face and Body
 		    noFaces = face_cascade.detectMultiScale(grayscaleFrameGPU,objBufFaceGPU,1.2,5,Size(30,30));
-		    noBodies = body_cascade.detectMultiScale(grayscaleFrameGPU,objBufBodyGPU,1.2,5,Size(100,100));
+		    noBodies = body_cascade.detectMultiScale(grayscaleFrameGPU,objBufBodyGPU,1.2,5,Size(150,150));
 
 			//cout << "Got to face seg 0..." << endl;        
 			// Check if face found
@@ -135,8 +135,8 @@ bool visionDriver::updateModule()
 			    objBufFaceGPU.colRange(0,noFaces).download(vectFaceArr);
 
                 //cout << "Got to face seg 0.2 ..." << endl;        				
-				yarp::sig::Vector& posOutput = targetPort.prepare();
-				posOutput.resize(noFaces*3); //each face in the list has a number id, x centre and y centre
+				//yarp::sig::Vector& posOutput = targetPort.prepare();
+				//posOutput.resize(noFaces*3); //each face in the list has a number id, x centre and y centre
 
 				ImageOf<PixelRgb>& faceImages = imageOut.prepare();
                 //cout << "Got to face seg 0.3 ..." << endl;                        
@@ -215,10 +215,11 @@ bool visionDriver::updateModule()
 					// Text face onto picture
 					captureFrameFace=addText("Face", captureFrameFace, pt1, Scalar(0,255,0));
 					
-					int base = (i*3);
-					posOutput[base] = i;
-					posOutput[base+1] = centrex;
-					posOutput[base+2] = centrey;
+					// Send face location to yarp port -> LB: No longer used!
+					//int base = (i*3);
+					//posOutput[base] = i;
+					//posOutput[base+1] = centrex;
+					//posOutput[base+2] = centrey;
 
 					//if( i == 0 )
 					//{
@@ -226,8 +227,10 @@ bool visionDriver::updateModule()
 					Bottle posGazeOutput;
 					posGazeOutput.clear();
 					posGazeOutput.addString("left");
-					posGazeOutput.addDouble(centrex);
-					posGazeOutput.addDouble(centrey);
+					//posGazeOutput.addDouble(centrex);
+					//posGazeOutput.addDouble(centrey);
+					posGazeOutput.addDouble((int) bodyPartLocations[0]);
+					posGazeOutput.addDouble((int) bodyPartLocations[1]);
 					posGazeOutput.addDouble(1.0);
 					gazePort.write(posGazeOutput);	
 					//}
@@ -355,7 +358,7 @@ bool visionDriver::updateModule()
                         faceSegMaskInv = faceSegMask.clone();
                         //imshow("facemaskinv",faceSegMaskInv);                 
                         faceSegFlag=true;
-                        targetPort.write(); // LB CHECK THIS WORKS!!!!!!!!!!!!!!!!!!!!!!!!
+                        //targetPort.write(); // LB CHECK THIS WORKS!!!!!!!!!!!!!!!!!!!!!!!!
                     }
                     else
                     {//LB warning disabled flag here!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -408,6 +411,12 @@ bool visionDriver::updateModule()
 				//vecSizes.at<unsigned short>(i) = bodiesOld[i].width;
 							
 							
+
+                
+				// LB: CHECK sagittal split is sensible -> around the middle of the image (15%of either side).....
+				// Body split using centre of body region found...
+				sagittalSplit = int(bodiesOld[i].x+(bodiesOld[i].width/2));
+				
 				//cout << "Got to body seg 1..." << endl;	
 				if( displayBodies )
 				{		
@@ -417,12 +426,9 @@ bool visionDriver::updateModule()
 				    rectangle(captureFrameBody,pt1,pt2,Scalar(0,255,0),1,8,0);			
 				    line(captureFrameBody,Point(sagittalSplit,0),Point(sagittalSplit,height),Scalar(0,0,255),1,8,0);						
                     imshow("Body seg",captureFrameBody);
-                }
-                
-				// LB: CHECK sagittal split is sensible -> around the middle of the image (15%of either side).....
-				// Body split using centre of body region found...
-				sagittalSplit = int(bodiesOld[i].x+(bodiesOld[i].width/2));
+                }				
 				
+
 				// if not reject segmentation....
 				if (sagittalSplit > skinMaskDefault.cols*0.85 || sagittalSplit < skinMaskDefault.cols*0.15)
 				{
@@ -761,7 +767,7 @@ bool visionDriver::configure(ResourceFinder &rf)
     Bottle &bGeneral = config.findGroup("general");
 
     imageInPort = bGeneral.find("imageInPort").asString().c_str();
-    vectorOutPort = bGeneral.find("vectorOutPort").asString().c_str();
+    //vectorOutPort = bGeneral.find("vectorOutPort").asString().c_str();
     imageOutPort = bGeneral.find("imageOutPort").asString().c_str();
     // LB added
     //skinMaskOutPort= bGeneral.find("skinMaskOutPort").asString().c_str();
@@ -775,7 +781,7 @@ bool visionDriver::configure(ResourceFinder &rf)
 
     cout << "------------------------" << endl;
     cout << imageInPort.c_str() << endl;
-    cout << vectorOutPort << endl;
+    //cout << vectorOutPort << endl;
     cout << imageOutPort << endl;
     cout << gazeOutPort << endl;
     //cout << syncPortConf << endl;
@@ -818,7 +824,7 @@ bool visionDriver::configure(ResourceFinder &rf)
 	}
 
 	inOpen = faceTrack.open(imageInPort.c_str());
-	outOpen = targetPort.open(vectorOutPort.c_str());
+	//outOpen = targetPort.open(vectorOutPort.c_str());
 	imageOutOpen = imageOut.open(imageOutPort.c_str());
 
 	gazeOut = gazePort.open(gazeOutPort.c_str());
@@ -838,14 +844,14 @@ bool visionDriver::configure(ResourceFinder &rf)
 	//syncBottleOut.clear();
 	//syncBottleOut.addString("stat");
 
-	if(!inOpen | !outOpen | !imageOutOpen | !gazeOut )//| !skinMaskOutOpen )
+	if(!inOpen | !imageOutOpen | !gazeOut )//| !skinMaskOutOpen ) | // !outOpen
 	{
 		cout << "Could not open ports. Exiting" << endl;
 		return false;
 	}
 
 	inCount = faceTrack.getInputCount();
-	outCount = faceTrack.getOutputCount();
+	//outCount = faceTrack.getOutputCount();
     
     // Init dyn variables
     sagittalSplit = 0;  // split person in left and right 
