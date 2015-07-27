@@ -32,8 +32,10 @@ class speechInteraction: public RFModule
 
 	    string inputPortName;	   	    
 	    string outputPortName;	   	    
+        string triggerBehaviourPortName;
         bool outputOpen;
         bool inputOpen;
+        bool behaviourPortOpen;
         int nVocabs;
 
     public:

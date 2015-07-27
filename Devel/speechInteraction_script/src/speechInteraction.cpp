@@ -15,7 +15,7 @@ void speechInteraction::triggerBehaviour(int index)
     Bottle &outputBottle = triggerBehaviourPort.prepare();
     outputBottle.clear();
     outputBottle.addInt(index+1);
-    outputPort.write();	
+    triggerBehaviourPort.write();	
 }
 
 void speechInteraction::sendSpeech(int index)
@@ -57,8 +57,11 @@ bool speechInteraction::updateModule()
     int index;
     if( matchVocab(inputString, &index) )
     {
-        sendSpeech(index);
-        triggerBehaviour(index);
+        if( index == 15 )
+            triggerBehaviour(index);
+        else
+            sendSpeech(index);
+
     }
     
     return true;
@@ -108,11 +111,13 @@ bool speechInteraction::configure(ResourceFinder &rf)
     
     inputPortName = portsGeneral.find("input_port").asString().c_str();
     outputPortName = portsGeneral.find("output_port").asString().c_str();
+    triggerBehaviourPortName = portsGeneral.find("behaviour_port").asString().c_str();
 
 	inputOpen = inputPort.open(inputPortName.c_str());
 	outputOpen = outputPort.open(outputPortName.c_str());
+	behaviourPortOpen = triggerBehaviourPort.open(triggerBehaviourPortName.c_str());
 
-	if(!outputOpen || !inputOpen)
+	if(!outputOpen || !inputOpen || !behaviourPortOpen)
 	{
 		cout << "Could not open ports. Exiting" << endl;
 		return false;
