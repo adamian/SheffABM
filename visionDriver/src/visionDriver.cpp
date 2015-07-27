@@ -42,6 +42,9 @@ visionDriver::visionDriver()
 	// Compare point distances for tracking the same point....
 	calibratedLeftPoints = false;
 	calibratedRightPoints = false;
+	
+	namedWindow("Face / Body / Arms",1);
+	
 	//leftArmPointIndex
 //	previousLeftArmPoints = new Point2f(4);
 }
@@ -53,14 +56,10 @@ visionDriver::~visionDriver()
 bool visionDriver::updateModule()
 {
 
-
-//    if (addFrameRate)
-//    {
-         
-//    }
-    
-    startTime = clock();
-    
+    if (addFrameRate)
+    {
+        startTime = clock(); 
+    }
     
     inCount = faceTrack.getInputCount();
     outCount = targetPort.getOutputCount();
@@ -74,12 +73,7 @@ bool visionDriver::updateModule()
 	    ImageOf<PixelRgb> *yarpImage = faceTrack.read();
 	    if (yarpImage!=NULL) 
 	    {
-	    
-	        // Init bodyPartLocations vector if anything found...
-	        for (int i; i<12;i++)
-	            bodyPartLocations[i]=0.0; // 0 is no position found....
-	        bodyPosFound=false; // set flag off -> set to true when body part position found
-
+            // PROCESS NEW IMAGE
 		    //Alternative way of creating an openCV compatible image
 		    //Takes approx twice as much time as uncomented implementation
 		    //Also generates IplImage instead of the more useable format Mat
@@ -92,6 +86,27 @@ bool visionDriver::updateModule()
 
             int height = yarpImage->height();
             int width = yarpImage->width();
+            
+	        // Init bodyPartLocations vector if anything found... later sent out via yarp
+	        for (int i; i<12;i++) bodyPartLocations[i]=0.0; // 0 is no position found....
+	        bodyPosFound=false; // set flag off -> set to true when body part position found
+
+	        captureFrameFace=captureFrameBGR.clone();
+
+	        Mat skinImage;
+			Mat skinMaskDefault;
+			Mat3b skinHSV;
+			// Detect skin using default values.......
+			std::vector<int> hsvDefault;
+			// LB: this will always use the default values, to prevent runaway adaption!
+            skinImage = utilsObj->skinDetect(captureFrameBGR, &skinHSV, &skinMaskDefault, hsvDefault, 400,7, 3, 0, displayFaces);
+
+	        
+		    // SET FACE AND BODY DETECTION cascades
+		    // Haar cascades on GPU	
+		    // LB TEMP TESTING
+		    //if (!faceSegFlag || !bodySegFlag) // LB just check for these once....
+		    //{
 		    
 		    // Haar cascades on GPU	
 		    captureFrameGPU.upload(captureFrameBGR);
@@ -100,18 +115,7 @@ bool visionDriver::updateModule()
 		    // Face and Body
 		    noFaces = face_cascade.detectMultiScale(grayscaleFrameGPU,objBufFaceGPU,1.2,5,Size(30,30));
 		    noBodies = body_cascade.detectMultiScale(grayscaleFrameGPU,objBufBodyGPU,1.2,5,Size(100,100));
-		    
-			Mat skinImage;
-			Mat skinMaskDefault;
-			Mat skinHSV;
-			// Detect skin using default values.......
-			std::vector<int> hsvDefault;
-			// LB: this will always use the default values, to prevent runaway adaption!
-			
-			
-            skinImage = utilsObj->skinDetect(captureFrameBGR, &skinHSV, &skinMaskDefault, hsvDefault, 400,7, 3, 0, displayFaces);
 
-			captureFrameFace=captureFrameBGR.clone();
 			//cout << "Got to face seg 0..." << endl;        
 			// Check if face found
 		    if(noFaces != 0)
@@ -123,6 +127,7 @@ bool visionDriver::updateModule()
 			    noFaces = 1;
 
 			    // Mat vecSizes = Mat::zeros(noFaces,1,CV_16UC1);
+			    Mat3b face_HSV;
 			    Mat allFaces;//(faceSize,1,CV_8UC3,count);
                 Mat allFacesSkin;//(faceSize,1,CV_8UC3,count);
                 //cout << "Got to face seg 0.1 ..." << endl;        
@@ -168,17 +173,20 @@ bool visionDriver::updateModule()
 						facesOld.push_back(facesNew[i]);
 					}
                     */
-                    
-                    
+
                     Rect* facesOld = vectFaceArr.ptr<Rect>();
+
                     //cout << "Got to face seg 0.4 ..." << endl;                                    
                     // LB - expand rectangle using additional pixels in boxScaleFactor
                     if (boxScaleFactor != 0)
                     {
-                        facesOld[i].x=facesOld[i].x-boxScaleFactor;
-                        facesOld[i].y=facesOld[i].y-boxScaleFactor;
-                        facesOld[i].width=facesOld[i].width+(boxScaleFactor*2);
-                        facesOld[i].height=facesOld[i].height+(boxScaleFactor*2);
+                        //facesOld[i].x=facesOld[i].x-boxScaleFactor;
+                        //facesOld[i].y=facesOld[i].y-boxScaleFactor;
+                        //facesOld[i].width=facesOld[i].width+(boxScaleFactor*2);
+                        //facesOld[i].height=facesOld[i].height+(boxScaleFactor*2);
+                        
+                        facesOld[i]= Rect(facesOld[i].x-boxScaleFactor, facesOld[i].y-boxScaleFactor, facesOld[i].width+(boxScaleFactor*2), facesOld[i].height+(boxScaleFactor*2));
+
                         // LB - Check the extra sizes are not outside the original image size
                         // WARNING -> MIGHT produce distortions -> could reject image instead...
                         facesOld[i]=utilsObj->checkRoiInImage(captureFrameRaw, facesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
@@ -231,103 +239,137 @@ bool visionDriver::updateModule()
 					
 				//for(int i = 0; i<noFaces; i++)
 				//{
-					if(facesOld[i].area() != 0)
-					{
-					    // Standard image facedetector, take original image
-					    // Take face from original data
-						//Mat temp = captureFrameBGR.operator()(facesOld[i]).clone();
-						allFaces = captureFrameBGR.operator()(facesOld[i]).clone();
-						// Resixe image 
-						resize(allFaces,allFaces,Size(faceSize,faceSize));
-						//faceVec.push_back(allFaces);
-						// LB processed skin segmented data
-						//Mat temp2 = skinImage.operator()(facesOld[i]).clone();
-						allFacesSkin = skinImage.operator()(facesOld[i]).clone();
-						resize(allFacesSkin,allFacesSkin,Size(faceSize,faceSize));
-						//faceVecSkin.push_back(temp2);
-					}
-				//}
-
-				//hconcat(faceVec,allFaces); // LB original code -> segmented face from original data
-				//hconcat(faceVec,allFaces);					
-                //hconcat(faceVecSkin,allFacesSkin);
-                //cout << "Got to face seg 3..." << endl;        
-				if( displayFaces )
+				if(facesOld[i].area() != 0)
 				{
-					imshow("faces",allFaces);
-					imshow("faces Skin",allFacesSkin);
-					//imshow("Face seg", captureFrameFace);
-				}
+				        // Standard image facedetector, take original image
+				        // Take face from original data
+					    //Mat temp = captureFrameBGR.operator()(facesOld[i]).clone();
+					    allFaces = captureFrameBGR.operator()(facesOld[i]).clone();
+					    // Resixe image 
+					    resize(allFaces,allFaces,Size(faceSize,faceSize));
+					    //faceVec.push_back(allFaces);
+					    // LB processed skin segmented data
+					    //Mat temp2 = skinImage.operator()(facesOld[i]).clone();
+					    allFacesSkin = skinImage.operator()(facesOld[i]).clone();
+					    resize(allFacesSkin,allFacesSkin,Size(faceSize,faceSize));
+					    //faceVecSkin.push_back(temp2);
+					    
+					    // Take skinHSV (returned from skin detector) and uses face extracted rect.....
+                        face_HSV = skinHSV.operator()(facesOld[i]).clone();
+                        // LB lots of testing
+					    //Mat HSVTemp, HSVTemp2;
+					    //cvtColor(skinHSV, HSVTemp, CV_HSV2BGR);
+                        //HSVTemp2 = HSVTemp.operator()(facesOld[i]).clone();
+                        //cvtColor(HSVTemp2, face_HSV, CV_BGR2HSV);
+                        //resize(face_HSV,face_HSV,Size(facesOld[i].width+1,facesOld[i].height+1));
+                        // LB testing			
+                        //Mat faceOut = captureFrameFace(facesOld[i]).clone();	
+					    currentFaceRect = facesOld[0]; //Rect(facesOld[0].x,facesOld[0].y,facesOld[0].width*2,facesOld[0].height*2);
+				
+				    //}
 
-                // LB: Segment out just face....
-                
-                Mat1b faceSegMask;
-                Mat faceSegmented=utilsObj->segmentFace(allFaces,allFacesSkin,displayFaces,&faceSegMask); 
-               
-                //cout << "Is face seg empty: " <<  faceSegmented.empty() << endl;
-                //LB Check face was found!
-                if (!faceSegmented.empty())
-                {
-                    currentFaceRect=facesOld[0];
-                    // Resize to standard
-                    resize(faceSegmented,faceSegmented,Size(faceSize,faceSize));
-                    // Send segmented face to yarp output... e.g. SAM face recog
-                    utilsObj->convertCvToYarp(faceSegmented,faceImages);
-                    imageOut.write();
-                    //cout << "Sending face to output port" << endl;
-                    
-                    // LB: ADAPTIVE SKIN MASKING SECTION -> uses skin on face to refine the skin detector......
-                    // LB testing -> get all values from skin mask 
-                    // Run through pixels in mask and 
-                    // Needs to be more efficient... see image scan opencv documentation...
-                    
-                    // HSV pixels that pass skin detection -> uses face track and segmented face data
-                    std::vector<Mat> hsvPixels(3);
-                    // Take skinHSV (returned from skin detector) and uses face extracted rect..... 
-                    Mat3b faceHSV = skinHSV(currentFaceRect);
-                    //cvtColor(faceSegmented, faceHSV, CV_BGR2HSV);
+				    //hconcat(faceVec,allFaces); // LB original code -> segmented face from original data
+				    //hconcat(faceVec,allFaces);					
+                    //hconcat(faceVecSkin,allFacesSkin);
+                    //cout << "Got to face seg 3..." << endl;        
+				    if( displayFaces )
+				    {
+					    imshow("faces",allFaces);
+					    imshow("faces Skin",allFacesSkin);
+					    
+					    
+					    
+					    
+					    //imshow("Face seg", captureFrameFace);
+				    }
 
-                    // Loop through rows
-                    for (int i =0; i < faceHSV.rows; i++)
+                    // LB: Segment out just face....
+                    
+                    Mat1b faceSegMask;
+                    Mat faceSegmented=utilsObj->segmentFace(allFaces,allFacesSkin,displayFaces,&faceSegMask); 
+                   
+                    //cout << "Is face seg empty: " <<  faceSegmented.empty() << endl;
+                    //LB Check face was found!
+                    if (!faceSegmented.empty())
                     {
-                    // Loop through cols
-                        for (int j =0; j < faceHSV.cols; j++)
+                        // Resize to standard
+                        resize(faceSegmented,faceSegmented,Size(faceSize,faceSize));
+                        // Send segmented face to yarp output... e.g. SAM face recog
+                        utilsObj->convertCvToYarp(faceSegmented,faceImages);
+                        imageOut.write();
+                        //cout << "Sending face to output port" << endl;
+                        // LB: ADAPTIVE SKIN MASKING SECTION -> uses skin on face to refine the skin detector......
+                        // LB testing -> get all values from skin mask 
+                        // Run through pixels in mask and 
+                        // Needs to be more efficient... see image scan opencv documentation...
+                        
+                        // HSV pixels that pass skin detection -> uses face track and segmented face data
+                        std::vector<Mat> hsvPixels(3);
+
+                        //cvtColor(faceSegmented, face_HSV, CV_BGR2HSV);
+
+
+                        // LB testing -> WEIRD DISPLAY EFFECT... shows quarter of image
+                        
+                        /*Point ptf1(currentFaceRect.x + currentFaceRect.width, currentFaceRect.y + currentFaceRect.height);
+				        Point ptf2(currentFaceRect.x, currentFaceRect.y);
+				        rectangle(skinHSV,ptf1,ptf2,Scalar(0,100,0),1,8,0);	
+                        
+                        imshow("HSV all skin",skinHSV);
+                        imshow("HSV face",face_HSV);
+                        imshow("Face cut",faceOut);
+                        imshow("allFaces",allFaces);
+                        imshow("allFacesSkin",allFacesSkin);
+                        waitKey(1);
+                        cout << "Face HSV rows:" << face_HSV.rows << " Faces HSV cols: " << face_HSV.cols << endl;
+                        cout << "Face cut:" << faceOut.rows << " Face cut: " << faceOut.cols << endl;
+                        */
+                        
+                        // Little effect on frame rate here....
+                        // Loop through rows
+                        for (int i =0; i < face_HSV.rows; i++)
                         {
-                            //cout << "faceSegMask pix val:" << faceSegMask.at<int>(i,j) << endl;
-                            // check pixels in face mask
-                            //if  (faceSegMask)
-                            //if  (faceSegMask.at<int>(i,j)>0)
-                            //{   // Check HSV is not zero....
-                            if (faceHSV(i,j)[0]!=0 || faceHSV(i,j)[1]!=0 || faceHSV(i,j)[2]!=0)
+                        // Loop through cols
+                            for (int j =0; j < face_HSV.cols; j++)
                             {
-                                // save HSV values from pixel in mask    
-                                hsvPixels[0].push_back(faceHSV(i,j)[0]); //H
-                                hsvPixels[1].push_back(faceHSV(i,j)[1]); //S
-                                hsvPixels[2].push_back(faceHSV(i,j)[2]); //V
+                                //cout << "faceSegMask pix val:" << faceSegMask.at<int>(i,j) << endl;
+                                // check pixels in face mask
+                                //if  (faceSegMask)
+                                //if  (faceSegMask.at<int>(i,j)>0)
+                                //{   // Check HSV is not zero....
+                                if (face_HSV(i,j)[0]!=0 || face_HSV(i,j)[1]!=0 || face_HSV(i,j)[2]!=0)
+                                {
+                                    // save HSV values from pixel in mask    
+                                    hsvPixels[0].push_back(face_HSV(i,j)[0]); //H
+                                    hsvPixels[1].push_back(face_HSV(i,j)[1]); //S
+                                    hsvPixels[2].push_back(face_HSV(i,j)[2]); //V
+                                }
                             }
                         }
+                        
+                        //imshow("HSV seg face",face_HSV);
+                        
+                        // Update adaptive skin detection vector.... for person specific detection....
+                        hsvAdaptiveValues = utilsObj-> updateHSVAdaptiveSkin(hsvPixels, false);
+                        
+                        faceSegMaskInv = faceSegMask.clone();
+                        //imshow("facemaskinv",faceSegMaskInv);                 
+                        faceSegFlag=true;
+                        targetPort.write(); // LB CHECK THIS WORKS!!!!!!!!!!!!!!!!!!!!!!!!
                     }
-                    
-                    //cout << "Got to face seg 4..." << endl;        
-                    //imshow("HSV seg face",faceHSV);
-                    
-                    // Update adaptive skin detection vector.... for person specific detection....
-                    hsvAdaptiveValues = utilsObj-> updateHSVAdaptiveSkin(hsvPixels, false);
-                    
-                    faceSegMaskInv = faceSegMask.clone();
-                    //imshow("facemaskinv",faceSegMaskInv);                 
-                    faceSegFlag=true;
-                }
-                else
-                {//LB warning disabled flag here!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                    //faceSegFlag=false;
-                    cout << " Face segmentation unsuccessful" << endl;
-                }                           
+                    else
+                    {//LB warning disabled flag here!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                        //faceSegFlag=false;
+                        cout << " Face segmentation unsuccessful" << endl;
+                    } 
+                }                          
 			}
-		    targetPort.write();
-		    waitKey(1);
+		    
 		    //cout << "Got to body seg 0..." << endl;
-            // BODY TRACK
+		    
+		    // ##################################################
+            // ############### BODY TRACK
+            // #####################################################
 		    if(noBodies != 0)
 		    {
 //			    cout << "Number of bodies: " << noBodies << endl;
@@ -350,10 +392,13 @@ bool visionDriver::updateModule()
                 // LB - expand rectangle using additional pixels in boxScaleFactor
                 if (boxScaleFactor != 0)
                 {
-                    bodiesOld[i].x=bodiesOld[i].x-boxScaleFactor;
-                    bodiesOld[i].y=bodiesOld[i].y-boxScaleFactor;
-                    bodiesOld[i].width=bodiesOld[i].width+(boxScaleFactor*2);
-                    bodiesOld[i].height=bodiesOld[i].height+(boxScaleFactor*2);
+                    //bodiesOld[i].x=bodiesOld[i].x-boxScaleFactor;
+                    //bodiesOld[i].y=bodiesOld[i].y-boxScaleFactor;
+                    //bodiesOld[i].width=bodiesOld[i].width+(boxScaleFactor*2);
+                    //bodiesOld[i].height=bodiesOld[i].height+(boxScaleFactor*2);
+                    
+                    bodiesOld[i] = Rect(bodiesOld[i].x-boxScaleFactor,bodiesOld[i].y-boxScaleFactor,bodiesOld[i].width+(boxScaleFactor*2),bodiesOld[i].height+(boxScaleFactor*2));
+
                     // LB - Check the extra sizes are not outside the original image size
                     // WARNING -> MIGHT produce distortions -> could reject image instead...
                     bodiesOld[i]=utilsObj->checkRoiInImage(captureFrameRaw, bodiesOld[i]); // LB: seg fault (need to pass rect inside of vector...)
@@ -421,18 +466,26 @@ bool visionDriver::updateModule()
                         
 			}
 			
+	    //} // temp test
+			
+			
 		// #####################################################################
-        // LB: Skeleton segmentation to find arms for action detection
+        // LB: Body segmentation to find arms for action detection
         // ########################################################
+        //cout << "Got here 1 Face seg:" << faceSegFlag << " Body seg:" << bodySegFlag << " face seg empty=" << faceSegMaskInv.empty() << endl;
+        
             if (!faceSegMaskInv.empty() && faceSegFlag && bodySegFlag)
             {
                 //cout << "Got to arm seg 1..." << endl;
                 Mat skinImageTemp;
-                Mat skinHSVtemp;
+                Mat3b skinHSVtemp;
                 Mat skinMask;
-                // LB redo skin masking but with adaptive filter 
-                skinImageTemp = utilsObj->skinDetect(captureFrameBGR, &skinHSVtemp, &skinMask, hsvAdaptiveValues, 400,7, 3, 0, displayFaces);   
+                // LB redo skin masking but with adaptive filter
+                // DISABLED 
+                //skinImageTemp = utilsObj->skinDetect(captureFrameBGR, &skinHSVtemp, &skinMask, hsvAdaptiveValues, 400,7, 3, 0, displayFaces);   
 
+                skinMask = skinMaskDefault.clone();
+                
                 // LB: Remove face skin region.... this could be improved!!!!!
 			    Mat rectMaskFaceOnly = Mat::zeros( skinMask.size(), CV_8UC1 );
 			    Mat skinMaskNoFace;
@@ -446,7 +499,7 @@ bool visionDriver::updateModule()
 		        {
 			        imshow("Rectangle mask face",rectMaskFaceOnly);
                     imshow("skinmask no face :)",skinMaskNoFace);	
-                    imshow("skin seg WITH ADAPTIVE SKIN SEG...... ",skinImageTemp); 				    
+                    //imshow("skin seg WITH ADAPTIVE SKIN SEG...... ",skinImageTemp); 				    
                 }
                 
                 // FOR ARM TRACKING draw over face in skin mask... facemask
@@ -696,7 +749,7 @@ bool visionDriver::updateModule()
 					    
 	    }
     }
-
+    waitKey(1);
     return true;
 }
 

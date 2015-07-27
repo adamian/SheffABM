@@ -33,7 +33,7 @@ class visionUtils
         int thresh;
         int max_thresh;
         int minContourSize; // minimum contour size
-
+        bool useGPU;
 
     public:
         visionUtils();
@@ -58,7 +58,7 @@ class visionUtils
         int drawHist(std::vector<Mat>, int);
         
         // Skin detection
-        Mat skinDetect(Mat, Mat *, Mat *, std::vector<int>, int, int, int, int, bool);
+        Mat skinDetect(Mat, Mat3b *, Mat *, std::vector<int>, int, int, int, int, bool);
         Mat cannySegmentation(Mat, int, bool);  
         
         // frame rate calc for perf measurement

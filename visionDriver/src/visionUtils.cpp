@@ -3,6 +3,8 @@
 
 visionUtils::visionUtils()
 {
+    // Not much difference
+    useGPU=true; //false;
 }
 
 visionUtils::~visionUtils()
@@ -39,23 +41,27 @@ Rect visionUtils::checkRoiInImage(Mat src, Rect roi)
     if (roi.x<0)
     {
         cout << "Trimming x from: " << roi.x << " to: 0" << endl;
-        roi.x=0;
+        //roi.x=0;
+        roi=Rect(0,roi.y,roi.width,roi.height);
     }
     if (roi.y<0)
     {
         cout << "Trimming y from: " << roi.y << " to: 0" << endl;
-        roi.y=0;
+        //roi.y=0;
+        roi=Rect(roi.x,0,roi.width,roi.height);        
     }
     if ((roi.width+roi.x)>width) 
     {
         int temp=roi.width;
-        roi.width=width-roi.x;
+        //roi.width=width-roi.x;
+        roi=Rect(roi.x,roi.y,width-roi.x,roi.height);         
         cout << "Trimming width from: " << temp << " to: " << roi.width << endl; 
     }
     if ((roi.height+roi.y)>height)
     {
         int temp=roi.height;
-        roi.height=height-roi.y;
+        //roi.height=height-roi.y;
+        roi=Rect(roi.x,roi.y,roi.width,height-roi.y); 
         cout << "Trimming height from: " << temp << " to: " << roi.height << endl; 
     }
     return roi;
@@ -311,10 +317,10 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
             int i = contours.size()-j;
 	        if (contourArea(Mat(contours[i]))>minPixelSize)
 	        {
-		        color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
-		        drawContours( mask, contours, i, color, 2, 8, hierarchy, 0, Point() );
-		        
-		        
+		        // LB TEMP DISABLED FOR SPEED UP
+		        //color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+		        //drawContours( mask, contours, i, color, 2, 8, hierarchy, 0, Point() );
+
 		        //fitLine(Mat(contours[i]),lines,2,0,0.01,0.01);
 		        
 		        //int lefty = (-lines[2]*lines[1]/lines[0])+lines[3];
@@ -467,6 +473,11 @@ std::vector<int> visionUtils::updateHSVAdaptiveSkin(std::vector<Mat> pixelPlanes
     // Only need this bit
     /* Using mean and std dev.... */
     Scalar b_mean, b_stdDev;
+    
+    // Data not very big ~1000 each not advantage to GPU
+    
+    //cout << pixelPlanes[0].total() << endl;
+    
     meanStdDev(pixelPlanes[0], b_mean, b_stdDev);
     int b_min=b_mean[0] - b_stdDev[0]*3;
     int b_max=b_mean[0] + b_stdDev[0]*3;
@@ -481,9 +492,9 @@ std::vector<int> visionUtils::updateHSVAdaptiveSkin(std::vector<Mat> pixelPlanes
     int r_min=r_mean[0] - r_stdDev[0]*3;
     int r_max=r_mean[0] + r_stdDev[0]*3;    
 
-//    cout << "H vals min: " << b_min << " max: " << b_max << endl;
-//    cout << "S vals min: " << g_min << " max: " << g_max << endl;
-//    cout << "V vals min: " << r_min << " max: " << r_max << endl;
+    //cout << "H vals min: " << b_min << " max: " << b_max << endl;
+    //cout << "S vals min: " << g_min << " max: " << g_max << endl;
+    //cout << "V vals min: " << r_min << " max: " << r_max << endl;
 
     //// Make new adaptive skin detector HSV vector.....
     // Original values 0<H<0.25  -   0.15<S<0.9    -    0.2<V<0.95 
@@ -504,7 +515,7 @@ std::vector<int> visionUtils::updateHSVAdaptiveSkin(std::vector<Mat> pixelPlanes
 // ############################ Skin Detection ###################################
 
 
-Mat visionUtils::skinDetect(Mat captureframe, Mat *skinHSV, Mat *skinMask, std::vector<int> adaptiveHSV, int minPixelSize, int imgBlurPixels, int imgMorphPixels, int singleRegionChoice, bool displayFaces)
+Mat visionUtils::skinDetect(Mat captureframe, Mat3b *skinDetectHSV, Mat *skinMask, std::vector<int> adaptiveHSV, int minPixelSize, int imgBlurPixels, int imgMorphPixels, int singleRegionChoice, bool displayFaces)
 {
 // Select single largest region from image, if singleRegionChoice is selected (=1)
 //    adaptiveHSV = Optional 6x1 vector of ints  -> send in empty or of size!= 6 to use defaults.... 
@@ -542,27 +553,53 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 	resize(captureframe,captureframe,Size(640,480));
 
 	
-	// CHANGED HERE TO BGR
-	//cvtColor(captureframe, captureframe, CV_RGB2BGR);
-	if (displayFaces)	imshow("Raw Image (A)",captureframe);
-	/* THRESHOLD ON HSV*/
-	// HSV data -> used to find skin
-	cvtColor(captureframe, frameTemp, CV_BGR2HSV);
-	//cvtColor(captureframe, frame, CV_BGR2HLS);
-	GaussianBlur(frameTemp, frameTemp, Size(imgBlurPixels,imgBlurPixels), 1, 1);
-	//medianBlur(frame, frame, 15);
-	// Threshold using skin values....
-    Mat frameThreshold = Mat::zeros(frameTemp.rows,frameTemp.cols, CV_8UC1);
 	
+	if (useGPU)
+	{
+	
+	    gpu::GpuMat imgGPU, imgGPUHSV;
+	    imgGPU.upload(captureframe);
+	    /* THRESHOLD ON HSV*/
+	    // HSV data -> used to find skin
+	    //cvtColor(captureframe, frameTemp, CV_BGR2HSV);
+	    gpu::cvtColor(imgGPU, imgGPUHSV, CV_BGR2HSV);
+	    //cvtColor(captureframe, frame, CV_BGR2HLS);
+	    //GaussianBlur(frameTemp, frameTemp, Size(imgBlurPixels,imgBlurPixels), 1, 1);
+	    gpu::GaussianBlur(imgGPUHSV, imgGPUHSV, Size(imgBlurPixels,imgBlurPixels), 1, 1);
+	    //medianBlur(frame, frame, 15);
+	    // Threshold using skin values....
+        imgGPUHSV.download(frameTemp);
+	
+	}
+	else
+	{
+
+	    // CHANGED HERE TO BGR
+	    //cvtColor(captureframe, captureframe, CV_RGB2BGR);
+
+	    /* THRESHOLD ON HSV*/
+	    // HSV data -> used to find skin
+	    cvtColor(captureframe, frameTemp, CV_BGR2HSV);
+	    //cvtColor(captureframe, frame, CV_BGR2HLS);
+	    GaussianBlur(frameTemp, frameTemp, Size(imgBlurPixels,imgBlurPixels), 1, 1);
+	    //medianBlur(frame, frame, 15);
+	
+	}
+	
+	//if (displayFaces)	imshow("Raw Image (A)",captureframe);
+	
+	
+	// Threshold using skin values....
+	
+	// Potential FASTER VERSION using inRange
+    Mat frameThreshold = Mat::zeros(frameTemp.rows,frameTemp.cols, CV_8UC1);
 	Mat hsvMin = (Mat_<int>(1,3) << adaptiveHSV[0], adaptiveHSV[1],adaptiveHSV[2] );
 	Mat hsvMax = (Mat_<int>(1,3) << adaptiveHSV[3], adaptiveHSV[4],adaptiveHSV[5] );
 	inRange(frameTemp,hsvMin ,hsvMax, frameThreshold);
-    
 	frameTemp.copyTo(frame,frameThreshold);
-
-	//imshow("Skin HSV (B)",frame);
-
-	/*for(int r=0; r<frame.rows; ++r){
+    
+    /*
+	for(int r=0; r<frame.rows; ++r){
 		for(int c=0; c<frame.cols; ++c) 
 			// 0<H<0.25  -   0.15<S<0.9    -    0.2<V<0.95
 			// Original values in 8bit (0 to 255) 5<H<17 - 38<S<250 - 51<V<242..................
@@ -580,14 +617,12 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 			}
 	}
     */
-
 	
-	if (displayFaces)	imshow("Skin HSV (B)",frame);
 	/* BGR CONVERSION AND THRESHOLD */
 	Mat1b frame_gray;
 	
-	// send HSV to skinHsv for return
-	*skinHSV=frame.clone();
+	// send HSV to skinDetectHSV for return
+	*skinDetectHSV=frame.clone();
 	
 	//cvtColor(frame, frame, CV_HSV2BGR);
 	cvtColor(frame, frame_gray, CV_BGR2GRAY);
@@ -598,15 +633,28 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 	adaptiveThreshold(frame_gray,frame_gray,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY_INV,9,1);
 	
 	
-	if (displayFaces)	imshow("Adaptive_threshold (D1)",frame_gray);
+	if (useGPU)
+	{
+	    gpu::GpuMat imgGPU;
+	    imgGPU.upload(frame_gray);
+	    // 2. Fill in thresholded areas
+	    //morphologyEx(frame_gray, frame_gray, CV_MOP_CLOSE, Mat1b(imgMorphPixels,imgMorphPixels,1), Point(-1, -1), 2);
+	    gpu::morphologyEx(imgGPU, imgGPU, CV_MOP_CLOSE, Mat1b(imgMorphPixels,imgMorphPixels,1), Point(-1, -1), 2);
+	    //GaussianBlur(frame_gray, frame_gray, Size(imgBlurPixels,imgBlurPixels), 1, 1);	
+	    gpu::GaussianBlur(imgGPU, imgGPU, Size(imgBlurPixels,imgBlurPixels), 1, 1);
+	    imgGPU.download(frame_gray);
 	
-	// 2. Fill in thresholded areas
-	morphologyEx(frame_gray, frame_gray, CV_MOP_CLOSE, Mat1b(imgMorphPixels,imgMorphPixels,1), Point(-1, -1), 2);
+	}
+	else
+	{
+        // 2. Fill in thresholded areas
+        morphologyEx(frame_gray, frame_gray, CV_MOP_CLOSE, Mat1b(imgMorphPixels,imgMorphPixels,1), Point(-1, -1), 2);
+        //GaussianBlur(frame_gray, frame_gray, Size((imgBlurPixels*2)+1,(imgBlurPixels*2)+1), 1, 1);
+        GaussianBlur(frame_gray, frame_gray, Size(imgBlurPixels,imgBlurPixels), 1, 1);
+        // Select single largest region from image, if singleRegionChoice is selected (1)
+	}
 	
-	//GaussianBlur(frame_gray, frame_gray, Size((imgBlurPixels*2)+1,(imgBlurPixels*2)+1), 1, 1);
-	GaussianBlur(frame_gray, frame_gray, Size(imgBlurPixels,imgBlurPixels), 1, 1);
-	// Select single largest region from image, if singleRegionChoice is selected (1)
-	
+
 	if (singleRegionChoice)
 	{
 		*skinMask = cannySegmentation(frame_gray, -1, displayFaces);
@@ -622,7 +670,12 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 	// Resize image to original before return
 	resize(frame_skin,frame_skin,s);
 	
-	if (displayFaces)	imshow("Skin segmented",frame_skin);
+	if (displayFaces)
+	{	
+	imshow("Skin HSV (B)",frame);
+	imshow("Adaptive_threshold (D1)",frame_gray);
+	imshow("Skin segmented",frame_skin);
+	}
 	
 	return frame_skin;	
 	waitKey(1);
@@ -635,7 +688,7 @@ Mat visionUtils::cannySegmentation(Mat img0, int minPixelSize, bool displayFaces
 	// -1, returns largest region only
 	// pixels, threshold for removing smaller regions, with less than minPixelSize pixels
 	// 0, returns all detected segments
-	// converted to GPU -> NOT tested to speed up here!
+	
 	
     // LB: Zero pad image to remove edge effects when getting regions....	
     int padPixels=20;
@@ -649,14 +702,22 @@ Mat visionUtils::cannySegmentation(Mat img0, int minPixelSize, bool displayFaces
     Mat img1 = Mat::zeros(img0.rows+(padPixels*2), img0.cols+(padPixels*2), CV_8UC1);
     img0.copyTo(img1(tempRect));
     
-    gpu::GpuMat imgGPU;
-    imgGPU.upload(img1);
-    //cout << "Got here" << endl;
-	// apply your filter
-	//Canny(img1, img1, 100, 200, 3); //100, 200, 3);
-    gpu::Canny(imgGPU, imgGPU, 100, 200, 3); //100, 200, 3);
     
-    imgGPU.download(img1);
+    if (useGPU)// converted to GPU -> NOT tested to speed up here!
+    {
+        gpu::GpuMat imgGPU;
+        imgGPU.upload(img1);
+        //cout << "Got here" << endl;
+	    // apply your filter
+	    //Canny(img1, img1, 100, 200, 3); //100, 200, 3);
+        gpu::Canny(imgGPU, imgGPU, 100, 200, 3); //100, 200, 3);
+        imgGPU.download(img1);
+    }
+    else
+    {
+        Canny(img1, img1, 100, 200, 3); //100, 200, 3);
+    }
+
 
     // find the contours
     vector< vector<Point> > contours;
