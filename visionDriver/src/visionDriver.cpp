@@ -43,7 +43,7 @@ visionDriver::visionDriver()
 	calibratedLeftPoints = false;
 	calibratedRightPoints = false;
 	
-	namedWindow("Face / Body / Arms",1);
+	namedWindow("Face / Body / Arms",WINDOW_NORMAL);
 	
 	//leftArmPointIndex
 //	previousLeftArmPoints = new Point2f(4);
@@ -625,11 +625,14 @@ bool visionDriver::updateModule()
                         int relLeftXPosition = 0;
                         int relLeftYPosition = 0;
 
-                        if( utilsObj->isHandMoving(left_hand_position,previous_left_hand_position, limitWindow) )
-                        {
-                            relLeftXPosition = left_hand_position.x - previous_left_hand_position.x;
-                            relLeftYPosition = left_hand_position.y - previous_left_hand_position.y;
-                        }
+                        //if( utilsObj->isHandMoving(left_hand_position,previous_left_hand_position, limitWindow) )
+                        //{
+                        //    relLeftXPosition = left_hand_position.x - previous_left_hand_position.x;
+                        //    relLeftYPosition = left_hand_position.y - previous_left_hand_position.y;
+                        //}
+
+                            relLeftXPosition = left_hand_position.x;
+                            relLeftYPosition = left_hand_position.y;
 
                         // Send out hand positions over yarp
                         // Add values to body part pos vector (left arm x(6),y(7),z(8))
@@ -688,11 +691,14 @@ bool visionDriver::updateModule()
                         int relRightXPosition = 0;
                         int relRightYPosition = 0;
 
-                        if( utilsObj->isHandMoving(right_hand_position,previous_right_hand_position, limitWindow) )
-                        {
-                            relRightXPosition = right_hand_position.x - previous_right_hand_position.x;
-                            relRightYPosition = right_hand_position.y - previous_right_hand_position.y;
-                        }
+                        //if( utilsObj->isHandMoving(right_hand_position,previous_right_hand_position, limitWindow) )
+                        //{
+                        //    relRightXPosition = right_hand_position.x - previous_right_hand_position.x;
+                        //    relRightYPosition = right_hand_position.y - previous_right_hand_position.y;
+                        //}
+
+                            relRightXPosition = right_hand_position.x;
+                            relRightYPosition = right_hand_position.y;
 
 						/*Bottle rightHandPositionOutput;
 						rightHandPositionOutput.clear();
@@ -739,6 +745,7 @@ bool visionDriver::updateModule()
                 }
                 
                 imshow("Face / Body / Arms", captureFrameFace);
+                imwrite()
 
 				// @@@@@@@@@' Send found body pos values out over YARP
 				// If any body part position has been found -> face, body, left hand, right hand

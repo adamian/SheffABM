@@ -105,9 +105,9 @@ class SAMpy_faces:
         self.speakStatusOutBottle.addString("stat")
 
         #print "Waiting for connection with imageDataInputPort..."
-        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
-            print "Waiting for connection with imageDataInputPort..."
-            pass
+#        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
+#            print "Waiting for connection with imageDataInputPort..."
+#            pass
 
 #""""""""""""""""
 #Method to prepare the arrays to receive the RBG images from yarp
@@ -366,8 +366,10 @@ class SAMpy_faces:
 #""""""""""""""""
     def testing(self, testFace, visualiseInfo=None):
         # Returns the predictive mean, the predictive variance and the axis (pp) of the latent space backwards mapping.            
-        mm,vv,pp=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
-                
+        ret = self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
+        mm = ret[0]
+        vv = ret[1]
+        post = ret[3]        
         # find nearest neighbour of mm and SAMObject.model.X
         dists = numpy.zeros((self.SAMObject.model.X.shape[0],1))
 
@@ -377,7 +379,9 @@ class SAMpy_faces:
             dists[j,:] = distance.euclidean(self.SAMObject.model.X.mean[j,:], mm[0].values)
         nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
         if self.SAMObject.type == 'mrd':
-            print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
+            ret_y = self.SAMObject.model.bgplvms[1]._raw_predict(post.X)
+            vv_y = ret_y[1]
+            print "With " + str(vv.mean()) + "(" + str(vv_y) + ")" +" prob. error the new image is " + self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
             textStringOut=self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
 
         elif self.SAMObject.type == 'bgplvm':
@@ -426,6 +430,11 @@ class SAMpy_faces:
 #    - imageFlatten_testing: image from iCub eyes in row format for testing by the ABM model
 #""""""""""""""""
     def readImageFromCamera(self):
+        #print "Waiting for connection with imageDataInputPort..."
+        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
+            print "Waiting for connection with imageDataInputPort..."
+            pass
+    
         while(True):
             try:
                 self.newImage = self.imageDataInputPort.read(False)

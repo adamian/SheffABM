@@ -13,7 +13,7 @@
 #
 
 import matplotlib.pyplot as plt
-from SAMpy_faces import SAMpy_faces
+from SAMpy_interaction import SAMpy_interaction
 import pylab as pb
 import sys
 import pickle
@@ -21,30 +21,31 @@ import os
 import numpy
 import time
 import operator
-
-
-# Creates a SAMpy object
-mySAMpy = SAMpy_faces(True, imgH = 400, imgW = 400, imgHNew = 200, imgWNew = 200,inputImagePort="/visionDriver/image:o")
-
-# Specification of the experiment number
-experiment_number = 11
+import yarp
 
 
 # Creates and opens ports for interaction with speech module
-inputInteractionBufferedPort = yarp.BufferedPort()
-inputInteractionBufferedPort.open("/sam/interaction:i");
+yarp.Network.init()
+inputInteractionPort = yarp.BufferedPortBottle()
+inputInteractionPort.open("/sam/interaction:i");
+choice = yarp.Bottle();
 
+# Creates a SAMpy object
+mySAMpy = SAMpy_interaction(True, imgH = 400, imgW = 400, imgHNew = 200, imgWNew = 200,inputImagePort="/visionDriver/image:o")
+
+# Specification of the experiment number
+experiment_number = 45#42
 
 # Location of face data
 root_data_dir="/home/icub/dataDump/faceImageData_11062015"
 # Image format
 image_suffix=".ppm"
 # Array of participants to be recognised
-participant_index=('Luke','Michael','Adriel','Emma')
+participant_index=('Uriel','Andreas','Daniel')#=('Luke','Michael','Adriel','Emma','Uriel','Daniel','Andreas')
 # Poses used during the data collection
 pose_index=['Seg']
 # Use a subset of the data for training
-Ntr=300
+Ntr=500
 
 # Pose selected for training
 pose_selection = 0
@@ -52,9 +53,9 @@ pose_selection = 0
 # Specification of model type and training parameters
 model_type = 'mrd'
 model_num_inducing = 35
-model_num_iterations = 100
-model_init_iterations = 800
-fname = 'm_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
+model_num_iterations = 150
+model_init_iterations = 900
+fname = './models/' + 'm_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
 
 # Enable to save the model and visualise GP nearest neighbour matching
 save_model=True
@@ -92,9 +93,8 @@ else:
 #subplt_input = fig_input.add_subplot(111)
 
 while( True ):
-    try:
-        choice = 0;
-        choice = inputInteractionBufferedPort.read(True)
+    try:        
+        choice = inputInteractionPort.read(True)
         testFace = mySAMpy.readImageFromCamera()
         #subplt_input.imshow(testFace, cmap=plt.cm.Greys_r)
         pp = mySAMpy.testing(testFace, choice, visualiseInfo)

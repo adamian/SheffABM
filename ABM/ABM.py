@@ -254,7 +254,7 @@ class LFM(object):
         else:
             pp=None
 	    
-        return pred_mean, pred_variance, pp
+        return pred_mean, pred_variance, pp, tmp
 
     def _get_inducing(self):
         # TODO

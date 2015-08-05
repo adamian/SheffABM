@@ -26,6 +26,7 @@ import time
 from scipy.spatial import distance
 import operator
 from ABM import ABM
+import time
 
 
 #""""""""""""""""
@@ -105,9 +106,9 @@ class SAMpy_interaction:
         self.speakStatusOutBottle.addString("stat")
 
         #print "Waiting for connection with imageDataInputPort..."
-        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
-            print "Waiting for connection with imageDataInputPort..."
-            pass
+#        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
+#            print "Waiting for connection with imageDataInputPort..."
+#            pass
 
 #""""""""""""""""
 #Method to prepare the arrays to receive the RBG images from yarp
@@ -383,9 +384,9 @@ class SAMpy_interaction:
         elif self.SAMObject.type == 'bgplvm':
             print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.L[nn,:])]
             textStringOut=self.participant_index[int(self.L[nn,:])]
-        if(choice == 16 and vv.mean()<0.00012):
-                 facePredictionBottle.addString("You are " + textStringOut)
-        elif(choice == 16 and vv.mean()>0.00012):
+        if(choice.get(0).asInt() == 16 and vv.mean()<0.00012):            
+            facePredictionBottle.addString("You are " + textStringOut)
+        elif(choice.get(0).asInt() == 16 and vv.mean()>0.00012):
             facePredictionBottle.addString("I think you are " + textStringOut + " but I am not sure, please confirm?")        
      
         # Plot the training NN of the test image (the NN is found in the INTERNAl, compressed (latent) memory space!!!)
@@ -417,6 +418,11 @@ class SAMpy_interaction:
 #    - imageFlatten_testing: image from iCub eyes in row format for testing by the ABM model
 #""""""""""""""""
     def readImageFromCamera(self):
+        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
+            time.sleep(0.5);
+            print "Waiting for connection with imageDataInputPort..."
+            pass
+    
         while(True):
             try:
                 self.newImage = self.imageDataInputPort.read(False)
