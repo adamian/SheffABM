@@ -55,7 +55,11 @@ class SAMpy_actions:
         self.imgHeightNew = imgHNew
         self.imgWidthNew = imgWNew
         self.image_suffix=".ppm"
-        self.plotFlag=True
+        self.plotFlag=False
+
+        self.dataFileName="data.log"
+        self.bodyPartNames=['Face','Body','Left Arm','Right Arm','Left and Right Arms']
+        self.bodyPartIndex=numpy.array([[0,1,2],[3,4,5],[6,7,8],[9,10,11]])
 
         self.Y = None
         self.L = None
@@ -70,7 +74,19 @@ class SAMpy_actions:
         self.Ln = None
         self.data_labels = None
         self.participant_index = None
+        self.cutEnds=True  # cut off first and last values (remove start and end effects e.g. trailling zero)
+        self.preProcessDataFlag = True # Zero mean and median filter data        
+        self.plotPreProcessedData = True # plot preprocessed data
 
+        # Tags columns from input file that will be processed, e.g smoothed and differentiated
+        self.indToProcess=(2,3,4,5,6,7,8,9,10,11,12,13) # index to grab from file for processing
+        self.indTim=1
+
+        # ############## Parameters for movement segmentation ################
+        self.actionStopTime = 1 # Time in s for splitting each movement
+        self.minimumMovementThreshold = 3 # Equivalent number of pixels that triggers movement  
+
+        # GPy SAM model option
         self.model_num_inducing = 0
         self.model_num_iterations = 0
         self.model_init_iterations = 0
@@ -178,10 +194,75 @@ class SAMpy_actions:
             for colsRows in range(colsRows):
                 dataReturn[colsRows,colsColumns]=float(cols[colsColumns][colsRows])
         
+        if (self.cutEnds):
+            #print dataLog.shape
+            dataReturn = dataReturn[10:-10,:]
+            #print dataLog.shape
+                
+        
+        
         return dataReturn #cols, indexToName
 
+    def preProcessData(self,dataIn,indToProcess,indTim):
+        # This will cut and filter data prior to splitting
+        # dataIn as data points (ts) by each ts (e.g. face x y z, body x y z....) 
+        #zeroMeanData=[2,3,4,5,6,7,8,9,10,11,12,13] # -1=off, index to columns to zero mean -> Should only OPERATE ON FACE AND BODY DATA
+        #preProcessData= [2,3,4,5,6,7,8,9,10,11,12,13]# -1 off, index to colums to filt currently medfilt. TODO Changes of less than three values about zeros are removed e.g. [0 0 # # 0 0]    
+        
+        # Optional plot raw        
+        if (self.plotPreProcessedData):
+            
+            plotInd=(6,7,9,10) # ind to plot from indTo process            
+            
+            plt.figure(self.test_count+500)
+            for currentInd in range(len(plotInd)):
+                plt.subplot(len(plotInd),1,currentInd)
+                plt.hold(True)
+                lineRaw, = plt.plot(range(0,dataIn.shape[0]),dataIn[:,indToProcess[plotInd[currentInd]]],'r',label='raw')
+        
+        dataOut=numpy.empty([dataIn.shape[0],len(indToProcess)],dtype=float)
+        dataDiff=numpy.empty([dataIn.shape[0]-1,len(indToProcess)],dtype=float)        
+        #dataDiff2nd=numpy.empty([dataIn.shape[0]-2,len(indToProcess)],dtype=float)        
+        
+        tim=dataIn[:,indTim]
+        diffTim=tim[:-1]        
+        
+        
+        for indCount,currentXYZ in enumerate(indToProcess):
+            # Zero mean
+            dataOut[:,indCount]=dataIn[:,currentXYZ]-numpy.mean(dataIn[:,currentXYZ])   
+        #for indCount in range(len(indToProcess)):    
+            # Median filt -> window 5            
+            dataOut[:,indCount]=medfilt(dataOut[:,indCount],5)
+            # Diff data to find action movement
+            dataDiff[:,indCount]=numpy.diff(dataOut[:,indCount])                
+            # Median filt -> window 5            
+            dataDiff[:,indCount]=medfilt(dataDiff[:,indCount],5)
+            # Diff data to find action movement
+            #dataDiff2nd[:,indCount]=numpy.diff(dataDiff[:,indCount])                
+            # Median filt -> window 5            
+            #dataDiff2nd[:,indCount]=medfilt(dataDiff2nd[:,indCount],5)
+            
+        # Optional now overlay processed data
+        if (self.plotPreProcessedData):
+            for currentInd in range(len(plotInd)):
+                plt.subplot(len(plotInd),1,currentInd)
+                lineProc, = plt.plot(range(0,dataOut.shape[0]),dataOut[:,plotInd[currentInd]],'b',label='processed')
+                lineDiff, = plt.plot(numpy.arange(dataDiff.shape[0],dtype=float)+0.5,dataDiff[:,plotInd[currentInd]],'g',label='proc diff')
+                #lineDiff2nd, = plt.plot(numpy.arange(dataDiff2nd.shape[0],dtype=float)+0.5,dataDiff2nd[:,plotInd[currentInd]],'m',label='proc 2nd diff')
+                plt.legend(handles=[lineRaw, lineProc,lineDiff])#,lineDiff2nd])
+            #plt.plot(numpy.diff(logData[:,8]),c='r')
+            # Sample rate check
+#            ttt=numpy.diff(logData[:,1])#-logData[0,1])
+#            ppp=ttt[ttt<1000.0]
+#            ttt=ppp[ppp>-1000]
+#            plt.figure(self.test_count+1000)
+#            plt.plot(1/ttt)
+#            plt.title("Sample rate")
+            
+        return dataOut, dataDiff, tim, diffTim
 
-    def splitBodyPartMovements(self, dataLog, bodyPartIndex):
+    def splitBodyPartMovements(self, dataLog, tim, bodyPartIndex):
 
         # Get data read from datalog
         # bodyPartIndex = body part index
@@ -196,52 +277,55 @@ class SAMpy_actions:
         #2 time (gmtime)
         #3 to 14 head, body, left, right arms
         
-        denoiseFlag=True # This will remove movements less than 4 steps and remove single movements (1 non-zero movement in vector)        
+        # Choices
+        denoiseFlag=False # This will remove movements less than 4 steps and remove single movements (1 non-zero movement in vector)        
         smoothFlag=False # Smooth data if required
-        zeroMeanData=[2,3,4,5,6,7,8,9,10,11,12] # -1=off, index to columns to zero mean -> Should only OPERATE ON FACE AND BODY DATA
-        preProcessData= [2,3,4,5,6,7]# -1 off, index to colums to filt currently medfilt. TODO Changes of less than three values about zeros are removed e.g. [0 0 # # 0 0]    
-                
-        samplesFound = False
-        counterZeros = 0 #numpy.zeros((1,3)); # define zero test x,y,z
         
+        
+        
+        # init values        
+        samplesFound = False
+        counterZeros = 0 #numpy.zeros((1,3)); # define zero test x,y,z        
         dataBlocks = [] # has to be list as variable size data
         timeVector = [] # has to be list as variable size data
         
         # Items to Separate by action (sectioned by zero periods (in x and y)..),  from log file....
         # LB DISABLED FOR NOW AS z always ==1and dataLog[dataInd[2]][i] == 0.0 ):
         if (bodyPartIndex==0): # Default mode looks at left and right arms to detect motion
-            dataInd=numpy.array([8,9,11,12]) #numpy.array([8,9,10,11,12,13])
+            dataInd=numpy.array([6,7,9,10]) #numpy.array([8,9,10,11,12,13])
         elif (bodyPartIndex==1): # face
-            dataInd=numpy.array([2,3]) #numpy.array([2,3,4])
+            dataInd=numpy.array([0,1]) #numpy.array([2,3,4])
         elif(bodyPartIndex==2): # body
-            dataInd=numpy.array([5,6]) #numpy.array([5,6,7])
+            dataInd=numpy.array([3,4]) #numpy.array([5,6,7])
         elif(bodyPartIndex==3): # body
-            dataInd=numpy.array([8,9]) #numpy.array([8,9,10])
+            dataInd=numpy.array([6,7]) #numpy.array([8,9,10])
         elif(bodyPartIndex==4): # body
-            dataInd=numpy.array([11,12]) #numpy.array([11,12,13])
+            dataInd=numpy.array([9,10]) #numpy.array([11,12,13])
+#        if (bodyPartIndex==0): # Default mode looks at left and right arms to detect motion
+#            dataInd=numpy.array([8,9,11,12]) #numpy.array([8,9,10,11,12,13])
+#        elif (bodyPartIndex==1): # face
+#            dataInd=numpy.array([2,3]) #numpy.array([2,3,4])
+#        elif(bodyPartIndex==2): # body
+#            dataInd=numpy.array([5,6]) #numpy.array([5,6,7])
+#        elif(bodyPartIndex==3): # body
+#            dataInd=numpy.array([8,9]) #numpy.array([8,9,10])
+#        elif(bodyPartIndex==4): # body
+#            dataInd=numpy.array([11,12]) #numpy.array([11,12,13])
         
         # To record very first data block... set to relative time from very first block
         firstDataBlock = True
         timeBaseline = 0.0
-        
-        dataIndexTuple = numpy.array(range(2,14))
+
+        dataIndexTuple = numpy.array(range(dataLog.shape[1]))
         tempData = numpy.empty((1,len(dataIndexTuple)),dtype=float)
         timeVectorTemp = numpy.empty((1,1),dtype=float)
-        
-        if (zeroMeanData[0]!=-1):
-            # Body data
-            for currentXYZ in range (len(zeroMeanData)):
-                dataLog[:,currentXYZ]=dataLog[:,currentXYZ]-numpy.mean(dataLog[:,currentXYZ])
-        
-        if (preProcessData[0]!=-1):
-            for currentCol in range(len(preProcessData)):
-                dataLog[:,currentCol]=medfilt(dataLog[:,currentCol],5)
 
+        # FIND NON MOVING SECTIONS IN code to split actions
         # Loop through whole of datalog
         for i in range(dataLog.shape[0]):
             # Checking for x,y,z zeros ######################################
             #print "WARNING Z zero check switched off until we get the data" 
-            numpy.sum(dataLog[i][dataInd])
+            #numpy.sum(dataLog[i][dataInd])
             #if( dataLog[i][dataInd[0]] == 0.0 and dataLog[i][dataInd[1]] == 0.0): 
             if (numpy.sum(numpy.abs(dataLog.astype(int)[i][dataInd]))==0):
                 counterZeros = counterZeros + 1;
@@ -272,12 +356,14 @@ class SAMpy_actions:
                     if (i>1): # ignore very first value from log file 
                         tempData=numpy.array(dataLog[i-1][dataIndexTuple]);
                         # Get previous time point
-                        timeVectorTemp=numpy.array([dataLog[i-1][1]-timeBaseline]) # Baseline time removed (from very first block)
+                        # timeVectorTemp=numpy.array([dataLog[i-1][1]-timeBaseline]) # Baseline time removed (from very first block)
+                        timeVectorTemp=numpy.array([tim[i-1]-timeBaseline]) # Baseline time removed (from very first block)
                         samplesFound = True
                 # add in latest non-zero value
                 tempData=numpy.vstack([tempData,dataLog[i][dataIndexTuple]]);
                 # Get time point
-                timeVectorTemp=numpy.vstack([timeVectorTemp,dataLog[i][1]-timeBaseline]) # Baseline time removed (from very first block)
+                # timeVectorTemp=numpy.vstack([timeVectorTemp,dataLog[i][1]-timeBaseline]) # Baseline time removed (from very first block)
+                timeVectorTemp=numpy.vstack([timeVectorTemp,tim[i]-timeBaseline]) # Baseline time removed (from very first block)
             #print float(dataLog[dataInd[0]][i])
             #print float(dataLog[dataInd[1]][i])
             #print float(dataLog[dataInd[2]][i])
@@ -315,6 +401,59 @@ class SAMpy_actions:
 
         return dataBlocks, timeVector # left Data, rightData
 
+
+    def findMovements(self, data, dataDiff, tim, ind2Check):
+        # Segment Body part data
+        # Looks for maximum movement from any body region and then sections the data by finding periods of no movement
+        #self.actionStopTime = 2 # Time in s for splitting each movement
+        #self.minimumMovementThreshold = 3 # Equivalent number of pixels that triggers movement  
+        
+        # Calc steps for movement off (e.g. still time)        
+        sampleRate=1/numpy.mean(numpy.diff(tim))
+        minActionSteps=sampleRate*self.actionStopTime        
+        print "Min action steps:" + str(minActionSteps) 
+        # Find maximum value across each time point
+        dataMax = numpy.max(dataDiff[:,ind2Check],axis=1)
+        # Threshold data to find where the body part change is greater than the threshold        
+        dataMoving = numpy.where(dataMax > self.minimumMovementThreshold)
+        # Check for consecutive        
+        dataMovingDiff = numpy.diff(dataMoving[0])-1
+        # Check for non zero = non consecutive
+        dataMovingPoints=numpy.nonzero(dataMovingDiff)
+        
+        # Inital point check...
+        if (dataMovingPoints[0][0]!=0):        
+            # Add point at start as this isnt detected!
+            # TODO CHECK THIS COULD BE AN ISSUE
+            dataMovingPoints=numpy.insert(dataMovingPoints[0],0,0)
+        
+        # Loop over points
+        actionFound=False
+        actionIndex=numpy.empty([1,2])
+        
+        actionData = []        
+        timeData = []
+        
+        
+        for currentMovement in range(dataMovingPoints.size-1):
+            # Check length of block to make sure it long enough to count as a stable period
+            # print dataMovingPoints[currentMovement+1]-dataMovingPoints[currentMovement]           
+            if (dataMovingPoints[currentMovement+1]-dataMovingPoints[currentMovement] > minActionSteps):
+                print "Action found from" + str(dataMovingPoints[currentMovement]) + " to " + str(dataMovingPoints[currentMovement+1])
+                if (actionFound==False):
+                    actionIndex = numpy.array([dataMovingPoints[currentMovement],dataMovingPoints[currentMovement+1]])                
+                    actionData.append(data[range(dataMovingPoints[currentMovement]-1,dataMovingPoints[currentMovement+1]-1),:])      
+                    timeData.append(tim[range(dataMovingPoints[currentMovement]-1,dataMovingPoints[currentMovement+1]-1)])                    
+                    actionFound=True
+                else:                    
+                    actionIndex = numpy.vstack((actionIndex,[dataMovingPoints[currentMovement],dataMovingPoints[currentMovement+1]]))
+                    actionData.append(data[range(dataMovingPoints[currentMovement]-1,dataMovingPoints[currentMovement+1]-1),:])
+                    timeData.append(tim[range(dataMovingPoints[currentMovement]-1,dataMovingPoints[currentMovement+1]-1)])                    
+
+        return actionIndex, actionData, timeData
+                
+        
+    
 #""""""""""""""""
 #Method to read face data previously collected to be used in the traning phase.
 #Here the loaded data is preprocessed to have the correct image size and one face per image.
@@ -331,9 +470,7 @@ class SAMpy_actions:
         self.action_index = action_index
         self.participant_index = participant_index
         self.hand_index = hand_index
-        self.dataFileName="data.log"
-        self.bodyPartNames=['Face','Body','Left Arm','Right Arm','Left and Right Arms']
-        self.bodyPartIndex=numpy.array([[0,1,2],[3,4,5],[6,7,8],[9,10,11]])
+
         
         # Max action time -> 5s will be used to generate fixed array for each action
         self.maxActionTime = 5 # maximum action time in s        
@@ -349,7 +486,7 @@ class SAMpy_actions:
         # Generate directory names -> structure will likely change
         # 1. Participant index
         plot_count=1
-        test_count=1        
+        self.test_count=1        
         
         for partInd in range(len(self.participant_index)):
             # 2. hand index            
@@ -376,51 +513,55 @@ class SAMpy_actions:
                                 print "Log Data empty skipping"
                             else:
                                 dataFile.close();
-                                # Raw data plot
-                                plt.figure(test_count+500)
-                                plt.plot(range(0,logData.shape[0]),logData[:,8])
-                                plt.hold(True)
-                                #plt.plot(numpy.diff(logData[:,8]),c='r')
-                                # Sample rate check
-#                                ttt=numpy.diff(logData[:,1])#-logData[0,1])
-#                                ppp=ttt[ttt<1000.0]
-#                                ttt=ppp[ppp>-1000]
-#                                plt.figure(test_count+1000)
-#                                plt.plot(1/ttt)
-#                                plt.title("Sample rate")
-                                #print "Sample rate: " + str(1/numpy.mean(numpy.diff(logData[:,1])))                                
-                                test_count+=1
-                                #rows = numpy.size(logData[2][0:]);
-    #                            dataLog = numpy.zeros((len(logData)-2, rows))
-    #                            for i in range(len(logData)-2):
-    #                                dataLog[i] = logData #logData[i+2][0:]
-    #                                print dataLog[i]
+                                print "Sample rate: " + str(1/numpy.mean(numpy.diff(logData[:,1])))
+                                if (self.preProcessDataFlag):
+                                    dataProc, dataDiff, tim, diffTim = self.preProcessData(logData,self.indToProcess,self.indTim)
+                                
+                                self.test_count+=1
                                 dataLogAllBody = []
                                 timeLogAllBody = []
                                 partNameAllIndex=[] 
+                                
+                                # Segment body parts                                
+                                actionIndex, actionData, timeData=self.findMovements(dataProc, dataDiff, tim,range(dataDiff.shape[1]))
+                                
+                                print actionIndex
+                                dataLogAllBody.append(actionData)
+                                timeLogAllBody.append(timeData)
+                                partNameAllIndex.append(4)                                  
+                                
+                                for currentAction in range(len(actionData)):
+                                    # Generate and use same color throughout
+                                    color_rand=numpy.random.rand(3,1)
+                                    plt.figure(888+self.test_count)
+                                    plt.hold(True)                                    
+                                    plt.plot(timeData[currentAction],actionData[currentAction][:,6],c=color_rand)
                                 # Left And Right arms
-                                dataLogRightArm, timeVecRightArm  = self.splitBodyPartMovements(logData,4) # get Right Arm data
-                                dataLogAllBody.append(dataLogRightArm)
-                                timeLogAllBody.append(timeVecRightArm)
-                                partNameAllIndex.append(4)   
+#                                dataLogRightArm, timeVecRightArm  = self.splitBodyPartMovements(dataDiff,diffTim,4) # get Right Arm data
+#                                dataLogAllBody.append(dataLogRightArm)
+#                                timeLogAllBody.append(timeVecRightArm)
+#                                partNameAllIndex.append(4)  
+                                
+                                
+                                
                                 # LB COMMENTED HERE AS Body and Face DO NOT HAVE ANY RUNS OF ZEROS...
                                 # FACE                           
-    #                            dataLogFace, timeVecFace = self.splitBodyPartMovements(logData,1) # get face data
+    #                            dataLogFace, timeVecFace = self.splitBodyPartMovements(dataOut,tim,1) # get face data
     #                            dataLogAllBody.append(dataLogFace)
     #                            timeLogAllBody.append(timeVecFace)
     #                            partNameAllIndex.append(0)
                                 # BODY                            
-    #                            dataLogBody, timeVecBody  = self.splitBodyPartMovements(logData,2) # get Body data
+    #                            dataLogBody, timeVecBody  = self.splitBodyPartMovements(dataOut,tim,2) # get Body data
     #                            dataLogAllBody.append(dataLogBody)
     #                            timeLogAllBody.append(timeVecBody)
     #                            partNameAllIndex.append(1)
                                 # LEFT ARM                           
-#                                dataLogLeftArm, timeVecLeftArm  = self.splitBodyPartMovements(logData,3) # get Left arm data
+#                                dataLogLeftArm, timeVecLeftArm  = self.splitBodyPartMovements(dataOut,tim,3) # get Left arm data
 #                                dataLogAllBody.append(dataLogLeftArm)
 #                                timeLogAllBody.append(timeVecLeftArm)
 #                                partNameAllIndex.append(2)
                                 # RIGHT ARM
-#                                dataLogRightArm, timeVecRightArm  = self.splitBodyPartMovements(logData,4) # get Right Arm data
+#                                dataLogRightArm, timeVecRightArm  = self.splitBodyPartMovements(dataOut,tim,4) # get Right Arm data
 #                                dataLogAllBody.append(dataLogRightArm)
 #                                timeLogAllBody.append(timeVecRightArm)
 #                                partNameAllIndex.append(3)

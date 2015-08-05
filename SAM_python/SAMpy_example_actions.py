@@ -31,12 +31,12 @@ mySAMpy = SAMpy_actions(True, imgH = 400, imgW = 400, imgHNew = 200, imgWNew = 2
 
 # Location of face data
 #root_data_dir="/home/icub/dataDump/actionData"
-#root_data_dir="D:/SheffABM/actionData"
-root_data_dir=r"//10.0.0.20/dataDump/actionData"
+root_data_dir="D:/robotology/SheffABM/actionData"
+#root_data_dir=r"//10.0.0.20/dataDump/actionData"
 # Image format
 #image_suffix=".ppm"
 # Array of participants to be recognised
-participant_index=('luke','uriel')
+participant_index=['uriel']
 # Poses used during the data collection
 hand_index=('left','right')
 action_index=('LR','UD' ,'waving')
