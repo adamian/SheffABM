@@ -308,8 +308,9 @@ def load_pruned_model(fileName='m_pruned'):
         print "Loading file: " + str(f)
         SAMObject.model = pickle.load(f)
     # TODO: The following is supposed to update the model, but maybe not. Change...
-    SAMObject.model.update_toggle()
-    SAMObject.model.update_toggle()
+    # LB get error here using MRD
+    #SAMObject.model.update_toggle()
+    #SAMObject.model.update_toggle()
     
     SAMObject.type = SAMObjPruned['type'] 
     # SAMObject.observed = SAMObjPruned['observed'] 
