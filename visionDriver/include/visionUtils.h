@@ -35,6 +35,11 @@ class visionUtils
         int minContourSize; // minimum contour size
         bool useGPU;
 
+        KalmanFilter KF;
+        Mat_<float> measurement;
+        Point2f middlePointV;
+        Point2f kalmanMiddlePointV;
+
     public:
         visionUtils();
         ~visionUtils();
@@ -63,5 +68,9 @@ class visionUtils
         
         // frame rate calc for perf measurement
         double getFrameRate(clock_t);     
+
+        // predict next hand position using Kalman Filter
+        vector<Point2f> getPredictedHandPosition(Point2f , int);
+        void initKalmanFilterParameters(Point2f);
 };
 

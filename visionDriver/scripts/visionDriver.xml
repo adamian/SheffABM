@@ -52,7 +52,7 @@
   </connection>
   <connection>
     <from>/visionDriver/image:o</from>
-    <to>/sam/imageData:i</to>
+    <to>/sam/face/imageData:i</to>
     <protocol>udp</protocol>
   </connection>
 <!--  <connection>
@@ -71,12 +71,22 @@
     <protocol>udp</protocol>
   </connection>
   <connection>
-    <from>/sam/facePrediction:o</from>
+    <from>/sam/face/facePrediction:o</from>
     <to>/iSpeak</to>
     <protocol>udp</protocol>
   </connection>
   <connection>
-    <from>/sam/speakStatus:i</from>
+    <from>/sam/actions/actionPrediction:o</from>
+    <to>/iSpeak</to>
+    <protocol>udp</protocol>
+  </connection>
+  <connection>
+    <from>/sam/face/speakStatus:i</from>
+    <to>/iSpeak/rpc</to>
+    <protocol>tcp</protocol>
+  </connection>
+  <connection>
+    <from>/sam/actions/speakStatus:i</from>
     <to>/iSpeak/rpc</to>
     <protocol>tcp</protocol>
   </connection>
@@ -97,7 +107,17 @@
   </connection>
   <connection>
     <from>/speechInteraction/behaviour:o</from>
-    <to>/sam/interaction:i</to>
+    <to>/sam/face/interaction:i</to>
+    <protocol>tcp</protocol>
+  </connection>
+  <connection>
+    <from>/speechInteraction/behaviour:o</from>
+    <to>/sam/actions/interaction:i</to>
+    <protocol>tcp</protocol>
+  </connection>
+  <connection>
+    <from>/visionDriver/bodyPartPosition:o</from>
+    <to>/sam/actions/actionData:i</to>
     <protocol>tcp</protocol>
   </connection>
   <connection>

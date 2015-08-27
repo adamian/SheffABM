@@ -6,9 +6,9 @@
 #
 #SAMpy class for implementation of ABM module
 #
-#Created on 26 May 2015
+#Created July 2015
 #
-#@authors: Uriel Martinez, Luke Boorman, Andreas Damianou
+#@authors: Luke Boorman, Uriel Martinez,  Andreas Damianou
 #
 #""""""""""""""""""""""""""""""""""""""""""""""
 
@@ -24,14 +24,14 @@ import cv2
 import GPy
 import time
 from scipy.spatial import distance
-from scipy.signal import savgol_filter
+#from scipy.signal import savgol_filter
 from scipy.signal import medfilt
 import operator
 from ABM import ABM
 
 
 #""""""""""""""""
-#Class developed for the implementation of the face recognition task in real-time mode.
+#Class developed for the implementation of the action recognition task in real-time mode.
 #""""""""""""""""
 
 class SAMpy_actions:
@@ -45,17 +45,15 @@ class SAMpy_actions:
 #
 #Outputs: None
 #""""""""""""""""
-    def __init__(self, isYarpRunning = False, imgH = 200, imgW = 200, imgHNew = 200, imgWNew = 200, inputImagePort="/visionDriver/image:o"):
-        
-        self.inputImagePort=inputImagePort
-        
-        self.SAMObject=ABM.LFM()        
-        self.imgHeight = imgH
-        self.imgWidth = imgW
-        self.imgHeightNew = imgHNew
-        self.imgWidthNew = imgWNew
-        self.image_suffix=".ppm"
+    def __init__(self, isYarpRunning = False, inputActionPort="/visionDriver/bodyPartPosition:o"):
+              
         self.plotFlag=False
+        self.plotPreProcessedData = False # plot preprocessed data
+        
+        self.inputActionPort=inputActionPort
+        self.SAMObject=ABM.LFM()
+        self.actionLabels = [] # list of actions is generated when loading data
+        self.handLabels = [] # list of hands used is generated when loading data and place matches self.actionLabels
 
         self.dataFileName="data.log"
         self.bodyPartNames=['Face','Body','Left Arm','Right Arm','Left and Right Arms']
@@ -76,70 +74,99 @@ class SAMpy_actions:
         self.participant_index = None
         self.cutEnds=True  # cut off first and last values (remove start and end effects e.g. trailling zero)
         self.preProcessDataFlag = True # Zero mean and median filter data        
-        self.plotPreProcessedData = True # plot preprocessed data
+        
 
         # Tags columns from input file that will be processed, e.g smoothed and differentiated
         self.indToProcess=(2,3,4,5,6,7,8,9,10,11,12,13) # index to grab from file for processing
         self.indTim=1
 
         # ############## Parameters for movement segmentation ################
-        self.actionStopTime = 1 # Time in s for splitting each movement
-        self.minimumMovementThreshold = 3 # Equivalent number of pixels that triggers movement  
-
+        self.actionStopTime = 1 # Time in s for splitting each new movement
+        self.minActionTime = 0.4 # Minimum length for action in s
+        self.minimumMovementThreshold = 5 # Equivalent number of steps or pixels or mm that triggers movement  
+        self.maxMovementTime = 3 # Greatest duration of movement in s        
+        self.filterWindow=5 # Median Filter window length
+        # real time options
+        #self.sampleRate = 0 # sample rate calculated from data!
+        self.fixedSampleRate = 20  #Hz data will be interpolated up to this sample rate 
+        self.minSampleRate = 5 #Hz data rejected is sample rate is below this
+        
+        # Action labels
+        self.labelName = []
+        self.labelIndex = None
+        self.actionName = []
+        
+        # Calcs realtime time vector
+        self.minActionSteps=int(self.fixedSampleRate*self.minActionTime)
+        self.maxActionSteps=int(self.fixedSampleRate*self.maxMovementTime)
+        self.timRT=numpy.arange(0.0,self.maxMovementTime,1.0/self.fixedSampleRate)
+        
         # GPy SAM model option
         self.model_num_inducing = 0
         self.model_num_iterations = 0
         self.model_init_iterations = 0
+        
 
-#        if( isYarpRunning == True ):
-#            yarp.Network.init()
-#            self.createPorts()
-#            self.openPorts()
-#            self.createImageArrays()
+
+        if( isYarpRunning == True ):
+            yarp.Network.init()
+            self.createPorts()
+            self.openPorts()
+            #self.createImageArrays()
 
 
 #""""""""""""""""
-#Methods to create the ports for reading images from iCub eyes
+#Methods to create the ports for reading actions from iCub
 #Inputs: None
 #Outputs: None
 #""""""""""""""""
     def createPorts(self):
-        self.imageDataInputPort = yarp.BufferedPortImageRgb()
-        self.outputFacePrection = yarp.Port()
-        self.speakStatusPort = yarp.RpcClient();
+        self.actionDataInputPort = yarp.BufferedPortBottle()#yarp.BufferedPortImageRgb()
+        self.outputActionPrediction = yarp.Port()
+        self.speakStatusPort = yarp.RpcClient()
         self.speakStatusOutBottle = yarp.Bottle()
         self.speakStatusInBottle = yarp.Bottle()
-        self.imageInputBottle = yarp.Bottle()
 
 #""""""""""""""""
-#Method to open the ports. It waits until the ports are connected
+#Method to open the ports.
 #Inputs: None
 #Outputs: None
 #""""""""""""""""
     def openPorts(self):
         print "open ports"
-        self.imageDataInputPort.open("/sam/imageData:i");
-        self.outputFacePrection.open("/sam/facePrediction:o")
-        self.speakStatusPort.open("/sam/speakStatus:i")
+        self.actionDataInputPort.open("/sam/actions/actionData:i");
+        self.outputActionPrediction.open("/sam/actions/actionPrediction:o")
+        self.speakStatusPort.open("/sam/actions/speakStatus:i")
         self.speakStatusOutBottle.addString("stat")
 
-        #print "Waiting for connection with imageDataInputPort..."
-        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
-            print "Waiting for connection with imageDataInputPort..."
-            pass
-
 #""""""""""""""""
-#Method to prepare the arrays to receive the RBG images from yarp
+#Method to close the ports.
 #Inputs: None
 #Outputs: None
 #""""""""""""""""
-    def createImageArrays(self):
+    def closePorts(self):
+        print "open ports"
+        self.actionDataInputPort.close();
+        self.outputActionPrediction.close()
+        self.speakStatusPort.close()
+        #self.speakStatusOutBottle.addString("stat")
+        #print "Waiting for connection with actionDataInputPort..."
+        #while( not(yarp.Network.isConnected(self.inputActionPort,"/sam/actionData:i")) ):
+        #    print "Waiting for connection with actionDataInputPort..."
+        #    pass
+        """
+        #
+        #Method to prepare the arrays to receive the RBG images from yarp
+        #Inputs: None
+        #Outputs: None
+        #
+        def createImageArrays(self):
         self.imageArray = numpy.zeros((self.imgHeight, self.imgWidth, 3), dtype=numpy.uint8)
-        self.newImage = yarp.ImageRgb()
+        #self.newImage = yarp.ImageRgb()
         self.yarpImage = yarp.ImageRgb()
         self.yarpImage.resize(self.imgWidthNew,self.imgWidthNew)
         self.yarpImage.setExternal(self.imageArray, self.imageArray.shape[1], self.imageArray.shape[0])
-
+        """
     def getColumns(self, inFile, delim="\t", header=True):
         """
         Get columns of data from inFile. The order of the rows is respected
@@ -210,13 +237,12 @@ class SAMpy_actions:
         #preProcessData= [2,3,4,5,6,7,8,9,10,11,12,13]# -1 off, index to colums to filt currently medfilt. TODO Changes of less than three values about zeros are removed e.g. [0 0 # # 0 0]    
         
         # Optional plot raw        
-        if (self.plotPreProcessedData):
-            
-            plotInd=(6,7,9,10) # ind to plot from indTo process            
-            
+        if (self.plotPreProcessedData):   
+            #plotInd=(6,7,9,10) # ind to plot from indTo process            
+            plotInd=(0,1,2,3,4,5,6,7,8,9,10,11) # ind to plot from indTo process              
             plt.figure(self.test_count+500)
             for currentInd in range(len(plotInd)):
-                plt.subplot(len(plotInd),1,currentInd)
+                plt.subplot(len(plotInd),1,currentInd+1)
                 plt.hold(True)
                 lineRaw, = plt.plot(range(0,dataIn.shape[0]),dataIn[:,indToProcess[plotInd[currentInd]]],'r',label='raw')
         
@@ -227,253 +253,247 @@ class SAMpy_actions:
         tim=dataIn[:,indTim]
         diffTim=tim[:-1]        
         
+        # Check for corrupt data        
+        maxVal=numpy.max(dataIn[:,indToProcess])
+        print "Max:" + str(maxVal)
         
+        
+        
+        
+        ## Main processing here....
         for indCount,currentXYZ in enumerate(indToProcess):
             # Zero mean
             dataOut[:,indCount]=dataIn[:,currentXYZ]-numpy.mean(dataIn[:,currentXYZ])   
         #for indCount in range(len(indToProcess)):    
             # Median filt -> window 5            
-            dataOut[:,indCount]=medfilt(dataOut[:,indCount],5)
+            dataOut[:,indCount]=medfilt(dataOut[:,indCount],self.filterWindow)
             # Diff data to find action movement
             dataDiff[:,indCount]=numpy.diff(dataOut[:,indCount])                
             # Median filt -> window 5            
-            dataDiff[:,indCount]=medfilt(dataDiff[:,indCount],5)
+            dataDiff[:,indCount]=medfilt(dataDiff[:,indCount],self.filterWindow)
             # Diff data to find action movement
             #dataDiff2nd[:,indCount]=numpy.diff(dataDiff[:,indCount])                
-            # Median filt -> window 5            
-            #dataDiff2nd[:,indCount]=medfilt(dataDiff2nd[:,indCount],5)
+            # Median filt -> window self.filterWindow            
+            #dataDiff2nd[:,indCount]=medfilt(dataDiff2nd[:,indCount],self.filterWindow)
             
         # Optional now overlay processed data
         if (self.plotPreProcessedData):
             for currentInd in range(len(plotInd)):
-                plt.subplot(len(plotInd),1,currentInd)
+                plt.subplot(len(plotInd),1,currentInd+1)
                 lineProc, = plt.plot(range(0,dataOut.shape[0]),dataOut[:,plotInd[currentInd]],'b',label='processed')
                 lineDiff, = plt.plot(numpy.arange(dataDiff.shape[0],dtype=float)+0.5,dataDiff[:,plotInd[currentInd]],'g',label='proc diff')
                 #lineDiff2nd, = plt.plot(numpy.arange(dataDiff2nd.shape[0],dtype=float)+0.5,dataDiff2nd[:,plotInd[currentInd]],'m',label='proc 2nd diff')
-                plt.legend(handles=[lineRaw, lineProc,lineDiff])#,lineDiff2nd])
-            #plt.plot(numpy.diff(logData[:,8]),c='r')
-            # Sample rate check
-#            ttt=numpy.diff(logData[:,1])#-logData[0,1])
-#            ppp=ttt[ttt<1000.0]
-#            ttt=ppp[ppp>-1000]
-#            plt.figure(self.test_count+1000)
-#            plt.plot(1/ttt)
-#            plt.title("Sample rate")
+                plt.title(str(plotInd[currentInd]))
+            plt.legend(handles=[lineRaw, lineProc,lineDiff])#,lineDiff2nd])
+
             
         return dataOut, dataDiff, tim, diffTim
 
-    def splitBodyPartMovements(self, dataLog, tim, bodyPartIndex):
-
-        # Get data read from datalog
-        # bodyPartIndex = body part index
-        # e.g.
-        # bodyPartIndex = 1 # Face pos x,y,z
-        # bodyPartIndex = 2 # Body pos x,y,z
-        # bodyPartIndex = 3 # Left Arm pos x,y,z
-        # bodyPartIndex = 4 # Right Arm x,y,z                
-        
-        # Data log files is 14 cols
-        #1 some sort of index...
-        #2 time (gmtime)
-        #3 to 14 head, body, left, right arms
-        
-        # Choices
-        denoiseFlag=False # This will remove movements less than 4 steps and remove single movements (1 non-zero movement in vector)        
-        smoothFlag=False # Smooth data if required
-        
-        
-        
-        # init values        
-        samplesFound = False
-        counterZeros = 0 #numpy.zeros((1,3)); # define zero test x,y,z        
-        dataBlocks = [] # has to be list as variable size data
-        timeVector = [] # has to be list as variable size data
-        
-        # Items to Separate by action (sectioned by zero periods (in x and y)..),  from log file....
-        # LB DISABLED FOR NOW AS z always ==1and dataLog[dataInd[2]][i] == 0.0 ):
-        if (bodyPartIndex==0): # Default mode looks at left and right arms to detect motion
-            dataInd=numpy.array([6,7,9,10]) #numpy.array([8,9,10,11,12,13])
-        elif (bodyPartIndex==1): # face
-            dataInd=numpy.array([0,1]) #numpy.array([2,3,4])
-        elif(bodyPartIndex==2): # body
-            dataInd=numpy.array([3,4]) #numpy.array([5,6,7])
-        elif(bodyPartIndex==3): # body
-            dataInd=numpy.array([6,7]) #numpy.array([8,9,10])
-        elif(bodyPartIndex==4): # body
-            dataInd=numpy.array([9,10]) #numpy.array([11,12,13])
-#        if (bodyPartIndex==0): # Default mode looks at left and right arms to detect motion
-#            dataInd=numpy.array([8,9,11,12]) #numpy.array([8,9,10,11,12,13])
-#        elif (bodyPartIndex==1): # face
-#            dataInd=numpy.array([2,3]) #numpy.array([2,3,4])
-#        elif(bodyPartIndex==2): # body
-#            dataInd=numpy.array([5,6]) #numpy.array([5,6,7])
-#        elif(bodyPartIndex==3): # body
-#            dataInd=numpy.array([8,9]) #numpy.array([8,9,10])
-#        elif(bodyPartIndex==4): # body
-#            dataInd=numpy.array([11,12]) #numpy.array([11,12,13])
-        
-        # To record very first data block... set to relative time from very first block
-        firstDataBlock = True
-        timeBaseline = 0.0
-
-        dataIndexTuple = numpy.array(range(dataLog.shape[1]))
-        tempData = numpy.empty((1,len(dataIndexTuple)),dtype=float)
-        timeVectorTemp = numpy.empty((1,1),dtype=float)
-
-        # FIND NON MOVING SECTIONS IN code to split actions
-        # Loop through whole of datalog
-        for i in range(dataLog.shape[0]):
-            # Checking for x,y,z zeros ######################################
-            #print "WARNING Z zero check switched off until we get the data" 
-            #numpy.sum(dataLog[i][dataInd])
-            #if( dataLog[i][dataInd[0]] == 0.0 and dataLog[i][dataInd[1]] == 0.0): 
-            if (numpy.sum(numpy.abs(dataLog.astype(int)[i][dataInd]))==0):
-                counterZeros = counterZeros + 1;
-                # Checking for three (x,y,z) zeros in a row ######################################
-                if( counterZeros >= 3 and samplesFound == True):
-                    # Take last zero value (for output vector) LB removed as isnt real!
-                    # Dump data to output vector
-                    dataBlocks.append(tempData)
-                    # Get time point LB removed as extra point isnt real!
-                    #timeVectorTemp=numpy.vstack([timeVectorTemp,[float(dataLog[1][i])]]) 
-                    # Dump data to output vector
-                    timeVector.append(timeVectorTemp)
-                    # Reset temp data for next block
-                    tempData = numpy.empty((1,len(dataIndexTuple)),dtype=float)
-                    # Reset timeVectorTemp
-                    timeVectorTemp=numpy.empty((1,1),dtype=float)
-                    # Reset counter
-                    counterZeros = 0
-                    # Reset samples found
-                    samplesFound = False
-                #print counterZeros        
-            else: # There is some movement so record it  
-                if (samplesFound == False): # case of first value
-                    if (firstDataBlock ==  True):
-                        timeBaseline=dataLog[i-1][1]
-                        firstDataBlock = False
-                    # Init array with previous (zero) values
-                    if (i>1): # ignore very first value from log file 
-                        tempData=numpy.array(dataLog[i-1][dataIndexTuple]);
-                        # Get previous time point
-                        # timeVectorTemp=numpy.array([dataLog[i-1][1]-timeBaseline]) # Baseline time removed (from very first block)
-                        timeVectorTemp=numpy.array([tim[i-1]-timeBaseline]) # Baseline time removed (from very first block)
-                        samplesFound = True
-                # add in latest non-zero value
-                tempData=numpy.vstack([tempData,dataLog[i][dataIndexTuple]]);
-                # Get time point
-                # timeVectorTemp=numpy.vstack([timeVectorTemp,dataLog[i][1]-timeBaseline]) # Baseline time removed (from very first block)
-                timeVectorTemp=numpy.vstack([timeVectorTemp,tim[i]-timeBaseline]) # Baseline time removed (from very first block)
-            #print float(dataLog[dataInd[0]][i])
-            #print float(dataLog[dataInd[1]][i])
-            #print float(dataLog[dataInd[2]][i])
-        
-        ############### De-noising data
-        dataBlocksTemp=dataBlocks        
-        #timeVectorTemp=timeVector
-        ### AGAIN WARNING NOT TESTING Z as always 1 -> needs implementing
-        blockCount=0
-        if (denoiseFlag):
-            # Reverse counter for popping out to keep correct ind
-            for currentAction in range(len(dataBlocksTemp)-1,-1,-1):
-            # 1. Check values are above 3 (in body part selected)
-                # print dataBlocksTemp[currentAction][:,:2]            
-                if (numpy.max(numpy.abs(dataBlocksTemp[currentAction][:,dataInd[:2]-2]))<=3):
-                    dataBlocks.pop(currentAction)
-                    timeVector.pop(currentAction) # also remove from time vector
-                    #print "Removing block: " + str(blockRM) + " as too small change"
-                    blockCount+=1
-            # 2. Check if single non-zero vale
-                elif (numpy.size(numpy.nonzero(numpy.sum(numpy.abs(dataBlocksTemp[currentAction][:,dataInd[:2]-2]),axis=1)))<=3): # 3 for x,y,z
-                    dataBlocks.pop(currentAction)
-                    timeVector.pop(currentAction) # also remove from time vector
-                    #print "Removing block: " + str(blockRM) + " as one non-zero value"
-                    blockCount+=1
-            if (blockCount>0):
-                print "Removed " + str(blockCount) + " blocks as too short or too small a change"
-        # Optional smoothing of data
-        if (smoothFlag):
-            for currentAction in range(len(dataBlocks)):
-                #print dataBlocks[currentAction][:,0]
-                # Repeat for each body part with x,y,z
-                for nextXYZ in range(len(dataIndexTuple)):
-                    dataBlocks[currentAction][:,nextXYZ]=savgol_filter(dataBlocks[currentAction][:,nextXYZ],5,3)
-
-        return dataBlocks, timeVector # left Data, rightData
-
-
-    def findMovements(self, data, dataDiff, tim, ind2Check):
+    def findMovements(self, data, dataDiff, tim, ind2Check, actionSubList):
         # Segment Body part data
+        # Version 2 Luke August 2015
         # Looks for maximum movement from any body region and then sections the data by finding periods of no movement
-        #self.actionStopTime = 2 # Time in s for splitting each movement
-        #self.minimumMovementThreshold = 3 # Equivalent number of pixels that triggers movement  
-        
+        # self.actionStopTime = 2 # Time in s for splitting each movement
+        # self.minimumMovementThreshold = 3 # Equivalent number of pixels that triggers movement  
+        # self.minActionTime = shortest time for action to be accepted
+        # self.maxMovementTime = 5 # greatest movement period in s
         # Calc steps for movement off (e.g. still time)        
+        
         sampleRate=1/numpy.mean(numpy.diff(tim))
-        minActionSteps=sampleRate*self.actionStopTime        
+        minActionSteps=int(sampleRate*self.minActionTime)
+        newActionSteps=int(sampleRate*self.actionStopTime)
+        maxLocalActionSteps=int(sampleRate*self.maxMovementTime)
+        
         print "Min action steps:" + str(minActionSteps) 
-        # Find maximum value across each time point
-        dataMax = numpy.max(dataDiff[:,ind2Check],axis=1)
-        # Threshold data to find where the body part change is greater than the threshold        
-        dataMoving = numpy.where(dataMax > self.minimumMovementThreshold)
-        # Check for consecutive        
-        dataMovingDiff = numpy.diff(dataMoving[0])-1
-        # Check for non zero = non consecutive
-        dataMovingPoints=numpy.nonzero(dataMovingDiff)
-        
-        # Inital point check...
-        if (dataMovingPoints[0][0]!=0):        
-            # Add point at start as this isnt detected!
-            # TODO CHECK THIS COULD BE AN ISSUE
-            dataMovingPoints=numpy.insert(dataMovingPoints[0],0,0)
-        
-        # Loop over points
-        actionFound=False
-        actionIndex=numpy.empty([1,2])
-        
-        actionData = []        
+        # Find maximum value across each time point (change in pos for all body parts and x,y,x)
+        dataMax = numpy.max(numpy.abs(dataDiff[:,ind2Check]),axis=1)
+        # Threshold data to find where the body part change is greater than the threshold
+        #dataMoving = numpy.where(dataMax > self.minimumMovementThreshold)    
+        dataMoving = numpy.where(dataMax > self.minimumMovementThreshold, dataMax, 0)
+        # Now find consecutive zeros
+        actionData = []
         timeData = []
+        # For sub split actions (by gradient)
+        actionDataPos = []
+        actionDataNeg = []        
+        timeDataPos = []
+        timeDataNeg = []
         
+        actionCount = 0
         
-        for currentMovement in range(dataMovingPoints.size-1):
-            # Check length of block to make sure it long enough to count as a stable period
-            # print dataMovingPoints[currentMovement+1]-dataMovingPoints[currentMovement]           
-            if (dataMovingPoints[currentMovement+1]-dataMovingPoints[currentMovement] > minActionSteps):
-                print "Action found from" + str(dataMovingPoints[currentMovement]) + " to " + str(dataMovingPoints[currentMovement+1])
-                if (actionFound==False):
-                    actionIndex = numpy.array([dataMovingPoints[currentMovement],dataMovingPoints[currentMovement+1]])                
-                    actionData.append(data[range(dataMovingPoints[currentMovement]-1,dataMovingPoints[currentMovement+1]-1),:])      
-                    timeData.append(tim[range(dataMovingPoints[currentMovement]-1,dataMovingPoints[currentMovement+1]-1)])                    
-                    actionFound=True
-                else:                    
-                    actionIndex = numpy.vstack((actionIndex,[dataMovingPoints[currentMovement],dataMovingPoints[currentMovement+1]]))
-                    actionData.append(data[range(dataMovingPoints[currentMovement]-1,dataMovingPoints[currentMovement+1]-1),:])
-                    timeData.append(tim[range(dataMovingPoints[currentMovement]-1,dataMovingPoints[currentMovement+1]-1)])                    
+        actionFound = False
+        zeroCount = 0
+        # Separate actions depending on non-movement periods -> uses self.minActionTIme
+        for currentInd in range(numpy.size(dataMoving)):
+            # Check for movement (non-zero)
+            if (dataMoving[currentInd]!=0):
+                # New action, init whole thing
+                if (not actionFound):
+                    actionData.append(numpy.array(data[currentInd]))
+                    timeData.append(numpy.array(tim[currentInd]))
+                    actionFound = True
+                else:
+                # if action already found add values onto action
+                    actionData[actionCount]=numpy.vstack((actionData[actionCount],data[currentInd]))
+                    timeData[actionCount]=numpy.vstack((timeData[actionCount],tim[currentInd]))
+                    #actionFound = True 
+                # reset consecutive zeroCount
+                zeroCount = 0
+            # Case of zero... no movement
+            else:
+                # First check a new action has started, but we have not found too many zeros
+                if (actionFound and zeroCount<newActionSteps):
+                    zeroCount += 1 # increment zerocount
+                    # Add data to action 
+                    actionData[actionCount]=numpy.vstack((actionData[actionCount],data[currentInd]))
+                    timeData[actionCount]=numpy.vstack((timeData[actionCount],tim[currentInd]))
+                # Case for new action as enough zeros have been reached
+                elif (actionFound and zeroCount>=newActionSteps):
+                    # End of action as enough non-movement detected
+                    actionFound = False
+                    # Remove extra non-movement
+                    actionData[actionCount]=actionData[actionCount][:-zeroCount,:]
+                    timeData[actionCount]=timeData[actionCount][:-zeroCount]
+                    
+                    # Remove actions if too short
+                    if (actionData[actionCount].shape[0]<int(minActionSteps)):
+                        print "Removing action:" + str(actionCount) + " with length: " + str(actionData[actionCount].shape[0])  + " as too short"
+                        actionData.pop(actionCount)
+                        timeData.pop(actionCount)
+                    else:
+                        # Cut to largest movement allowed self.maxMovementTime
+                        if (actionData[actionCount].shape[0]>maxLocalActionSteps): 
+                            actionData[actionCount]=actionData[actionCount][:maxLocalActionSteps,:]
+                            timeData[actionCount]=timeData[actionCount][:maxLocalActionSteps]
+                        # Report and increment
+                        print "Added action no: " + str(actionCount) + " with length: " + str(actionData[actionCount].shape[0])  
+                        
+                        
+                        # LB August 2015 -> New section
+                        # Sub segment actions                        
 
-        return actionIndex, actionData, timeData
-                
+                        if (len(actionSubList)>1):
+                            # This section will split actions by gradient
+                            print "Subsplitting actions!"
+                            # Find greatest movement                            
+                            maxMovementInd=numpy.argmax(numpy.sum(numpy.abs(numpy.diff(actionData[actionCount],1,axis=0)),axis=0))
+                            # Linear fit to data
+                            linearFitPoly=numpy.polyfit(actionData[actionCount][:,maxMovementInd],range(actionData[actionCount].shape[0]),1)
+                            # Check polarity +ve / -ve gradient
+                            if (linearFitPoly[0]>0):
+                                # 1. positive gradient
+                                actionDataPos.append(actionData[actionCount])
+                                timeDataPos.append(timeData[actionCount])
+                            else:
+                                # 2. Negative gradient
+                                actionDataNeg.append(actionData[actionCount])
+                                timeDataNeg.append(timeData[actionCount])
+                        # Place action into pos by default!
+                        else:
+                            actionDataPos.append(actionData[actionCount])
+                            timeDataPos.append(timeData[actionCount])                    
+                        actionCount += 1
+                        
+        # Special cases either one action or no actions found
+        # Nothing found check
+        if (actionCount==0 and not actionFound):
+            print "Nothing found"
+            return [], [], [],[], [], []
+        # One action found - repeat above process that was missed out!
+        elif (actionCount==0 and actionFound):
+            print "Single action found"            
+            # Check if single action found is positive or negative
+            if (actionDataPos):
+                # Remove actions if too short
+                if (actionDataPos[0].shape[0]<int(minActionSteps)):
+                    print "Removing pos action:" + str(0) + " with length: " + str(actionDataPos[0].shape[0])  + " as too short"
+                    actionDataPos.pop(0)
+                    timeDataPos.pop(0)
+                else:
+                    # Cut to largest movement allowed self.maxMovementTime
+                    if (actionDataPos[0].shape[0]>maxLocalActionSteps): 
+                        actionDataPos[0]=actionDataPos[0][:maxLocalActionSteps,:]
+                        timeDataPos[0]=timeDataPos[0][:maxLocalActionSteps]
+                    print "Added pos action no: " + str(0) + " with length: " + str(actionDataPos[0].shape[0])
+            # Check if single action found is positive or negative
+            if (actionDataNeg):            
+                # Remove actions if too short
+                if (actionDataNeg[0].shape[0]<int(minActionSteps)):
+                    print "Removing neg action:" + str(0) + " with length: " + str(actionDataNeg[0].shape[0])  + " as too short"
+                    actionDataNeg.pop(0)
+                    timeDataNeg.pop(0)
+                else:
+                    # Cut to largest movement allowed self.maxMovementTime
+                    if (actionDataNeg[0].shape[0]>maxLocalActionSteps): 
+                        actionDataNeg[0]=actionDataNeg[0][:maxLocalActionSteps,:]
+                        timeDataNeg[0]=timeDataNeg[0][:maxLocalActionSteps]
+                    print "Added neg action no: " + str(0) + " with length: " + str(actionDataNeg[0].shape[0])                   
         
+        actionDataPos, timeDataPos, actionDataPosZeroPad = self.postProcessActions(actionDataPos,timeDataPos)
+        
+        if (actionDataNeg): # If sub actions found
+            actionDataNeg, timeDataNeg, actionDataNegZeroPad = self.postProcessActions(actionDataNeg,timeDataNeg)
+        else:
+            actionDataNegZeroPad = []
+            
+        return actionDataPos, timeDataPos, actionDataPosZeroPad, actionDataNeg, timeDataNeg, actionDataNegZeroPad
+                
+    def postProcessActions(self,actionData,timeData):
+        # Expand all actions to full maxMovementTime e.g. 5s
+        # Zero pad after action upto maxMovementTime
+        # Loop through all actions
+        actionDataZeroPad=[]
+        for currentAction in range(len(actionData)):
+            
+            # Interpolate data to max sample time!!!!!!!!!!!!
+            actionDataTemp=actionData[currentAction]
+            timeDataTemp=timeData[currentAction]
+            # Process before return!
+            # 1. Zero time to start
+            timeDataTemp=timeDataTemp-timeDataTemp[0]
+            # 2. Zero start of action                                
+            actionDataTemp=actionDataTemp-numpy.tile(actionDataTemp[0,:],(actionDataTemp.shape[0],1))                                                      
+            # Linearly interpolate data to 20Hz                                
+            timeData[currentAction]=numpy.arange(0,timeDataTemp[-1],1.0/self.fixedSampleRate)
+            actionData[currentAction]=numpy.zeros((timeData[currentAction].shape[0],actionDataTemp.shape[1]))
+            # interpolate across all body parts
+            for currentBP in range(actionData[currentAction].shape[1]):                            
+                actionData[currentAction][:,currentBP]=numpy.interp(timeData[currentAction],timeDataTemp[:,0],actionDataTemp[:,currentBP])            
+
+            if (actionData[currentAction].shape[0]<self.maxActionSteps):
+                zeroLength=self.maxActionSteps-actionData[currentAction].shape[0]
+                #print actionData[currentAction].shape
+                #print str(zeroLength) + " " + str(actionData[currentAction].shape[1])
+                actionDataZeroPad.append(numpy.vstack((actionData[currentAction],numpy.zeros((zeroLength,actionData[currentAction].shape[1])))))
+            elif (actionData[currentAction].shape[0]>self.maxActionSteps):
+                actionDataZeroPad.append(actionData[currentAction][:self.maxActionSteps,:])
+                print "WARNING DATA TOO LONG: " +  str(actionData[currentAction].shape[0])
+            else:
+                actionDataZeroPad.append(actionData[currentAction])
+            
+        return actionData, timeData, actionDataZeroPad
     
 #""""""""""""""""
-#Method to read face data previously collected to be used in the traning phase.
-#Here the loaded data is preprocessed to have the correct image size and one face per image.
+#Method to read action data previously collected to be used in the traning phase.
+#Here the loaded data is preprocessed to have the correct image size and one action per image.
 #Inputs:
-#    - root_data_dir: location of face data
+#    - root_data_dir: location of action data
 #    - participant_inde: array of participants names
-#    - pose_index: array of poses from the face data collected
+#    - pose_index: array of poses from the action data collected
 #
 #Outputs: None
 #""""""""""""""""(root_data_dir,participant_index,hand_index,action_index)
-    def readData(self, root_data_dir,participant_index,hand_index,action_index):
+    def readData(self, root_data_dir,participant_index,hand_index,action_index,action_splitting_index):
         self.Y
         self.L
         self.action_index = action_index
         self.participant_index = participant_index
         self.hand_index = hand_index
-
+        self.action_splitting_index = action_splitting_index
         
         # Max action time -> 5s will be used to generate fixed array for each action
-        self.maxActionTime = 5 # maximum action time in s        
+        #self.maxActionTime = 5 # maximum action time in s 
+        
         # Check if root dir exists
         if not os.path.exists(root_data_dir):
             print "CANNOT FIND: " + root_data_dir
@@ -484,15 +504,55 @@ class SAMpy_actions:
         #dataFile = file(root_data_dir+"/data.log")
 
         # Generate directory names -> structure will likely change
-        # 1. Participant index
-        plot_count=1
-        self.test_count=1        
+        # 1. action index
+        self.test_count=1  
+        actionsbyType=[]
+        actionsbyTypeLabel=[]
         
-        for partInd in range(len(self.participant_index)):
-            # 2. hand index            
-            for handInd in range(len(self.hand_index)):
-                # 3. action index
-                for actionInd in range(len(self.action_index)):
+        # LB -> this has got so complicated so....
+        # Generate label index before loading files!
+        self.labelName = []
+        self.actionName = []
+        #labelHand = []
+        actionLabelCount = 0
+        for currentHand in range(len(self.hand_index)):
+            for currentAction in range (len(self.action_splitting_index)):
+                for currentSubAction in range (len(self.action_splitting_index[currentAction])):                     
+                    self.labelName.append(self.action_splitting_index[currentAction][currentSubAction]+ " " +self.hand_index[currentHand])
+                    self.actionName.append(self.action_splitting_index[currentAction][currentSubAction])
+                    #labelHand.append(self.hand_index[currentHand])
+                    if (actionLabelCount==0):
+                        self.labelIndex = numpy.array(actionLabelCount)
+                    else:                        
+                        self.labelIndex = numpy.vstack((self.labelIndex,actionLabelCount+(currentHand*100)))
+                    actionLabelCount += 1
+     
+        #actionsbyTypeNeg=[]
+        #actionsbyTypeLabelNeg=[]
+        
+        # NEED TO CHECK FOR sucessful finding of actions from each sub index for building the final array.....        
+        
+        minActionsOverall = 10000 # find least number of actions for every context....
+        minActionDuration = 100000 # find the shortest length for all actions
+        actionTypesFoundCount=0 # count successful actions found
+        
+        for actionInd in range(len(self.action_index)):
+            # 2. Participant index
+            actionsbyParticipant=[]
+            actionsbyParticipantLabel=[]
+            
+            actionsbyParticipantNeg=[]
+            actionsbyParticipantLabelNeg=[]
+            minParticipant = 10000 # find min number of participants
+            for partInd in range(len(self.participant_index)):
+                # 3. hand index
+                actionsbyHand=[]
+                actionsbyHandLabel=[]
+                
+                actionsbyHandNeg=[]
+                actionsbyHandLabelNeg=[]
+                minHands = 10000 # find min number of hands
+                for handInd in range(len(self.hand_index)):
                     # Check if root dir exists
                     dir_string=os.path.join(root_data_dir,(self.participant_index[partInd] + "_" + self.hand_index[handInd]\
                     + "_" + self.action_index[actionInd]))
@@ -518,182 +578,229 @@ class SAMpy_actions:
                                     dataProc, dataDiff, tim, diffTim = self.preProcessData(logData,self.indToProcess,self.indTim)
                                 
                                 self.test_count+=1
-                                dataLogAllBody = []
-                                timeLogAllBody = []
-                                partNameAllIndex=[] 
                                 
-                                # Segment body parts                                
-                                actionIndex, actionData, timeData=self.findMovements(dataProc, dataDiff, tim,range(dataDiff.shape[1]))
+                                # Segment body parts and Send sub actions                                
+                                #actionData, timeData, actionDataZeroPad=self.findMovements(dataProc, dataDiff, tim,range(dataDiff.shape[1]), self.action_splitting_index[actionInd])
+                                # Here psoitive will be used as action data, with neg secondary! Luke 2015                                
+                                actionData, timeData, actionDataZeroPad, actionDataNeg, timeDataNeg, actionDataNegZeroPad =self.findMovements(dataProc, dataDiff, tim,range(dataDiff.shape[1]), self.action_splitting_index[actionInd])
                                 
-                                print actionIndex
-                                dataLogAllBody.append(actionData)
-                                timeLogAllBody.append(timeData)
-                                partNameAllIndex.append(4)                                  
-                                
-                                for currentAction in range(len(actionData)):
-                                    # Generate and use same color throughout
-                                    color_rand=numpy.random.rand(3,1)
-                                    plt.figure(888+self.test_count)
-                                    plt.hold(True)                                    
-                                    plt.plot(timeData[currentAction],actionData[currentAction][:,6],c=color_rand)
-                                # Left And Right arms
-#                                dataLogRightArm, timeVecRightArm  = self.splitBodyPartMovements(dataDiff,diffTim,4) # get Right Arm data
-#                                dataLogAllBody.append(dataLogRightArm)
-#                                timeLogAllBody.append(timeVecRightArm)
-#                                partNameAllIndex.append(4)  
-                                
-                                
-                                
-                                # LB COMMENTED HERE AS Body and Face DO NOT HAVE ANY RUNS OF ZEROS...
-                                # FACE                           
-    #                            dataLogFace, timeVecFace = self.splitBodyPartMovements(dataOut,tim,1) # get face data
-    #                            dataLogAllBody.append(dataLogFace)
-    #                            timeLogAllBody.append(timeVecFace)
-    #                            partNameAllIndex.append(0)
-                                # BODY                            
-    #                            dataLogBody, timeVecBody  = self.splitBodyPartMovements(dataOut,tim,2) # get Body data
-    #                            dataLogAllBody.append(dataLogBody)
-    #                            timeLogAllBody.append(timeVecBody)
-    #                            partNameAllIndex.append(1)
-                                # LEFT ARM                           
-#                                dataLogLeftArm, timeVecLeftArm  = self.splitBodyPartMovements(dataOut,tim,3) # get Left arm data
-#                                dataLogAllBody.append(dataLogLeftArm)
-#                                timeLogAllBody.append(timeVecLeftArm)
-#                                partNameAllIndex.append(2)
-                                # RIGHT ARM
-#                                dataLogRightArm, timeVecRightArm  = self.splitBodyPartMovements(dataOut,tim,4) # get Right Arm data
-#                                dataLogAllBody.append(dataLogRightArm)
-#                                timeLogAllBody.append(timeVecRightArm)
-#                                partNameAllIndex.append(3)
-                                if (self.plotFlag):
-                                    for bodyPartTested in range(len(dataLogAllBody)):
-                                        print "Found " + str(len(dataLogAllBody[bodyPartTested])) + " actions"
-                                        if (len(dataLogAllBody[bodyPartTested])>=1):
-                                            figAll = plt.figure(plot_count)
-                                            plt.hold(True)
-                                            figAll.canvas.set_window_title("Testing: " + self.bodyPartNames[partNameAllIndex[bodyPartTested]] + "Subj: " + \
-                                                self.participant_index[partInd] + " " + self.hand_index[handInd] + " " + self.action_index[actionInd])
-                
-                                            figNorm = plt.figure(plot_count+1)
-                                            plt.hold(True)
-                                            figNorm.canvas.set_window_title("Testing: " + self.bodyPartNames[partNameAllIndex[bodyPartTested]] + "Subj: " + \
-                                                self.participant_index[partInd] + " " + self.hand_index[handInd] + " " + self.action_index[actionInd])
-            
-                                            for currentAction in range(len(dataLogAllBody[bodyPartTested])):
-                                                # Extract y data                                    
-                                                plt_y_data=dataLogAllBody[bodyPartTested][currentAction]
-                                                # Extract relevant x data (time vector)
-                                                plt_x_data=numpy.transpose(timeLogAllBody[bodyPartTested][currentAction][:,0])
-                                                plt_x_data_norm=numpy.transpose(timeLogAllBody[bodyPartTested][currentAction][:,0])-timeLogAllBody[bodyPartTested][currentAction][0]
-                                                # Generate and use same color throughout
-                                                color_rand=numpy.random.rand(3,1)
-                                                
-                                                for currentBodyPart in range(self.bodyPartIndex.shape[0]):
-                                                                                        
-        
-                                                    #  Plt data in time....
-                                                    plt.figure(plot_count)
-                                                    plt.subplot(self.bodyPartIndex.shape[0],2,((currentBodyPart+1)*2)-1)
-                                                    plt.title("Movement in " + self.bodyPartNames[currentBodyPart] + " x")
-                                                    plt.plot(plt_x_data, plt_y_data[:,self.bodyPartIndex[currentBodyPart,0]], c=color_rand)
-                                                    plt.subplot(self.bodyPartIndex.shape[0],2,(currentBodyPart+1)*2)
-                                                    plt.title("Movement in " + self.bodyPartNames[currentBodyPart] + " y")
-                                                    plt.plot(plt_x_data, plt_y_data[:,self.bodyPartIndex[currentBodyPart,1]], c=color_rand)                                    
-                                                    
-                                                    # Plt data with zero time (all overlaid)
-                                                    plt.figure(plot_count+1)
-                                                    plt.subplot(self.bodyPartIndex.shape[0],2,((currentBodyPart+1)*2)-1)
-                                                    plt.title("Norm Movement in " + self.bodyPartNames[currentBodyPart] + " x")
-                                                    plt.plot(plt_x_data_norm, plt_y_data[:,self.bodyPartIndex[currentBodyPart,0]], c=color_rand)
-                                                    plt.subplot(self.bodyPartIndex.shape[0],2,(currentBodyPart+1)*2)
-                                                    plt.plot(plt_x_data_norm, plt_y_data[:,self.bodyPartIndex[currentBodyPart,1]], c=color_rand)
-                                                    plt.title("Norm Movement in " + self.bodyPartNames[currentBodyPart] + " y")
-                                                    
-                                        plot_count+=2
-
-            #plt.wait
+                                # Single Action type or Positive sub Action gradient Condition
+                                # Check action found (only false if empty)
+                                if actionData:
+                                    # Sort counters here -> find minimum number of actions -> used later for cutting
+                                    if len(actionDataZeroPad) < minActionsOverall:
+                                        minActionsOverall = len(actionDataZeroPad)
+                                    
+                                    # Plot action output
+                                    if (self.plotFlag):
+                                        for currentAction in range(len(actionData)):
+                                            # Generate and use same color throughout
+                                            color_rand=numpy.random.rand(3,1)
+                                            plt.figure(888+self.test_count)
+                                            for currentBP in range(numpy.shape(actionData[currentAction])[1]):
+                                                plt.subplot(numpy.shape(actionData[currentAction])[1],1,currentBP+1)
+                                                plt.hold(True)                                    
+                                                plt.plot(timeData[currentAction],actionData[currentAction][:,currentBP],c=color_rand)
+                                            plt.subplot(numpy.shape(actionData[currentAction])[1],1,1)                                    
+                                            plt.title("Pos " + dataFilePath)
+                                            
+                                            plt.figure(777+self.test_count)
+                                            for currentBP in range(numpy.shape(actionData[currentAction])[1]):
+                                                plt.subplot(numpy.shape(actionData[currentAction])[1],1,currentBP+1)
+                                                plt.hold(True)                                    
+                                                plt.plot(actionDataZeroPad[currentAction][:,currentBP],c=color_rand)
+                                            plt.subplot(numpy.shape(actionData[currentAction])[1],1,1)                                    
+                                            plt.title("Pos " + dataFilePath)
+                                    
+                                    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                    # ~~~~~~~~~~~~~ FORMATTING THE DATA FOR THE SAM ~~~~~~~~~~~~~~~
+                                    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+                                    # Make overall array
+                                    # A. Data
+                                    # Data as:
+                                    # >> 1. Timeseries
+                                    # >> 2. Body part and xyz
+                                    # >> 3. Repeat actions
+                                    # 4. Hand used
+                                    # 5. Person
+                                    # 6. Action Type
+                                    actionsCombined=numpy.zeros((actionDataZeroPad[0].shape[0],actionDataZeroPad[0].shape[1],len(actionDataZeroPad)))
+                                    for currentAction in range(len(actionDataZeroPad)):
+                                        actionsCombined[:,:,currentAction]=actionDataZeroPad[currentAction]
+                                        # Check for shortest action length
+                                        if actionDataZeroPad[currentAction].shape[0]<minActionDuration:
+                                            minActionDuration=actionDataZeroPad[currentAction].shape[0]
+                                    # B. Labels                                
+                                    # Initally built around the action name (based on action index)
+                                    # Find matching label and assign       
+                                    actionLabel=numpy.empty(0)       
+                                    for testLabel in range(len(self.labelName)):
+                                        #print "Testing: " + (self.action_splitting_index[actionInd][0] + " " + self.hand_index[handInd])
+                                        #print "with: " + self.labelName[testLabel]
+                                        if (str(self.action_splitting_index[actionInd][0] + " " + self.hand_index[handInd]) == str(self.labelName[testLabel])):
+                                            actionLabel=numpy.zeros((actionDataZeroPad[0].shape[0],actionDataZeroPad[0].shape[1],len(actionDataZeroPad)))+self.labelIndex[testLabel]#len(self.actionLabels)#actionInd
+                                            break
+                                    if (actionLabel.size == 0):
+                                        print "ERROR NO MATCHING ACTION FOUND"
+                                        return 0
+                                    # TODO THIS MUST BE UPDATED TO NEW LABELS otherwise its meaningless LB 2015
+                                    #if (partInd==0):                                            
+                                    #    self.actionLabels.append(self.action_splitting_index[actionInd][0])
+                                    #    self.handLabels.append(self.hand_index[handInd])
+                                    
+                                    
+                                    
+                                    
+                                    
+                                #Dual Action type -> Negative sub Action gradient Condition
+                                # Check action found (only false if empty)
+                                if actionDataNeg:
+                                    # Sort counters here -> find minimum number of actions -> used later for cutting
+                                    if len(actionDataNegZeroPad) < minActionsOverall:
+                                        minActionsOverall = len(actionDataNegZeroPad)
+                                    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                    # ~~~~~~~~~~~~~ FORMATTING THE DATA FOR THE SAM ~~~~~~~~~~~~~~~
+                                    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+                                    # Make overall array
+                                    # A. Data
+                                    # Data as:
+                                    # >> 1. Timeseries
+                                    # >> 2. Body part and xyz
+                                    # >> 3. Repeat actions
+                                    # 4. Hand used
+                                    # 5. Person
+                                    # 6. Action Type
+                                    actionsCombinedNeg=numpy.zeros((actionDataNegZeroPad[0].shape[0],actionDataNegZeroPad[0].shape[1],len(actionDataNegZeroPad)))
+                                    for currentAction in range(len(actionDataNegZeroPad)):
+                                        actionsCombinedNeg[:,:,currentAction]=actionDataNegZeroPad[currentAction]
+                                        # Check for shortest action length
+                                        if actionDataNegZeroPad[currentAction].shape[0]<minActionDuration:
+                                            minActionDuration=actionDataNegZeroPad[currentAction].shape[0]
+                                    # B. Labels                                
+                                    # Initally built around the action name (based on action index)
+                                    # TODO THIS MUST BE UPDATED TO NEW LABELS otherwise its meaningless LB 2015
+                                            
+                                    # Find matching label and assign       
+                                    actionLabelNeg=False       
+                                    for testLabel in range(len(self.labelName)):
+                                        if (str(self.action_splitting_index[actionInd][1] + " " + self.hand_index[handInd]) == str(self.labelName[testLabel])):
+                                            actionLabelNeg=numpy.zeros((actionDataZeroPad[0].shape[0],actionDataZeroPad[0].shape[1],len(actionDataZeroPad)))+self.labelIndex[testLabel]#len(self.actionLabels)#actionInd
+                                            break
+                                    if (actionLabelNeg.size == 0):
+                                        print "ERROR NO MATCHING ACTION FOUND"
+                                        return 0                                                 
+                                    #if (partInd==0):
+                                    #    self.actionLabels.append(self.action_splitting_index[actionInd][1])
+                                    #    self.handLabels.append(self.hand_index[handInd])
+                                    #actionLabelNeg=numpy.zeros((actionDataNegZeroPad[0].shape[0],actionDataNegZeroPad[0].shape[1],len(actionDataNegZeroPad)))+len(self.actionLabels)#+actionInd
+                                    
+                    # Combine arrays across actions hands
+                    # Single / Pos condition
+                    actionsbyHand.append(actionsCombined) 
+                    actionsbyHandLabel.append(actionLabel)
+                    # Negative condition 
+                    if actionDataNeg:
+                        actionsbyHandNeg.append(actionsCombinedNeg) 
+                        actionsbyHandLabelNeg.append(actionLabelNeg)                    
+                    
+                # Combine arrays across actions participant
+                # Single / Pos condition
+                actionsbyParticipant.append(actionsbyHand) 
+                actionsbyParticipantLabel.append(actionsbyHandLabel)
+                # Check here for hand count should be 2 ->
+                if len(actionsbyHand)<minHands:
+                    minHands=len(actionsbyHand)
+                # Negative condition    
+                if actionDataNeg:
+                    actionsbyParticipantNeg.append(actionsbyHandNeg) 
+                    actionsbyParticipantLabelNeg.append(actionsbyHandLabelNeg)
+                    # Check here for hand count should be 2 ->
+                    if len(actionsbyHandNeg)<minHands:
+                        minHands=len(actionsbyHandNeg)           
+            # Combine arrays across actions participant
+            # Single / Pos condition
+            actionsbyType.append(actionsbyParticipant)
+            actionsbyTypeLabel.append(actionsbyParticipantLabel)
+            if len(actionsbyParticipant)<minParticipant:
+                minParticipant=len(actionsbyParticipant)
+            if actionsbyType: # false if empty
+                actionTypesFoundCount+=1
+            # Negative condition    
+            if actionDataNeg:
+                # @@@L@B@@@@ Key here adding neg grad actions to main array!
+                actionsbyType.append(actionsbyParticipantNeg)
+                actionsbyTypeLabel.append(actionsbyParticipantLabelNeg)
+                #actionsbyTypeNeg.append(actionsbyParticipantNeg)
+                #actionsbyTypeLabelNeg.append(actionsbyParticipantLabelNeg)
+                if len(actionsbyParticipantNeg)<minParticipant:
+                    minParticipant=len(actionsbyParticipantNeg)                
+                # LB TODO CHECK HERE!!!!!!!!!
+                #if actionsbyTypeNeg: # false if empty
+                actionTypesFoundCount+=1
+                    
+        # Print outputs
+        print str(actionTypesFoundCount) + " different actions found"     
+        print "Shortest action length found is " + str(minActionDuration) + " steps"        
+        print "Found " + str(minActionsOverall) + " actions for every participant and hand used"
+        print "Found minimum of data recorded from " + str(minHands) + " hands for all pariticipants involved"         
+        print "Found " + str(minParticipant) + " participants completeing all actions"
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ~~~~~~~~~~~~~~ COMBINE AND CUT THE DATA FOR THE SAM ~~~~~~~~~
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Build the nump matrix
+        # Data as:
+        # 1. Timeseries         0
+        # 2. Body part and xyz  1
+        # 3. Repeat actions     2
+        # 4. Hand used          3
+        # 5. Person             4
+        # 6. Action Type        5
+        allActions=numpy.zeros((minActionDuration,len(self.indToProcess),minActionsOverall,minHands,minParticipant,actionTypesFoundCount))
+        allLabels=numpy.zeros((minActionDuration,len(self.indToProcess),minActionsOverall,minHands,minParticipant,actionTypesFoundCount))        
+        # 6. Action type
+        for actionInd in range(actionTypesFoundCount):
+            # 5. Participant index
+            for partInd in range(minParticipant):
+                # 4. hand index
+                for handInd in range(minHands):
+                    allActions[:,:,:,handInd,partInd,actionInd]=actionsbyType[actionInd][partInd][handInd][:minActionDuration,:len(self.indToProcess),:minActionsOverall]
+                    allLabels[:,:,:,handInd,partInd,actionInd]=actionsbyTypeLabel[actionInd][partInd][handInd][:minActionDuration,:len(self.indToProcess),:minActionsOverall]
                             #strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime())
+                
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ~~~~~~~~~~~~~~ ALTERNATIVE ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ~~~~~~~~~~~~~~ 1. Combines actions Type to include hand e.g. waving right , ud left
+        # ~~~~~~~~~~~~~~ 2. flatten timeseries and body part xyz and participant
+        # ~~~~~~~~~~~~~~ COMBINE AND CUT THE DATA FOR THE SAM ~~~~~~~~~
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Build the numpy matrix
+        # Data as:
+        # 1. Timeseries (0) + Body part and xyz (1)
+        # 2. Repeat actions (2) + person (4)
+        # 3. Action Type (5) and Hand used (3)
+        combinedActions=numpy.zeros((minActionDuration*len(self.indToProcess),minActionsOverall*minParticipant,minHands*actionTypesFoundCount))
+        combinedLabels=numpy.zeros((minActionDuration*len(self.indToProcess),minActionsOverall*minParticipant,minHands*actionTypesFoundCount))        
+        # Reshape timeseries, body part xyz
+        temp1=numpy.reshape(numpy.transpose(allActions,(2,3,4,5,1,0)),(minActionsOverall,minHands,minParticipant,actionTypesFoundCount,minActionDuration*len(self.indToProcess)))      
+        temp2=numpy.reshape(numpy.transpose(allLabels,(2,3,4,5,1,0)),(minActionsOverall,minHands,minParticipant,actionTypesFoundCount,minActionDuration*len(self.indToProcess)))      
+        # !!!!!!UPDATE LABELS TO MARK BOTH Left and right hands for combined hands and action type 
+        #for handInd in range(minHands):        
+        #    temp2[:,handInd,:,:]=temp2[:,handInd,:,:]+(handInd*100) # added differential index: original label = left hand, original label + 100 = right hand
+        # Combine Repeat actions and participant
+        temp1=numpy.reshape(numpy.transpose(temp1,(4,1,3,0,2)),(minActionDuration*len(self.indToProcess),minHands,actionTypesFoundCount,minActionsOverall*minParticipant))
+        temp2=numpy.reshape(numpy.transpose(temp2,(4,1,3,0,2)),(minActionDuration*len(self.indToProcess),minHands,actionTypesFoundCount,minActionsOverall*minParticipant))
+        # Combine hands and action type    
+        combinedActions=numpy.reshape(numpy.transpose(temp1,(0,3,1,2)),(minActionDuration*len(self.indToProcess),minActionsOverall*minParticipant,minHands*actionTypesFoundCount))
+        combinedLabels=numpy.reshape(numpy.transpose(temp2,(0,3,1,2)),(minActionDuration*len(self.indToProcess),minActionsOverall*minParticipant,minHands*actionTypesFoundCount))
+       
         plt.show()#block=True)
-        ttt=1
 
-#        for count_participant, current_participant in enumerate(self.participant_index):
-#            data_file_database_part={}
-#            for count_pose, current_pose in enumerate(pose_index):
-#                current_data_dir=os.path.join(root_data_dir,current_participant+current_pose)
-#                data_file_database_p=numpy.empty(0,dtype=[('orig_file_id','i2'),('file_id','i2'),('img_fname','a100')])
-#                data_image_count=0
-#                if os.path.exists(current_data_dir):
-#                    for file in os.listdir(current_data_dir):
-#	                    #parts = re.split("[-,\.]", file)
-#                        fileName, fileExtension = os.path.splitext(file)
-#                        if fileExtension==self.image_suffix: # Check for image file
-#                            file_ttt=numpy.empty(1, dtype=[('orig_file_id','i2'),('file_id','i2'),('img_fname','a100')])
-#                            file_ttt['orig_file_id'][0]=int(fileName)
-#                            file_ttt['img_fname'][0]=file
-#                            file_ttt['file_id'][0]=data_image_count
-#                            data_file_database_p = numpy.append(data_file_database_p,file_ttt,axis=0)
-#                            data_image_count += 1
-#                    data_file_database_p=numpy.sort(data_file_database_p,order=['orig_file_id'])  
-#                data_file_database_part[pose_index[count_pose]]=data_file_database_p
-#                data_file_count[count_participant,count_pose]=len(data_file_database_p)
-#            data_file_database[self.participant_index[count_participant]]=data_file_database_part
-#
-#	    # To access use both dictionaries data_file_database['Luke']['LR']
-#	    # Cutting indexes to smllest number of available files -> Using file count
-#        min_no_images=int(numpy.min(data_file_count))
-#
-#	    # Load image data into array......
-#	    # Load first image to get sizes....
-#        data_image=cv2.imread(os.path.join(root_data_dir,self.participant_index[0]+pose_index[0]+"/"+
-#            data_file_database[self.participant_index[0]][pose_index[0]][0][2]))[:,:,(2,1,0)] # Convert BGR to RGB
-#
-#	    # Data size
-#        print "Found minimum number of images:" + str(min_no_images)
-#        print "Image count:", data_file_count
-#        print "Found image with dimensions" + str(data_image.shape)
-#	#    imgplot = plt.imshow(data_image)#[:,:,(2,1,0)]) # convert BGR to RGB
-#
-#	    # Load all images....
-#	    #Data Dimensions:
-#	    #1. Pixels (e.g. 200x200)
-#	    #2. Images 
-#	    #3. Person
-#	    #4. Movement (Static. up/down. left / right) 
-#        set_x=int(data_image.shape[0])
-#        set_y=int(data_image.shape[1])
-#        #no_rgb=int(data_image.shape[2])
-#        no_pixels=self.imgWidthNew*self.imgHeightNew #set_x*set_y
-#        img_data=numpy.zeros([no_pixels, min_no_images, len(self.participant_index),len(pose_index)])
-#        img_label_data=numpy.zeros([no_pixels, min_no_images, len(self.participant_index),len(pose_index)],dtype=int)
-#	    #cv2.imshow("test", data_image)
-#	    #cv2.waitKey(50)              
-#        for count_pose, current_pose in enumerate(pose_index):
-#            for count_participant, current_participant in enumerate(self.participant_index):
-#                for current_image in range(min_no_images): 
-#                    current_image_path=os.path.join(os.path.join(root_data_dir,self.participant_index[count_participant]+pose_index[count_pose]+"/"+
-#                        data_file_database[self.participant_index[count_participant]][pose_index[count_pose]][current_image][2]))
-#                    data_image=cv2.imread(current_image_path)
-#	                # Check image is the same size if not... cut or reject
-#                    if data_image.shape[0]<set_x or data_image.shape[1]<set_y:
-#                        print "Image too small... EXITING:"
-#                        print "Found image with dimensions" + str(data_image.shape)
-#                        sys.exit(0)
-#                    if data_image.shape[0]>set_x or data_image.shape[1]>set_y:
-#                        print "Found image with dimensions" + str(data_image.shape)
-#                        print "Image too big cutting to: x="+ str(set_x) + " y=" + str(set_y)
-#                        data_image=data_image[:set_x,:set_y]
-#                    data_image=cv2.resize(data_image, (self.imgWidthNew, self.imgHeightNew)) # New
-#                    data_image=cv2.cvtColor(data_image, cv2.COLOR_BGR2GRAY) 
-#                    # Data is flattened into single vector (inside matrix of all images) -> (from images)        
-#                    img_data[:,current_image,count_participant,count_pose] = data_image.flatten()
-#	                # Labelling with participant            
-#                    img_label_data[:,current_image,count_participant,count_pose]=numpy.zeros(no_pixels,dtype=int)+count_participant
-#
-#        self.Y=img_data
-#        self.L=img_label_data
+        self.Y=combinedActions
+        self.L=combinedLabels
+
 
 #""""""""""""""""
-#Method to process some important features from the face data required for the classification model such as mean and variance.
+#Method to process some important features from the action data required for the classification model such as mean and variance.
 #Inputs:
 #    - model: type of model used for the ABM object
 #    - Ntr: Number of training samples
@@ -701,14 +808,13 @@ class SAMpy_actions:
 #
 #Outputs: None
 #""""""""""""""""
-    def prepareFaceData(self, model='mrd', Ntr = 50, pose_selection = 0):    
-        #""--- Now Y has 4 dimensions: 
-        #1. Pixels
-        #2. Images
-        #3. Person
-        #4. Movement (Static. up/down. left / right)     
+    def prepareActionData(self, model='mrd', Ntr = 50):    
+        #""--- Now Y has 3 dimensions: 
+        #1. time points (body part x,y,z and participant)
+        #2. repeated actions 
+        #3. Action type (waving. up/down. left / right)     
         #
-        #We can prepare the face data using different scenarios about what to be perceived.
+        #We can prepare the action data using different scenarios about what to be perceived.
         #In each scenario, a different LFM is used. We have:
         #- gp scenario, where we regress from images to labels (inputs are images, outputs are labels)
         #- bgplvm scenario, where we are only perceiving images as outputs (no inputs, no labels)
@@ -718,30 +824,42 @@ class SAMpy_actions:
         #decides on the LFM backbone to be used.
         #
         #! Important: The global variable Y is changed in this section. From the multi-dim. matrix of all
-        #modalities, it turns into the training matrix of image data and then again it turns into the 
+        #modalities, it turns into the training matrix of action data and then again it turns into the 
         #dictionary used for the LFM.
         #---""" 
-
-    	# Take all poses if pose selection ==-1
-        if pose_selection == -1:
-            ttt=numpy.transpose(self.Y,(0,1,3,2))
-            ttt=ttt.reshape((ttt.shape[0],ttt.shape[1]*ttt.shape[2],ttt.shape[3])) 
+        #OLD
+        #0. Pixels = ts 0
+        #1. Images = repeat actions 1
+        #2. Person = actiontype 2
+        #3. Movement (Static. up/down. left / right)
+    
+    
+    
+        # Take all poses if pose selection ==-1
+        """  if pose_selection == -1:
+        ttt=numpy.transpose(self.Y,(0,1,3,2))
+        ttt=ttt.reshape((ttt.shape[0],ttt.shape[1]*ttt.shape[2],ttt.shape[3])) 
         else:
-    		ttt=self.Y[:,:,:,pose_selection]
-        ttt=numpy.transpose(ttt,(0,2,1))
+            ttt=self.Y[:,:,:,pose_selection]
+        """    
+        ttt=numpy.transpose(self.Y,(0,2,1))
         self.Y=ttt.reshape(ttt.shape[0],ttt.shape[2]*ttt.shape[1]) 
         self.Y=self.Y.T
         #N=self.Y.shape[0]
-
+        """
         if pose_selection == -1:
             ttt=numpy.transpose(self.L,(0,1,3,2))
             ttt=ttt.reshape((ttt.shape[0],ttt.shape[1]*ttt.shape[2],ttt.shape[3]))
         else:
     		ttt=self.L[:,:,:,pose_selection]
-        ttt=numpy.transpose(ttt,(0,2,1))
+        """ 
+        
+        ttt=numpy.transpose(self.L,(0,2,1))
         self.L=ttt.reshape(ttt.shape[0],ttt.shape[2]*ttt.shape[1]) 
         self.L=self.L.T
         self.L=self.L[:,:1]
+
+        # 
 
         Nts=self.Y.shape[0]-Ntr
    
@@ -786,7 +904,7 @@ class SAMpy_actions:
             self.data_labels = self.L.copy()
 
 #""""""""""""""""
-#Method to train, store and load the learned model to be use for the face recognition task
+#Method to train, store and load the learned model to be use for the action recognition task
 #Inputs:
 #    - modelNumInducing:
 #    - modelNumIterations:
@@ -814,7 +932,7 @@ class SAMpy_actions:
                 kernel = None
             # Simulate the function of storing a collection of events
             self.SAMObject.store(observed=self.Y, inputs=self.X, Q=Q, kernel=kernel, num_inducing=self.model_num_inducing)
-            # If data are associated with labels (e.g. face identities), associate them with the event collection
+            # If data are associated with labels (e.g. action identities), associate them with the event collection
             if self.data_labels is not None:
                 self.SAMObject.add_labels(self.data_labels)
             # Simulate the function of learning from stored memories, e.g. while sleeping (consolidation).
@@ -828,18 +946,20 @@ class SAMpy_actions:
 	        self.SAMObject = ABM.load_pruned_model(fname)
 
 #""""""""""""""""
-#Method to test the learned model with faces read from the iCub eyes in real-time
+#Method to test the learned model with actions read from the iCub eyes in real-time
 #Inputs:
-#    - testFace: image from iCub eyes to be recognized
+#    - testaction: image from iCub eyes to be recognized
 #    - visualiseInfo: enable/disable the result from the testing process
 #
 #Outputs:
 #    - pp: the axis of the latent space backwards mapping
 #""""""""""""""""
-    def testing(self, testFace, visualiseInfo=None):
+    def testing(self, testAction, choice, objectFlag, visualiseInfo=None):
         # Returns the predictive mean, the predictive variance and the axis (pp) of the latent space backwards mapping.            
-        mm,vv,pp=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
-                
+        ret = self.SAMObject.pattern_completion(testAction, visualiseInfo=visualiseInfo)
+        mm = ret[0]
+        vv = ret[1]
+        post = ret[3]        
         # find nearest neighbour of mm and SAMObject.model.X
         dists = numpy.zeros((self.SAMObject.model.X.shape[0],1))
 
@@ -848,59 +968,119 @@ class SAMpy_actions:
         for j in range(dists.shape[0]):
             dists[j,:] = distance.euclidean(self.SAMObject.model.X.mean[j,:], mm[0].values)
         nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
+       
+        
+        if( int(self.SAMObject.model.bgplvms[1].Y[nn,:]) >= 100 ):
+            actionIndex = int(self.SAMObject.model.bgplvms[1].Y[nn,:]) - 100
+            handLabel = "right"
+        else:
+            actionIndex = int(self.SAMObject.model.bgplvms[1].Y[nn,:])
+            handLabel = "left"        
+        
+        print "ACTION INDEX: ", actionIndex
+                      
+        
         if self.SAMObject.type == 'mrd':
-            print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
-            textStringOut=self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
+            ret_y = self.SAMObject.model.bgplvms[1]._raw_predict(post.X)
+            vv_y = ret_y[1]
+            print "NN: ", int(self.SAMObject.model.bgplvms[1].Y[nn,:])
+            # Generate dialogue here
+            #print "With " + str(vv.mean()) + "(" + str(vv_y) + ")" +" prob. error the new image is " + self.labelName[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
+            #print "With " + str(vv.mean()) + "(" + str(vv_y) + ")" +" prob. error the new image is " + self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
+#            textStringOut=handLabel + " " + self.action_index[actionIndex]
 
+            if (objectFlag):
+                textStringOut = "you did nothing"
+                if (self.actionName[actionIndex] == 'waving' ): # waving
+                    textStringOut="You were " + self.actionName[actionIndex] + " using your " + handLabel + " hand"
+                elif (self.actionName[actionIndex] == 'left'): # Moved left
+                    if (handLabel == 'left'):
+                        textStringOut="You pushed the object, with your " + handLabel + " hand"
+                    else:
+                        textStringOut="You pulled the object, with your " + handLabel + " hand"             
+                elif (self.actionName[actionIndex] == 'right' ): # Moved right
+                    if (handLabel == 'left'):
+                        textStringOut="You pulled the object, with your " + handLabel + " hand"
+                    else:
+                        textStringOut="You pushed the object, with your " + handLabel + " hand"
+                elif (self.actionName[actionIndex] == 'up'): # Up
+                    textStringOut="You lifted the object up, with your " + handLabel + " hand"
+                elif (self.actionName[actionIndex] == 'down' ): # Down
+                    textStringOut="You put the object down, with your " + handLabel + " hand"
+                else:
+                    textStringOut = "No action!"
+            else:
+                textStringOut = "you did nothing"
+                if (self.actionName[actionIndex] == 'waving' ): # waving
+                    textStringOut="You were " + self.actionName[actionIndex] + " using your " + handLabel + " hand"
+                elif (self.actionName[actionIndex] == 'left' or self.actionName[actionIndex] == 'right' ): # left and right
+                    textStringOut="You moved your " + handLabel + " hand to the " + self.actionName[actionIndex]
+                else: # Up and down
+                    textStringOut="You moved your " + handLabel + " hand " + self.actionName[actionIndex]
+                
         elif self.SAMObject.type == 'bgplvm':
             print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.L[nn,:])]
-            textStringOut=self.participant_index[int(self.L[nn,:])]
-        if (vv.mean()<0.00012):
-            choice=numpy.random.randint(4)
-            if (choice==0):
-                 facePredictionBottle.addString("Hello " + textStringOut)
-            elif(choice==1):
-                 facePredictionBottle.addString("I am watching you " + textStringOut)
-            elif(choice==2):
-                 facePredictionBottle.addString(textStringOut + " could you move a little you are blocking my view of the outside")
-            else:
-                 facePredictionBottle.addString(textStringOut + " will you be my friend")                  
-            # Otherwise ask for updated name... (TODO: add in updated name)
-        else:
-            facePredictionBottle.addString("I think you are " + textStringOut + " but I am not sure, please confirm?")        
-     
+            textStringOut=self.labelName[int(self.L[nn,:])]
+            
+        if( choice.get(0).asInt() == 18 ):
+            facePredictionBottle.addString(textStringOut) 
+        
         # Plot the training NN of the test image (the NN is found in the INTERNAl, compressed (latent) memory space!!!)
+        
         if visualiseInfo is not None:
             fig_nn = visualiseInfo['fig_nn']
             fig_nn = pb.figure(11)
             pb.title('Training NN')
             fig_nn.clf()
-            pl_nn = fig_nn.add_subplot(111)
-            pl_nn.imshow(numpy.reshape(self.SAMObject.recall(nn),(self.imgHeightNew, self.imgWidthNew)), cmap=plt.cm.Greys_r)
+            #pl_nn = fig_nn.add_subplot(111)
+            #print "SAM RECALL: ", self.SAMObject.recall(nn)
+            #pl_nn.imshow(numpy.reshape(self.SAMObject.recall(nn),(self.imgHeightNew, self.imgWidthNew)), cmap=plt.cm.Greys_r)
             pb.title('Training NN')
             pb.show()
             pb.draw()
             pb.waitforbuttonpress(0.1)
+        
             
         self.speakStatusPort.write(self.speakStatusOutBottle, self.speakStatusInBottle)
 
         if( self.speakStatusInBottle.get(0).asString() == "quiet"):
-            self.outputFacePrection.write(facePredictionBottle)
+            self.outputActionPrediction.write(facePredictionBottle)
 
         facePredictionBottle.clear()
 
-        return pp
-
+        return ret[2]
+ 
 #""""""""""""""""
-#Method to read images from the iCub eyes used for the face recognition task
+#Method to read action data from the iCub used for the action recognition task
 #Inputs: None
 #Outputs:
 #    - imageFlatten_testing: image from iCub eyes in row format for testing by the ABM model
+# Detect action and send out detected actions......
+# Loops here to find next action....        
 #""""""""""""""""
-    def readImageFromCamera(self):
+    def readActionFromRobot(self):
+        #self.sampleRate = 0 # sample rate calculated from data!
+        #self.fixedSampleRate = 20  #Hz data will be interpolated up to this sample rate 
+        #self.minSampleRate = 8 #Hz data rejected is sample rate is below this
+        # Init variables 
+        dataCount = 0
+        
+        zeroCount = 0
+        actionFound = False
+        
+        actionData = []
+        timeData = []
+        
+
+        
         while(True):
+            
+            
             try:
-                self.newImage = self.imageDataInputPort.read(False)
+                newData = yarp.Bottle
+                newData = self.actionDataInputPort.read(True) # read values from yarp port
+                currentTime = time.time() # time stamp data as it arrives
+ 
             except KeyboardInterrupt:
                 print 'Interrupted'
                 try:
@@ -908,81 +1088,148 @@ class SAMpy_actions:
                 except SystemExit:
                     os._exit(0)
 
-            if not( self.newImage == None ):
-                self.yarpImage.copy(self.newImage)
-
-                imageArrayOld=cv2.resize(self.imageArray,(self.imgHeightNew,self.imgWidthNew))
-                imageArrayGray=cv2.cvtColor(imageArrayOld, cv2.COLOR_BGR2GRAY)
-
-                plt.figure(10)
-                plt.title('Image received')
-                plt.imshow(imageArrayGray,cmap=plt.cm.Greys_r)
-                plt.show()
-                plt.waitforbuttonpress(0.1)
-
-                imageFlatten_testing = imageArrayGray.flatten()
-                imageFlatten_testing = imageFlatten_testing - self.Ymean
-                imageFlatten_testing = imageFlatten_testing/self.Ystd#
-
-                imageFlatten_testing = imageFlatten_testing[:,None].T
+            if not(newData == None ):
+                #self.yarpImage.copy(self.newImage)
+                                
+                # Get length of bottle
+                data = numpy.zeros((newData.size(),1),dtype=int)
+                for currentData in range(newData.size()):                
+                    data[currentData] = newData.get(currentData).asInt()
+                # Add to data store
+                if (dataCount == 0):
+                    dataStoreRT=data
+                    baseTime = currentTime # baseline time to subtract
+                    timeStoreRT = numpy.array([0]) # init time store
+                    dataCount+=1
+                else:
+                    #print data
+                    # Check appropiate sample rate!
+                    if ((1/numpy.diff(timeStoreRT[-2:]))<self.minSampleRate):
+                        print "CLEARING DATA: Sample rate too low: " + str(1/numpy.diff(timeStoreRT[-2:]))
+                        actionFound = False
+                        zeroCount = 0                        
+                        dataCount = 0
+                    else:
+                        dataCount+=1
+                        dataStoreRT=numpy.hstack((dataStoreRT,data))
+                        timeStoreRT=numpy.hstack((timeStoreRT,currentTime-baseTime))
+                        
+                # Wait for at least 3 x filter window length data points to arrive before startin analysis
+                if (dataCount>(2*self.filterWindow)):
+                    # Initial sample rate from data and action detection times
+                    #if (self.sampleRate == 0):
+                    self.sampleRate = 1/numpy.mean(numpy.diff(timeStoreRT[-self.filterWindow:-1])) 
+                    newActionSteps=int(self.sampleRate*self.actionStopTime) 
+                    #else:
+                    #    print "Real-time sampleRate = " + str(1/numpy.mean(numpy.diff(timeStoreRT[-self.filterWindow:-1]))) + "vs fixed rate " + str(self.sampleRate)    
+                    # This runs in real time so we cannot use the normal file loading
+                    # Apply median filter to data...
+                    # 1. Preprocess data -> median filter and take first derivative then medin filter
+                    # Iterate median filter over data 
+                    dataMed=numpy.zeros((dataStoreRT.shape[0],self.filterWindow+1))
+                    for currentWindow in range(self.filterWindow+1):
+                        dataMed[:,-(currentWindow+1)]=numpy.median(dataStoreRT[:,-(self.filterWindow+currentWindow+1):-(currentWindow+1)],axis=1)
+                    # Differentiate it
+                    dataDiff=numpy.diff(dataMed,1,axis=1)
+                    dataDiffMed=numpy.median(dataDiff,axis=1)
                 
-                break
+                    #2. Find action
+                    # Find maximum action across all body parts x,y,z
+                    dataMax=numpy.max(numpy.abs(dataDiffMed))
+                    
+                    # Separate actions depending on non-movement periods -> uses self.minActionTIme
+                    # Check movement is above threshold
+                    if (dataMax>self.minimumMovementThreshold):
+                        #print "Action detected!!!!!!!!!!!!!! " #+ str(actionCount)
+                        #actionCount+=1
+                        if (not actionFound):
+                            actionData=numpy.array([dataMed[:,-1]])
+                            timeData=numpy.array([timeStoreRT[-1]])
+                            actionFound = True
+                        else:
+                        # if action already found add values onto action
+                            actionData=numpy.vstack((actionData,dataMed[:,-1]))
+                            timeData=numpy.vstack((timeData,timeStoreRT[-1]))
+                        # reset consecutive zeroCount as nonzero found
+                        zeroCount = 0
+                    else: # case of not enough movement
+                        # First check a new action has started, but we have not found too many zeros to complete the action
+                        if (actionFound and zeroCount<newActionSteps):
+                            zeroCount += 1 # increment zerocount
+                            # Add data to action 
+                            actionData=numpy.vstack((actionData,dataMed[:,-1]))
+                            timeData=numpy.vstack((timeData,timeStoreRT[-1]))
+                        # Case for new action as enough zeros have been reached
+                        elif (actionFound and zeroCount>=newActionSteps):
+                            # End of action as enough non-movement detected
+                            # Remove extra non-movement
+                            actionDataTemp=actionData[:-zeroCount,:]
+                            timeDataTemp=timeData[:-zeroCount]
 
-        return imageFlatten_testing
+                            zeroCount = 0
+                            actionFound = False
+                            # Process before return!
+                            # 1. Zero time to start
+                            timeDataTemp=timeDataTemp-timeDataTemp[0]
+                            # 2. Zero start of action                                
+                            actionDataTemp=actionDataTemp-numpy.tile(actionDataTemp[0,:],(actionDataTemp.shape[0],1))                                                      
+                            # Linearly interpolate data to 20Hz                                
+                            timeData=numpy.arange(0,timeDataTemp[-1],1.0/self.fixedSampleRate)
+                            actionData=numpy.zeros((timeData.shape[0],actionDataTemp.shape[1]))
+                            
+                            # interpolate across all body parts
+                            for currentBP in range(actionData.shape[1]):                            
+                                actionData[:,currentBP]=numpy.interp(timeData,timeDataTemp[:,0],actionDataTemp[:,currentBP])
+                            
+                            # Remove actions if too short
+                            if (actionData.shape[0]<int(self.minActionSteps)):
+                                print "Removing action with length: " + str(actionData.shape[0])  + " as too short"
+                                                                
+                                #actionData.pop(actionCount)
+                                #timeData.pop(actionCount)
+                            else:
+   
+                                # Cut to largest movement allowed self.maxMovementTime
+                                if (actionData.shape[0]>self.maxActionSteps): 
+                                    actionData=actionData[:self.maxActionSteps,:]
+                                    timeData=timeData[:self.maxActionSteps]
+                                # Report and increment
+                                print "Found action with length: " + str(actionData.shape[0])
+                                
+                                # 3. Zero pad data to max time
+                                # Expand all actions to full maxMovementTime e.g. 5s
+                                # Zero pad after action upto maxMovementTime
+                                if (actionData.shape[0]<self.maxActionSteps):
+                                    zeroLength=self.maxActionSteps-actionData.shape[0]
+                                    #print actionData[currentAction].shape
+                                    #print str(zeroLength) + " " + str(actionData[currentAction].shape[1])
+                                    
+                                    actionDataZeroPad=numpy.vstack((actionData,numpy.zeros((zeroLength,actionData.shape[1]))))
+                                elif (actionData.shape[0]>self.maxActionSteps):
+                                    actionDataZeroPad=actionData[:self.maxActionSteps,:]
+                                    print "WARNING DATA TOO LONG: " +  str(actionData.shape[0])
+                                else:
+                                    actionDataZeroPad=actionData
+                                
+                                # Process data ready for the testing with the model
+                   
+                                actionFormattedTesting = numpy.reshape(actionDataZeroPad.T,(actionDataZeroPad.shape[0]*actionDataZeroPad.shape[1]))
+                                actionFormattedTesting = actionFormattedTesting - self.Ymean
+                                actionFormattedTesting = actionFormattedTesting/self.Ystd#
+                                actionFormattedTesting = actionFormattedTesting[:,None].T
+                                     
+                                return  actionData, actionDataZeroPad, actionFormattedTesting, timeData                              
+                                #actionCount += 1
+                    print "Zeros found: " + str(zeroCount)
 
-    def smooth(x,window_len=11,window='hanning'):
-        """smooth the data using a window with requested size.
-        
-        This method is based on the convolution of a scaled window with the signal.
-        The signal is prepared by introducing reflected copies of the signal 
-        (with the window size) in both ends so that transient parts are minimized
-        in the begining and end part of the output signal.
-        
-        input:
-            x: the input signal 
-            window_len: the dimension of the smoothing window; should be an odd integer
-            window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
-                flat window will produce a moving average smoothing.
-    
-        output:
-            the smoothed signal
-            
-        example:
-    
-        t=linspace(-2,2,0.1)
-        x=sin(t)+randn(len(t))*0.1
-        y=smooth(x)
-        
-        see also: 
-        
-        numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve
-        scipy.signal.lfilter
-     
-        TODO: the window parameter could be the window itself if an array instead of a string
-        NOTE: length(output) != length(input), to correct this: return y[(window_len/2-1):-(window_len/2)] instead of just y.
-        """
-    
-        if x.ndim != 1:
-            raise ValueError, "smooth only accepts 1 dimension arrays."
-    
-        if x.size < window_len:
-            raise ValueError, "Input vector needs to be bigger than window size."
-    
-    
-        if window_len<3:
-            return x
-    
-    
-        if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
-            raise ValueError, "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
-    
-    
-        s=numpy.r_[x[window_len-1:0:-1],x,x[-1:-window_len:-1]]
-        #print(len(s))
-        if window == 'flat': #moving average
-            w=numpy.ones(window_len,'d')
-        else:
-            w=eval('numpy.'+window+'(window_len)')
-    
-        y=numpy.convolve(w/w.sum(),s,mode='valid')
-        return y
+                # Reject if data size gets too big!
+                if (dataCount==10000):
+                    print "WARNING!!!!!!! No actions found found for long period exiting"
+                    return 0,0,0,0
+       
+  
+                
+                #if (data[0]==1000):
+                #    break
+        return 0,0,0,0
+

@@ -377,6 +377,7 @@ class SAMpy_faces:
     
         for j in range(dists.shape[0]):
             dists[j,:] = distance.euclidean(self.SAMObject.model.X.mean[j,:], mm[0].values)
+            print "Dist: " + str(testFace.shape)
         nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
         if self.SAMObject.type == 'mrd':
             ret_y = self.SAMObject.model.bgplvms[1]._raw_predict(post.X)
@@ -421,7 +422,7 @@ class SAMpy_faces:
 
         facePredictionBottle.clear()
 
-        return pp
+        #return pp
 
 #""""""""""""""""
 #Method to read images from the iCub eyes used for the face recognition task

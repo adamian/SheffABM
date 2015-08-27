@@ -87,13 +87,17 @@ else:
 while( True ):
     try:
         testFace = mySAMpy.readImageFromCamera()
+        print "Face data shape 0 " + str(testFace.shape[0]) + " Face data shape 1 " + str(testFace.shape[1])
         #subplt_input.imshow(testFace, cmap=plt.cm.Greys_r)
-        pp = mySAMpy.testing(testFace, visualiseInfo)
-        time.sleep(0.5)
-        l = pp.pop(0)
-        l.remove()
-        pb.draw()
-        del l
+        mySAMpy.testing(testFace, visualiseInfo)
+        #pp = mySAMpy.testing(testFace, visualiseInfo)
+        #time.sleep(0.5)
+        #l = pp.pop(0)
+        #l.remove()
+        #pb.draw()
+        #del l
+        pb.waitforbuttonpress(0.1)
+        
     except KeyboardInterrupt:
         print 'Interrupted'
         try:

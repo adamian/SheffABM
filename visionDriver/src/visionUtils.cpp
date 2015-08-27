@@ -915,5 +915,53 @@ double visionUtils::getFrameRate(clock_t start)
   return frameRate;
 }
 
+// get next hand position using Kalman Filter
+vector<Point2f> visionUtils::getPredictedHandPosition(Point2f currentPoint, int mode)
+{
+    vector<Point2f> predictedPoint;
 
+    // First predict, to update the internal statePre variable
+    Mat prediction = KF.predict();
+    Point predictPt(prediction.at<float>(0),prediction.at<float>(1));
+              
+    measurement(0) = currentPoint.x;
+    measurement(1) = currentPoint.y; 
+  
+    // The update phase 
+    Mat estimated = KF.correct(measurement);
+ 
+    Point statePt(estimated.at<float>(0),estimated.at<float>(1));
+    Point measPt(measurement(0),measurement(1));
+
+    middlePointV = measPt;
+    kalmanMiddlePointV = statePt;
+
+    predictedPoint.push_back(middlePointV);    
+    predictedPoint.push_back(kalmanMiddlePointV);
+
+    return predictedPoint;
+}
+
+void visionUtils::initKalmanFilterParameters(Point2f previousPoint)
+{
+    KF.init(4, 2, 0);
+    KF.transitionMatrix = *(Mat_<float>(4, 4) << 1,0,1,0,   0,1,0,1,  0,0,1,0,  0,0,0,1);
+    
+    measurement.create(2,1);
+    measurement.setTo(Scalar(0));
+    
+    KF.statePost.at<float>(0) = previousPoint.x;
+    KF.statePost.at<float>(1) = previousPoint.y;
+    KF.statePost.at<float>(2) = 0;
+    KF.statePost.at<float>(3) = 0;
+    setIdentity(KF.measurementMatrix);
+    setIdentity(KF.processNoiseCov, Scalar::all(1e-4));
+    setIdentity(KF.measurementNoiseCov, Scalar::all(10));
+    setIdentity(KF.errorCovPost, Scalar::all(.1));
+
+    middlePointV.x = 0;
+    middlePointV.y = 0;
+    kalmanMiddlePointV.x = 0;
+    kalmanMiddlePointV.y = 0;
+}
 

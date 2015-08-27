@@ -100,9 +100,9 @@ class SAMpy_interaction:
 #""""""""""""""""
     def openPorts(self):
         print "open ports"
-        self.imageDataInputPort.open("/sam/imageData:i");
-        self.outputFacePrection.open("/sam/facePrediction:o")
-        self.speakStatusPort.open("/sam/speakStatus:i")
+        self.imageDataInputPort.open("/sam/face/imageData:i");
+        self.outputFacePrection.open("/sam/face/facePrediction:o")
+        self.speakStatusPort.open("/sam/face/speakStatus:i")
         self.speakStatusOutBottle.addString("stat")
 
         #print "Waiting for connection with imageDataInputPort..."
@@ -367,8 +367,14 @@ class SAMpy_interaction:
 #""""""""""""""""
     def testing(self, testFace, choice, visualiseInfo=None):
         # Returns the predictive mean, the predictive variance and the axis (pp) of the latent space backwards mapping.            
-        mm,vv,pp=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
-                
+        #mm,vv,pp=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
+
+        ret=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
+         
+        mm = ret[0]
+        vv = ret[1]
+        post = ret[3]        
+
         # find nearest neighbour of mm and SAMObject.model.X
         dists = numpy.zeros((self.SAMObject.model.X.shape[0],1))
 
@@ -408,8 +414,9 @@ class SAMpy_interaction:
             self.outputFacePrection.write(facePredictionBottle)
 
         facePredictionBottle.clear()
+        #return pp
 
-        return pp
+        return ret[2]
 
 #""""""""""""""""
 #Method to read images from the iCub eyes used for the face recognition task
@@ -418,7 +425,7 @@ class SAMpy_interaction:
 #    - imageFlatten_testing: image from iCub eyes in row format for testing by the ABM model
 #""""""""""""""""
     def readImageFromCamera(self):
-        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
+        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/face/imageData:i")) ):
             time.sleep(0.5);
             print "Waiting for connection with imageDataInputPort..."
             pass

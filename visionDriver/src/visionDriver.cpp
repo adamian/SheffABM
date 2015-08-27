@@ -42,7 +42,11 @@ visionDriver::visionDriver()
 	// Compare point distances for tracking the same point....
 	calibratedLeftPoints = false;
 	calibratedRightPoints = false;
+	storedFace = false;
+	firstMiddlePointReady = false;
 	
+	windowSize = 5;
+		
 	namedWindow("Face / Body / Arms",WINDOW_NORMAL);
 	
 	//leftArmPointIndex
@@ -234,6 +238,14 @@ bool visionDriver::updateModule()
 					posGazeOutput.addDouble(1.0);
 					gazePort.write(posGazeOutput);	
 					//}
+					
+					
+					storedFacePositions[0] = bodyPartLocations[0];
+					storedFacePositions[1] = bodyPartLocations[1];
+					storedFacePositions[2] = bodyPartLocations[2];
+					storedFace = true;
+
+					
 			    //cout << "Got to face seg 2..." << endl;        
 				//}
 
@@ -367,6 +379,15 @@ bool visionDriver::updateModule()
                     } 
                 }                          
 			}
+			else
+			{
+			    if( storedFace == true )
+			    {
+					bodyPartLocations[0] = storedFacePositions[0];
+					bodyPartLocations[1] = storedFacePositions[1];
+					bodyPartLocations[2] = storedFacePositions[2];
+			    }
+			}
 		    
 		    //cout << "Got to body seg 0..." << endl;
 		    
@@ -443,6 +464,12 @@ bool visionDriver::updateModule()
                     bodyPartLocations[4]=int(bodiesOld[i].y+(bodiesOld[i].height/2));// Body y
                     bodyPartLocations[5]=1.0;// Body z -> ++++++++++++++++++ SET AT DEFAULT 1 for NOW NEED TO UPDATE LATER...... STEREOVISION
                     bodyPosFound=true; // position found -> set flag to on		
+                    
+                    storedBodyPositions[0] = bodyPartLocations[3];
+                    storedBodyPositions[1] = bodyPartLocations[4];
+                    storedBodyPositions[2] = bodyPartLocations[5];
+                    
+                    storedBody = true;
 				}
 				
 				//Mat indices;
@@ -470,6 +497,15 @@ bool visionDriver::updateModule()
 				//hconcat(bodyVec,allBodies);					
                 //hconcat(bodyVecSkin,allBodiesSkin);
                         
+			}
+			else
+			{
+			    if( storedBody == true )
+			    {
+                    bodyPartLocations[3] = storedBodyPositions[0];
+                    bodyPartLocations[4] = storedBodyPositions[1];
+                    bodyPartLocations[5] = storedBodyPositions[2];
+			    }
 			}
 			
 	    //} // temp test
@@ -570,13 +606,46 @@ bool visionDriver::updateModule()
                                 int longestLeftIndex = utilsObj->updateArmPoints(bodyCentre, leftArmPoints,1);   //finds initial longest point
                                 previousLeftArmPoints = leftArmPoints[longestLeftIndex];
                                 leftArmMiddlePoint= utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,1);   //finds initial longest point
-                                calibratedLeftPoints = true;                             
+                                calibratedLeftPoints = true;
+                                
+                                //utilsObj->initKalmanFilterParameters(leftArmMiddlePoint.at(2));
                             }                           
                         }
                         //cout << "Got to arm seg 5..." << endl;                 
                         // Find current point which is closest to previous point
-                        //int closestLeftIndex = utilsObj->updateArmPoints(previousLeftArmPoints, leftArmPoints, 0);  //finds closest point
-                        leftArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,0);   //finds initial longest point
+                        
+                        //if( firstMiddlePointReady == false )
+                        //{
+                            //int closestLeftIndex = utilsObj->updateArmPoints(previousLeftArmPoints, leftArmPoints, 0);  //finds closest point
+                         
+                        // this checks if the rectangle in the arm is small enough to find the longest point rather than the nearest point.
+                        // needs to be tested
+                        //if( (abs(bodyCentre.x-armRotatedRects[leftArmInd].center.x) < 40.0) && (abs(bodyCentre.y-armRotatedRects[leftArmInd].center.y) < 40.0) )
+                        //{
+                        //    leftArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,1);   //finds initial longest point
+                        //}
+                        //else
+                        //{ 
+                            leftArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousLeftArmPoints, leftArmPoints,0);   //finds closest point
+                            firstMiddlePointReady = true;
+                        //}
+                        //}
+                        
+                        
+                        //Point2f leftArmMiddlePoint_NoPrediction = leftArmMiddlePoint.at(2);
+ 
+                        // prediction of hand position using Kalman Filter
+                        //if( calibratedLeftPoints == true )
+                        //{
+                        //    vector<Point2f> leftArmMiddlePointKalman = utilsObj->getPredictedHandPosition(leftArmMiddlePoint.at(2),0);
+                        //    cout << "----------------------------------" << endl;
+                        //    cout << "REAL VALUES: " << leftArmMiddlePointKalman.at(0).x << ", " << leftArmMiddlePointKalman.at(0).y << endl;
+                        //    cout << "KALMAN PREDICTION: " << leftArmMiddlePointKalman.at(1).x << ", " << leftArmMiddlePointKalman.at(1).y << endl;
+                        
+                        //    leftArmMiddlePoint[2].x = leftArmMiddlePointKalman.at(1).x;
+                        //    leftArmMiddlePoint[2].y = leftArmMiddlePointKalman.at(1).y;
+                        //}
+                        
                         // Set left arm location
                         // Update previous point
                         left_hand_position = leftArmMiddlePoint.at(2);
@@ -594,6 +663,7 @@ bool visionDriver::updateModule()
                         //circle(captureFrameFace, leftArmMiddlePoint.at(0), 10, Scalar(255,255,0), 3);    //first closest point
                         //circle(captureFrameFace, leftArmMiddlePoint.at(1), 10, Scalar(255,255,0), 3);    //second closest point
                         circle(captureFrameFace, leftArmMiddlePoint.at(2), 10, Scalar(255,0,255), 3);    //middle point
+                        //circle(captureFrameFace, leftArmMiddlePoint_NoPrediction, 10, Scalar(155,155,155), 3);    //middle point
                         
 		            	//Draw left arm rectangles
 				        Point pt1(boundingBox[leftArmInd].x + boundingBox[leftArmInd].width, boundingBox[leftArmInd].y + boundingBox[leftArmInd].height);
@@ -662,7 +732,16 @@ bool visionDriver::updateModule()
                         }
                         // Find current point which is closest to previous point
                         //int closestRightIndex = utilsObj->updateArmPoints(previousRightArmPoints, rightArmPoints, 0);   //finds closest point
-                        rightArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousRightArmPoints, rightArmPoints,0);   //finds initial longest point
+
+                        //if( (abs(bodyCentre.x-armRotatedRects[rightArmInd].center.x) < 40.0) && (abs(bodyCentre.y-armRotatedRects[rightArmInd].center.y) < 40.0) )
+                        //{
+                        //    rightArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousRightArmPoints, rightArmPoints,1);   //finds initial longest point
+                        //}
+                        //else
+                        //{
+                            rightArmMiddlePoint = utilsObj->updateArmMiddlePoint(previousRightArmPoints, rightArmPoints,0);   //finds initial nearest point
+                        //}
+                        
                         // Set right arm location
                         //right_hand_position=rightArmPoints[closestRightIndex];
                         right_hand_position = rightArmMiddlePoint.at(2);
@@ -723,12 +802,14 @@ bool visionDriver::updateModule()
 
     		            calibratedLeftPoints = false;
 		                calibratedRightPoints = false;
+		                firstMiddlePointReady = false;
 			        }
 			    }
 			    else
 		        {
 		            calibratedLeftPoints = false;
 		            calibratedRightPoints = false;
+                    firstMiddlePointReady = false;
 //		            cout << "No arms found....." << endl;	    
 			    }
 			                    //cout << "Got to end..." << endl;
@@ -745,7 +826,6 @@ bool visionDriver::updateModule()
                 }
                 
                 imshow("Face / Body / Arms", captureFrameFace);
-                imwrite()
 
 				// @@@@@@@@@' Send found body pos values out over YARP
 				// If any body part position has been found -> face, body, left hand, right hand
@@ -811,6 +891,14 @@ bool visionDriver::configure(ResourceFinder &rf)
     bodyPartLocations.clear();
     for (int i; i<12;i++)
         bodyPartLocations.push_back(0.0); // 0.0 is no position found....
+
+    storedFacePositions.clear();
+    for (int i; i<3;i++)
+        storedFacePositions.push_back(0.0); // 0.0 is no position found....
+
+    storedBodyPositions.clear();
+    for (int i; i<3;i++)
+        storedBodyPositions.push_back(0.0); // 0.0 is no position found....
 
     isGPUavailable = getCudaEnabledDeviceCount();
 

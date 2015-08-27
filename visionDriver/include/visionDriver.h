@@ -58,7 +58,12 @@ class visionDriver: public RFModule
         std::vector<double> bodyPartLocations;
         bool bodyPosFound; // flag if any body parts are found -> wont transmit if nothing
         
-        
+        std::vector<double> storedFacePositions;
+        bool storedFace;
+
+        std::vector<double> storedBodyPositions;
+        bool storedBody;
+                
         Rect currentFaceRect;
         Mat faceSegMaskInv;
         
@@ -147,6 +152,10 @@ class visionDriver: public RFModule
         vector<int> rightPointIndex[4];
         bool calibratedLeftPoints;
         bool calibratedRightPoints;
+        
+        bool firstMiddlePointReady;
+        int c_iter;
+        int windowSize;
         
 
     public:

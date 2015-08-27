@@ -59,7 +59,14 @@ bool speechInteraction::updateModule()
     {
         if( index == 15 )
             triggerBehaviour(index);
-        else
+        else if( index == 17 )
+            triggerBehaviour(index);
+/*        else if( index == 12 )
+        {
+            int status = system("iCubDemoY3 --positions /home/icub/script_movements/waving_normal/waving_normal_waving_full_body.txt");
+            cout << "STATUS WAVING: " << status << endl;
+        }
+*/        else
             sendSpeech(index);
 
     }
