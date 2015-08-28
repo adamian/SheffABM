@@ -1,0 +1,18 @@
+<application>
+  <name>Object Tracker</name>
+  <module>
+  <name>objectTracker</name>
+    <parameters></parameters>
+    <node>localhost</node>
+  </module>
+  <connection>
+    <from>/icub/cam/left</from>
+    <to>/objectTracker/image:i</to>
+    <protocol>udp+recv.bayer+method.nearest+mjpeg</protocol>
+  </connection>
+  <connection>
+    <from>/objectTracker/positions:o</from>
+    <to>/sam/actions/objects:i</to>
+    <protocol>udp</protocol>
+  </connection>
+</application>
