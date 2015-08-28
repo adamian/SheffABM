@@ -61,12 +61,15 @@ bool speechInteraction::updateModule()
             triggerBehaviour(index);
         else if( index == 17 )
             triggerBehaviour(index);
+        else if( index == 19 )  // ID in C++ (-1 from config file = 20 )
+            triggerBehaviour(index);
 /*        else if( index == 12 )
         {
             int status = system("iCubDemoY3 --positions /home/icub/script_movements/waving_normal/waving_normal_waving_full_body.txt");
             cout << "STATUS WAVING: " << status << endl;
         }
-*/        else
+*/        
+        else
             sendSpeech(index);
 
     }
