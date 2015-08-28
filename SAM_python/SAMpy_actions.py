@@ -83,7 +83,7 @@ class SAMpy_actions:
         # ############## Parameters for movement segmentation ################
         self.actionStopTime = 1 # Time in s for splitting each new movement
         self.minActionTime = 0.4 # Minimum length for action in s
-        self.minimumMovementThreshold = 5 # Equivalent number of steps or pixels or mm that triggers movement  
+        self.minimumMovementThreshold = 3 # Equivalent number of steps or pixels or mm that triggers movement  
         self.maxMovementTime = 3 # Greatest duration of movement in s        
         self.filterWindow=5 # Median Filter window length
         # real time options
@@ -1042,16 +1042,14 @@ class SAMpy_actions:
         
             
         self.speakStatusPort.write(self.speakStatusOutBottle, self.speakStatusInBottle)
-
         if( self.speakStatusInBottle.get(0).asString() == "quiet"):
             self.outputActionPrediction.write(facePredictionBottle)
-
         facePredictionBottle.clear()
 
         return ret[2]
  
 #""""""""""""""""
-#Method to read action data from the iCub used for the action recognition task
+#Method to real-time read action data from the iCub used for the action recognition task
 #Inputs: None
 #Outputs:
 #    - imageFlatten_testing: image from iCub eyes in row format for testing by the ABM model
@@ -1171,8 +1169,8 @@ class SAMpy_actions:
                             # Process before return!
                             # 1. Zero time to start
                             timeDataTemp=timeDataTemp-timeDataTemp[0]
-                            # 2. Zero start of action                                
-                            actionDataTemp=actionDataTemp-numpy.tile(actionDataTemp[0,:],(actionDataTemp.shape[0],1))                                                      
+                            # 2. Zero start of action -> all actions from zero  -> LB disables used LATER                              
+                            # actionDataTemp=actionDataTemp-numpy.tile(actionDataTemp[0,:],(actionDataTemp.shape[0],1))                                                      
                             # Linearly interpolate data to 20Hz                                
                             timeData=numpy.arange(0,timeDataTemp[-1],1.0/self.fixedSampleRate)
                             actionData=numpy.zeros((timeData.shape[0],actionDataTemp.shape[1]))
@@ -1212,6 +1210,8 @@ class SAMpy_actions:
                                     actionDataZeroPad=actionData
                                 
                                 # Process data ready for the testing with the model
+                                # Zero start of action -> all actions from zero  -> LB disables used LATER                              
+                                actionDataZeroPad=actionDataZeroPad-numpy.tile(actionDataZeroPad[0,:],(actionDataZeroPad.shape[0],1))                                                                                  
                    
                                 actionFormattedTesting = numpy.reshape(actionDataZeroPad.T,(actionDataZeroPad.shape[0]*actionDataZeroPad.shape[1]))
                                 actionFormattedTesting = actionFormattedTesting - self.Ymean
