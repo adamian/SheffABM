@@ -20,8 +20,11 @@ import GPy
 pb.ion()
 default_seed = 123344
 import pods
-from ABM import ABM
-#import ABM
+try:
+    from SAM import SAM
+except ImportError:
+    import SAM
+
 
 """
 Prepare some data. This is NOT needed in the final demo,
@@ -33,11 +36,16 @@ in standalone mode.
 Ntr = 100
 Nts = 50
 
+#-- Uncomment for brendan faces data
+#data = pods.datasets.brendan_faces()
+#Y = data['Y']
+#L = np.array(range(Y.shape[0]))
+#L = L[:,None]
+
 #-- Uncomment for oil data
 data = pods.datasets.oil()
 Y = data['X'] # Data
-L = data['Y']
-L_list = data['Y'].argmax(axis=1) # Labels 
+L = data['Y'].argmax(axis=1) # Labels
 
 perm = np.random.permutation(Y.shape[0])
 indTs = perm[0:Nts]
@@ -46,10 +54,9 @@ indTr = perm[Nts:Nts+Ntr]
 indTr.sort()
 Ytest = Y[indTs]
 Ltest = L[indTs]
-L_list_test = L_list[indTs]
 Y = Y[indTr]
 L = L[indTr]
-L_list = L_list[indTr]
+
 
 """
 This needs to go to the code, since it's what happens after data collection
@@ -66,16 +73,15 @@ Ytest-= Ymean
 Ytest /= Ystd
 
 # Build a dictionary. Every element in the dictionary is one modality
-# (one view of the data).
-Data = {'Y':Yn,'L':L}
-
+# (one view of the data). Here we have only one modality.
+Y = {'Y':Yn}
 
 # The dimensionality of the compressed space (how many features does
 # each original point is compressed to)
-Q = 4
+Q = 2
 
 # Instantiate object
-a=ABM.LFM()
+a=SAM.LFM()
 
 # Store the events Y.
 # ARG: Y: A N x D matrix, where N is the number of points and D the number
@@ -89,12 +95,12 @@ a=ABM.LFM()
 # proportionally to the data, since synapses can make more complicated combinations
 # of the existing neurons. The GP is here playing the role of "synapses", by learning
 # non-linear and rich combinations of the inducing points.
-a.store(observed=Data, inputs=None, Q=Q, kernel=None, num_inducing=40)
+a.store(observed=Y, inputs=None, Q=Q, kernel=None, num_inducing=40)
 
 # In this problem each of the observables (each row of Y) also has a label.
 # This can be added through the next line via L, where L is a N x K matrix,
 # where K is the total number of labels. 
-a.add_labels(L_list)
+a.add_labels(L)
 
 # Learn from the data, (analogous to forming synapses)
 a.learn(optimizer='bfgs',max_iters=2000, verbose=True)
@@ -104,7 +110,7 @@ a.learn(optimizer='bfgs',max_iters=2000, verbose=True)
 ret = a.visualise()
 
 # Only for images
-#ret2= a.visualise_interactive(dimensions=(20,28))
+ret2= a.visualise_interactive(dimensions=(20,28))
 
 # Pattern completion. In this case, we give a new set of test observables 
 # (i.e. events not experienced before) and we want to infer the internal/compressed

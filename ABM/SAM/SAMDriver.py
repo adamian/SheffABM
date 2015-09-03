@@ -13,19 +13,19 @@ import GPy
 #import time
 #from scipy.spatial import distance
 #import operator
-from ABM import ABM
+#from .SAMCore import *
 
 
 #""""""""""""""""
 #Class developed for the implementation of the face recognition task in real-time mode.
 #""""""""""""""""
 
-class Driver:
+class SAMDriver:
     def __init__(self, isYarpRunning = False, dataDir=""):
         
         # self.inputImagePort=inputImagePort  # MOVE to FaceDriver.py
         
-        self.SAMObject=ABM.LFM()        
+        self.SAMObject=SAMCore.LFM()        
         # self.imgHeight = imgH  # MOVE to FaceDriver.py
         # self.imgWidth = imgW  # MOVE to FaceDriver.py
         # self.imgHeightNew = imgHNew  # MOVE to FaceDriver.py
@@ -161,10 +161,10 @@ class Driver:
 	
             print "Saving SAMObject"
             if save_model:
-                ABM.save_pruned_model(self.SAMObject, fname)
+                SAMCore.save_pruned_model(self.SAMObject, fname)
         else:
 	        print "Loading SAMOBject"
-	        self.SAMObject = ABM.load_pruned_model(fname)
+	        self.SAMObject = SAMCore.load_pruned_model(fname)
 
 
 

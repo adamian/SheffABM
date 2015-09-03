@@ -11,8 +11,8 @@ import GPy
 pb.ion()
 default_seed = 123344
 import pods
-#from ABM import ABM
-import ABM
+#from SAM import SAM
+import SAM
 
 import yarp
 
@@ -59,7 +59,7 @@ yarp.Network.init()
 
 
 # Instantiate object
-a=ABM.LFM()
+a=SAM.LFM()
 
 # disconnect ports
 disconnectPorts()

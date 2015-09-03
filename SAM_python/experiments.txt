@@ -1,9 +1,0 @@
-1) Old data (1 May), all poses Uriel, Luke, Andreas, 200 data points and bgplvm.
-
-# Finished
-2) New data (13May), Uriel, Luke, Andreas, init with PCA,  bgplvm
-Only run initialisation, but latent space seemed bad.
-
-
-# RUNNING
-3) New data (13May), Uriel, Luke, Andreas, init with PPCA, bgplvm

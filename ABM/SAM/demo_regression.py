@@ -18,8 +18,10 @@ import GPy
 pb.ion()
 default_seed = 123344
 import pods
-#from ABM import ABM
-import ABM
+try:
+    from SAM import SAM
+except ImportError:
+    import SAM
 
 """
 Prepare some data. This is NOT needed in the final demo,
@@ -63,7 +65,7 @@ The only difference here is that we also give inputs X to the store functionp
 and that we don't have labels associated with our data.
 """
 Ydict = {'Y':Y}
-a=ABM.LFM()
+a=SAM.LFM()
 a.store(observed=Ydict, inputs=X, Q=None, kernel=None, num_inducing=20)
 a.learn()
 ret = a.visualise()

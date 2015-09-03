@@ -11,9 +11,9 @@ import cPickle as pickle
 # except:
 #     print "mpi not found"
 
-# from ABM import ABM
+# from SAM import SAM
 # d={'first':1,'second':2}
-# a=ABM.pSAM(d)
+# a=SAM.pSAM(d)
 
 
 """

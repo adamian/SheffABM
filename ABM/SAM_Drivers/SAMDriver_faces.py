@@ -4,7 +4,7 @@
 #The University of Sheffield
 #WYSIWYD Project
 #
-#SAMpy class for implementation of ABM module
+#SAMpy class for implementation of SAM module
 #
 #Created on 26 May 2015
 #
@@ -12,6 +12,7 @@
 #
 #""""""""""""""""""""""""""""""""""""""""""""""
 
+from ABM.SAM import SAMCore
 import matplotlib.pyplot as plt
 #import matplotlib as mp
 import pylab as pb
@@ -19,21 +20,28 @@ import sys
 #import pickle
 import numpy
 import os
-import yarp
+try:
+    import yarp
+    yarpRunning = True
+except ImportError:
+    yarpRunning = False
 import cv2
 import GPy
 import time
 from scipy.spatial import distance
 import operator
-from ABM import ABM
-import time
+# try:
+#     from .. import SAM
+# except ImportError:
+#     import SAM
+
 
 
 #""""""""""""""""
 #Class developed for the implementation of the face recognition task in real-time mode.
 #""""""""""""""""
 
-class SAMpy_interaction:
+class SAMDriver_faces:
 
 #""""""""""""""""
 #Initilization of the SAM class
@@ -44,11 +52,11 @@ class SAMpy_interaction:
 #
 #Outputs: None
 #""""""""""""""""
-    def __init__(self, isYarpRunning = False, imgH = 200, imgW = 200, imgHNew = 200, imgWNew = 200, inputImagePort="/visionDriver/image:o"):
+    def __init__(self, isYarpRunning = yarpRunning, imgH = 200, imgW = 200, imgHNew = 200, imgWNew = 200, inputImagePort="/visionDriver/image:o"):
         
         self.inputImagePort=inputImagePort
         
-        self.SAMObject=ABM.LFM()        
+        self.SAMObject=SAMCore.LFM()        
         self.imgHeight = imgH
         self.imgWidth = imgW
         self.imgHeightNew = imgHNew
@@ -74,6 +82,7 @@ class SAMpy_interaction:
         self.model_init_iterations = 0
 
         if( isYarpRunning == True ):
+            print 'Initialising Yarp...'
             yarp.Network.init()
             self.createPorts()
             self.openPorts()
@@ -100,9 +109,9 @@ class SAMpy_interaction:
 #""""""""""""""""
     def openPorts(self):
         print "open ports"
-        self.imageDataInputPort.open("/sam/face/imageData:i");
-        self.outputFacePrection.open("/sam/face/facePrediction:o")
-        self.speakStatusPort.open("/sam/face/speakStatus:i")
+        self.imageDataInputPort.open("/sam/imageData:i");
+        self.outputFacePrection.open("/sam/facePrediction:o")
+        self.speakStatusPort.open("/sam/speakStatus:i")
         self.speakStatusOutBottle.addString("stat")
 
         #print "Waiting for connection with imageDataInputPort..."
@@ -224,9 +233,9 @@ class SAMpy_interaction:
 #""""""""""""""""
 #Method to process some important features from the face data required for the classification model such as mean and variance.
 #Inputs:
-#    - model: type of model used for the ABM object
+#    - model: type of model used for the SAM object
 #    - Ntr: Number of training samples
-#    - pose_selection: participants pose used for training of the ABM object
+#    - pose_selection: participants pose used for training of the SAM object
 #
 #Outputs: None
 #""""""""""""""""
@@ -351,10 +360,10 @@ class SAMpy_interaction:
 	
             print "Saving SAMObject"
             if save_model:
-                ABM.save_pruned_model(self.SAMObject, fname)
+                SAM.save_pruned_model(self.SAMObject, fname)
         else:
 	        print "Loading SAMOBject"
-	        self.SAMObject = ABM.load_pruned_model(fname)
+	        self.SAMObject = SAM.load_pruned_model(fname)
 
 #""""""""""""""""
 #Method to test the learned model with faces read from the iCub eyes in real-time
@@ -365,16 +374,12 @@ class SAMpy_interaction:
 #Outputs:
 #    - pp: the axis of the latent space backwards mapping
 #""""""""""""""""
-    def testing(self, testFace, choice, visualiseInfo=None):
+    def testing(self, testFace, visualiseInfo=None):
         # Returns the predictive mean, the predictive variance and the axis (pp) of the latent space backwards mapping.            
-        #mm,vv,pp=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
-
-        ret=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
-         
+        ret = self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
         mm = ret[0]
         vv = ret[1]
         post = ret[3]        
-
         # find nearest neighbour of mm and SAMObject.model.X
         dists = numpy.zeros((self.SAMObject.model.X.shape[0],1))
 
@@ -382,17 +387,29 @@ class SAMpy_interaction:
     
         for j in range(dists.shape[0]):
             dists[j,:] = distance.euclidean(self.SAMObject.model.X.mean[j,:], mm[0].values)
+            print "Dist: " + str(testFace.shape)
         nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
         if self.SAMObject.type == 'mrd':
-            print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
+            ret_y = self.SAMObject.model.bgplvms[1]._raw_predict(post.X)
+            vv_y = ret_y[1]
+            print "With " + str(vv.mean()) + "(" + str(vv_y) + ")" +" prob. error the new image is " + self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
             textStringOut=self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
 
         elif self.SAMObject.type == 'bgplvm':
             print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.L[nn,:])]
             textStringOut=self.participant_index[int(self.L[nn,:])]
-        if(choice.get(0).asInt() == 16 and vv.mean()<0.00012):            
-            facePredictionBottle.addString("You are " + textStringOut)
-        elif(choice.get(0).asInt() == 16 and vv.mean()>0.00012):
+        if (vv.mean()<0.00012):
+            choice=numpy.random.randint(4)
+            if (choice==0):
+                 facePredictionBottle.addString("Hello " + textStringOut)
+            elif(choice==1):
+                 facePredictionBottle.addString("I am watching you " + textStringOut)
+            elif(choice==2):
+                 facePredictionBottle.addString(textStringOut + " could you move a little you are blocking my view of the outside")
+            else:
+                 facePredictionBottle.addString(textStringOut + " will you be my friend")                  
+            # Otherwise ask for updated name... (TODO: add in updated name)
+        else:
             facePredictionBottle.addString("I think you are " + textStringOut + " but I am not sure, please confirm?")        
      
         # Plot the training NN of the test image (the NN is found in the INTERNAl, compressed (latent) memory space!!!)
@@ -414,19 +431,18 @@ class SAMpy_interaction:
             self.outputFacePrection.write(facePredictionBottle)
 
         facePredictionBottle.clear()
-        #return pp
 
-        return ret[2]
+        #return pp
 
 #""""""""""""""""
 #Method to read images from the iCub eyes used for the face recognition task
 #Inputs: None
 #Outputs:
-#    - imageFlatten_testing: image from iCub eyes in row format for testing by the ABM model
+#    - imageFlatten_testing: image from iCub eyes in row format for testing by the SAM model
 #""""""""""""""""
     def readImageFromCamera(self):
-        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/face/imageData:i")) ):
-            time.sleep(0.5);
+        #print "Waiting for connection with imageDataInputPort..."
+        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
             print "Waiting for connection with imageDataInputPort..."
             pass
     
