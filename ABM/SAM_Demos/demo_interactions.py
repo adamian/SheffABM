@@ -34,33 +34,33 @@ choice = yarp.Bottle();
 mySAMpy = SAMDriver_interaction(True, imgH = 400, imgW = 400, imgHNew = 200, imgWNew = 200,inputImagePort="/visionDriver/image:o")
 
 # Specification of the experiment number
-experiment_number = 1005#42
+experiment_number = 1007#42
 
 # Location of face data
 #root_data_dir="/home/icub/dataDump/faceImageData_11062015"
-root_data_dir="/home/uriel/dataDump/actionFilm"
+root_data_dir="/media/andreas/ANDREAS/dataDump/actionFilm"
 
 # Image format
 image_suffix=".ppm"
 # Array of participants to be recognised
 #participant_index=('Uriel','Andreas','Daniel')#=('Luke','Michael','Adriel','Emma','Uriel','Daniel','Andreas')
 #participant_index=('Andreas','Uriel','Tony','Daniel')
-participant_index=('Michael','Uriel', 'Luke') #participant_index=('Michael','Uriel','Tony', 'Luke')
+participant_index=('Andreas','Jordi','Uriel') #participant_index=('Michael','Uriel','Tony', 'Luke')
 
 # Poses used during the data collection
 pose_index=['Seg']
 # Use a subset of the data for training
-Ntr=400
+Ntr=300
 
 # Pose selected for training
 pose_selection = 0
 
 # Specification of model type and training parameters
 model_type = 'mrd'
-model_num_inducing = 25
+model_num_inducing = 30
 model_num_iterations = 150
-model_init_iterations = 500
-fname = '/home/uriel/models/' + 'mActions_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
+model_init_iterations = 400
+fname = '/media/andreas/ANDREAS/models/' + 'mActions_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
 
 # Enable to save the model and visualise GP nearest neighbour matching
 save_model=True

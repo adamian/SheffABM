@@ -89,35 +89,6 @@ class SAMDriver_faces:
             self.createImageArrays()
 
 
-#""""""""""""""""
-#Methods to create the ports for reading images from iCub eyes
-#Inputs: None
-#Outputs: None
-#""""""""""""""""
-    def createPorts(self):
-        self.imageDataInputPort = yarp.BufferedPortImageRgb()
-        self.outputFacePrection = yarp.Port()
-        self.speakStatusPort = yarp.RpcClient();
-        self.speakStatusOutBottle = yarp.Bottle()
-        self.speakStatusInBottle = yarp.Bottle()
-        self.imageInputBottle = yarp.Bottle()
-
-#""""""""""""""""
-#Method to open the ports. It waits until the ports are connected
-#Inputs: None
-#Outputs: None
-#""""""""""""""""
-    def openPorts(self):
-        print "open ports"
-        self.imageDataInputPort.open("/sam/imageData:i");
-        self.outputFacePrection.open("/sam/facePrediction:o")
-        self.speakStatusPort.open("/sam/speakStatus:i")
-        self.speakStatusOutBottle.addString("stat")
-
-        #print "Waiting for connection with imageDataInputPort..."
-#        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
-#            print "Waiting for connection with imageDataInputPort..."
-#            pass
 
 #""""""""""""""""
 #Method to prepare the arrays to receive the RBG images from yarp
@@ -323,47 +294,6 @@ class SAMDriver_faces:
             self.Y = {'Y':self.Yn}
             self.data_labels = self.L.copy()
 
-#""""""""""""""""
-#Method to train, store and load the learned model to be use for the face recognition task
-#Inputs:
-#    - modelNumInducing:
-#    - modelNumIterations:
-#    - modelInitIterations:
-#    - fname: file name to store/load the learned model
-#    - save_model: enable/disable to save the model
-#
-#Outputs: None
-#""""""""""""""""
-    def training(self, modelNumInducing, modelNumIterations, modelInitIterations, fname, save_model):
-        self.model_num_inducing = modelNumInducing
-        self.model_num_iterations = modelNumIterations
-        self.model_init_iterations = modelInitIterations
-    
-        if not os.path.isfile(fname + '.pickle'):
-            print "Training..."    
-            if self.X is not None:
-                Q = self.X.shape[1]
-            else:
-                Q=2
-
-            if Q > 100:
-                kernel = GPy.kern.RBF(Q, ARD=False) + GPy.kern.Bias(Q) + GPy.kern.White(Q)
-            else:
-                kernel = None
-            # Simulate the function of storing a collection of events
-            self.SAMObject.store(observed=self.Y, inputs=self.X, Q=Q, kernel=kernel, num_inducing=self.model_num_inducing)
-            # If data are associated with labels (e.g. face identities), associate them with the event collection
-            if self.data_labels is not None:
-                self.SAMObject.add_labels(self.data_labels)
-            # Simulate the function of learning from stored memories, e.g. while sleeping (consolidation).
-            self.SAMObject.learn(optimizer='scg',max_iters=self.model_num_iterations, init_iters=self.model_init_iterations, verbose=True)
-	
-            print "Saving SAMObject"
-            if save_model:
-                SAM.save_pruned_model(self.SAMObject, fname)
-        else:
-	        print "Loading SAMOBject"
-	        self.SAMObject = SAM.load_pruned_model(fname)
 
 #""""""""""""""""
 #Method to test the learned model with faces read from the iCub eyes in real-time

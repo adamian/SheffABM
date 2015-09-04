@@ -33,13 +33,14 @@ except ImportError:
     import SAM
 """
 import time
+from ABM.SAM import SAMDriver
 
 
 #""""""""""""""""
 #Class developed for the implementation of the face recognition task in real-time mode.
 #""""""""""""""""
 
-class SAMDriver_interaction:
+class SAMDriver_interaction(SAMDriver):
 
 #""""""""""""""""
 #Initilization of the SAM class
@@ -51,33 +52,19 @@ class SAMDriver_interaction:
 #Outputs: None
 #""""""""""""""""
     def __init__(self, isYarpRunning = False, imgH = 200, imgW = 200, imgHNew = 200, imgWNew = 200, inputImagePort="/visionDriver/image:o"):
-        
+        # Call parent class init
+        SAMDriver.__init__(self, isYarpRunning)
+
+        # Extra stuff needed for the specific driver
         self.inputImagePort=inputImagePort
-        
-        self.SAMObject=SAMCore.LFM()        
+            
         self.imgHeight = imgH
         self.imgWidth = imgW
         self.imgHeightNew = imgHNew
         self.imgWidthNew = imgWNew
         self.image_suffix=".ppm"
 
-        self.Y = None
-        self.L = None
-        self.X = None
-        self.Ytest = None
-        self.Ltest = None
-        self.Ytestn = None
-        self.Ltestn = None
-        self.Ymean = None
-        self.Ystd = None
-        self.Yn = None
-        self.Ln = None
-        self.data_labels = None
         self.participant_index = None
-
-        self.model_num_inducing = 0
-        self.model_num_iterations = 0
-        self.model_init_iterations = 0
 
         if( isYarpRunning == True ):
             yarp.Network.init()
@@ -86,35 +73,71 @@ class SAMDriver_interaction:
             self.createImageArrays()
 
 
-#""""""""""""""""
-#Methods to create the ports for reading images from iCub eyes
-#Inputs: None
-#Outputs: None
-#""""""""""""""""
-    def createPorts(self):
-        self.imageDataInputPort = yarp.BufferedPortImageRgb()
-        self.outputFacePrection = yarp.Port()
-        self.speakStatusPort = yarp.RpcClient();
-        self.speakStatusOutBottle = yarp.Bottle()
-        self.speakStatusInBottle = yarp.Bottle()
-        self.imageInputBottle = yarp.Bottle()
+#---- Extra methods for the specific driver.
+
 
 #""""""""""""""""
-#Method to open the ports. It waits until the ports are connected
-#Inputs: None
-#Outputs: None
+#Method to test the learned model with faces read from the iCub eyes in real-time
+#Inputs:
+#    - testFace: image from iCub eyes to be recognized
+#    - visualiseInfo: enable/disable the result from the testing process
+#
+#Outputs:
+#    - pp: the axis of the latent space backwards mapping
 #""""""""""""""""
-    def openPorts(self):
-        print "open ports"
-        self.imageDataInputPort.open("/sam/face/imageData:i");
-        self.outputFacePrection.open("/sam/face/facePrediction:o")
-        self.speakStatusPort.open("/sam/face/speakStatus:i")
-        self.speakStatusOutBottle.addString("stat")
+    def testing(self, testFace, choice, visualiseInfo=None):
+        # Returns the predictive mean, the predictive variance and the axis (pp) of the latent space backwards mapping.            
+        #mm,vv,pp=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
 
-        #print "Waiting for connection with imageDataInputPort..."
-#        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
-#            print "Waiting for connection with imageDataInputPort..."
-#            pass
+        ret=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
+         
+        mm = ret[0]
+        vv = ret[1]
+        post = ret[3]        
+
+        # find nearest neighbour of mm and SAMObject.model.X
+        dists = numpy.zeros((self.SAMObject.model.X.shape[0],1))
+
+        facePredictionBottle = yarp.Bottle()
+    
+        for j in range(dists.shape[0]):
+            dists[j,:] = distance.euclidean(self.SAMObject.model.X.mean[j,:], mm[0].values)
+        nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
+        if self.SAMObject.type == 'mrd':
+            print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
+            textStringOut=self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
+
+        elif self.SAMObject.type == 'bgplvm':
+            print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.L[nn,:])]
+            textStringOut=self.participant_index[int(self.L[nn,:])]
+        if(choice.get(0).asInt() == 16 and vv.mean()<0.00012):            
+            facePredictionBottle.addString("You are " + textStringOut)
+        elif(choice.get(0).asInt() == 16 and vv.mean()>0.00012):
+            facePredictionBottle.addString("I think you are " + textStringOut + " but I am not sure, please confirm?")        
+     
+        # Plot the training NN of the test image (the NN is found in the INTERNAl, compressed (latent) memory space!!!)
+        if visualiseInfo is not None:
+            fig_nn = visualiseInfo['fig_nn']
+            fig_nn = pb.figure(11)
+            pb.title('Training NN')
+            fig_nn.clf()
+            pl_nn = fig_nn.add_subplot(111)
+            pl_nn.imshow(numpy.reshape(self.SAMObject.recall(nn),(self.imgHeightNew, self.imgWidthNew)), cmap=plt.cm.Greys_r)
+            pb.title('Training NN')
+            pb.show()
+            pb.draw()
+            pb.waitforbuttonpress(0.1)
+            
+        self.speakStatusPort.write(self.speakStatusOutBottle, self.speakStatusInBottle)
+
+        if( self.speakStatusInBottle.get(0).asString() == "quiet"):
+            self.outputFacePrection.write(facePredictionBottle)
+
+        facePredictionBottle.clear()
+        #return pp
+
+        return ret[2]
+
 
 #""""""""""""""""
 #Method to prepare the arrays to receive the RBG images from yarp
@@ -320,109 +343,7 @@ class SAMDriver_interaction:
             self.Y = {'Y':self.Yn}
             self.data_labels = self.L.copy()
 
-#""""""""""""""""
-#Method to train, store and load the learned model to be use for the face recognition task
-#Inputs:
-#    - modelNumInducing:
-#    - modelNumIterations:
-#    - modelInitIterations:
-#    - fname: file name to store/load the learned model
-#    - save_model: enable/disable to save the model
-#
-#Outputs: None
-#""""""""""""""""
-    def training(self, modelNumInducing, modelNumIterations, modelInitIterations, fname, save_model):
-        self.model_num_inducing = modelNumInducing
-        self.model_num_iterations = modelNumIterations
-        self.model_init_iterations = modelInitIterations
-    
-        if not os.path.isfile(fname + '.pickle'):
-            print "Training..."    
-            if self.X is not None:
-                Q = self.X.shape[1]
-            else:
-                Q=2
 
-            if Q > 100:
-                kernel = GPy.kern.RBF(Q, ARD=False) + GPy.kern.Bias(Q) + GPy.kern.White(Q)
-            else:
-                kernel = None
-            # Simulate the function of storing a collection of events
-            self.SAMObject.store(observed=self.Y, inputs=self.X, Q=Q, kernel=kernel, num_inducing=self.model_num_inducing)
-            # If data are associated with labels (e.g. face identities), associate them with the event collection
-            if self.data_labels is not None:
-                self.SAMObject.add_labels(self.data_labels)
-            # Simulate the function of learning from stored memories, e.g. while sleeping (consolidation).
-            self.SAMObject.learn(optimizer='scg',max_iters=self.model_num_iterations, init_iters=self.model_init_iterations, verbose=True)
-	
-            print "Saving SAMObject"
-            if save_model:
-                SAMCore.save_pruned_model(self.SAMObject, fname)
-        else:
-	        print "Loading SAMOBject"
-	        self.SAMObject = SAMCore.load_pruned_model(fname)
-
-#""""""""""""""""
-#Method to test the learned model with faces read from the iCub eyes in real-time
-#Inputs:
-#    - testFace: image from iCub eyes to be recognized
-#    - visualiseInfo: enable/disable the result from the testing process
-#
-#Outputs:
-#    - pp: the axis of the latent space backwards mapping
-#""""""""""""""""
-    def testing(self, testFace, choice, visualiseInfo=None):
-        # Returns the predictive mean, the predictive variance and the axis (pp) of the latent space backwards mapping.            
-        #mm,vv,pp=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
-
-        ret=self.SAMObject.pattern_completion(testFace, visualiseInfo=visualiseInfo)
-         
-        mm = ret[0]
-        vv = ret[1]
-        post = ret[3]        
-
-        # find nearest neighbour of mm and SAMObject.model.X
-        dists = numpy.zeros((self.SAMObject.model.X.shape[0],1))
-
-        facePredictionBottle = yarp.Bottle()
-    
-        for j in range(dists.shape[0]):
-            dists[j,:] = distance.euclidean(self.SAMObject.model.X.mean[j,:], mm[0].values)
-        nn, min_value = min(enumerate(dists), key=operator.itemgetter(1))
-        if self.SAMObject.type == 'mrd':
-            print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
-            textStringOut=self.participant_index[int(self.SAMObject.model.bgplvms[1].Y[nn,:])]
-
-        elif self.SAMObject.type == 'bgplvm':
-            print "With " + str(vv.mean()) +" prob. error the new image is " + self.participant_index[int(self.L[nn,:])]
-            textStringOut=self.participant_index[int(self.L[nn,:])]
-        if(choice.get(0).asInt() == 16 and vv.mean()<0.00012):            
-            facePredictionBottle.addString("You are " + textStringOut)
-        elif(choice.get(0).asInt() == 16 and vv.mean()>0.00012):
-            facePredictionBottle.addString("I think you are " + textStringOut + " but I am not sure, please confirm?")        
-     
-        # Plot the training NN of the test image (the NN is found in the INTERNAl, compressed (latent) memory space!!!)
-        if visualiseInfo is not None:
-            fig_nn = visualiseInfo['fig_nn']
-            fig_nn = pb.figure(11)
-            pb.title('Training NN')
-            fig_nn.clf()
-            pl_nn = fig_nn.add_subplot(111)
-            pl_nn.imshow(numpy.reshape(self.SAMObject.recall(nn),(self.imgHeightNew, self.imgWidthNew)), cmap=plt.cm.Greys_r)
-            pb.title('Training NN')
-            pb.show()
-            pb.draw()
-            pb.waitforbuttonpress(0.1)
-            
-        self.speakStatusPort.write(self.speakStatusOutBottle, self.speakStatusInBottle)
-
-        if( self.speakStatusInBottle.get(0).asString() == "quiet"):
-            self.outputFacePrection.write(facePredictionBottle)
-
-        facePredictionBottle.clear()
-        #return pp
-
-        return ret[2]
 
 #""""""""""""""""
 #Method to read images from the iCub eyes used for the face recognition task

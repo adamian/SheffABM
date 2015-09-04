@@ -12,6 +12,7 @@
 #
 #""""""""""""""""""""""""""""""""""""""""""""""
 
+from ABM.SAM import SAMCore
 import matplotlib.pyplot as plt
 #import matplotlib as mp
 import pylab as pb
@@ -27,10 +28,7 @@ from scipy.spatial import distance
 #from scipy.signal import savgol_filter
 from scipy.signal import medfilt
 import operator
-try:
-    from SAM import SAM
-except ImportError:
-    import SAM
+
 
 
 
@@ -38,7 +36,7 @@ except ImportError:
 #Class developed for the implementation of the action recognition task in real-time mode.
 #""""""""""""""""
 
-class SAMpy_actions:
+class SAMDriver_actions:
 
 #""""""""""""""""
 #Initilization of the SAM class
@@ -55,7 +53,7 @@ class SAMpy_actions:
         self.plotPreProcessedData = False # plot preprocessed data
         
         self.inputActionPort=inputActionPort
-        self.SAMObject=SAM.LFM()
+        self.SAMObject=SAMCore.LFM()
         self.actionLabels = [] # list of actions is generated when loading data
         self.handLabels = [] # list of hands used is generated when loading data and place matches self.actionLabels
 
@@ -119,45 +117,7 @@ class SAMpy_actions:
             #self.createImageArrays()
 
 
-#""""""""""""""""
-#Methods to create the ports for reading actions from iCub
-#Inputs: None
-#Outputs: None
-#""""""""""""""""
-    def createPorts(self):
-        self.actionDataInputPort = yarp.BufferedPortBottle()#yarp.BufferedPortImageRgb()
-        self.outputActionPrediction = yarp.Port()
-        self.speakStatusPort = yarp.RpcClient()
-        self.speakStatusOutBottle = yarp.Bottle()
-        self.speakStatusInBottle = yarp.Bottle()
 
-#""""""""""""""""
-#Method to open the ports.
-#Inputs: None
-#Outputs: None
-#""""""""""""""""
-    def openPorts(self):
-        print "open ports"
-        self.actionDataInputPort.open("/sam/actions/actionData:i");
-        self.outputActionPrediction.open("/sam/actions/actionPrediction:o")
-        self.speakStatusPort.open("/sam/actions/speakStatus:i")
-        self.speakStatusOutBottle.addString("stat")
-
-#""""""""""""""""
-#Method to close the ports.
-#Inputs: None
-#Outputs: None
-#""""""""""""""""
-    def closePorts(self):
-        print "open ports"
-        self.actionDataInputPort.close();
-        self.outputActionPrediction.close()
-        self.speakStatusPort.close()
-        #self.speakStatusOutBottle.addString("stat")
-        #print "Waiting for connection with actionDataInputPort..."
-        #while( not(yarp.Network.isConnected(self.inputActionPort,"/sam/actionData:i")) ):
-        #    print "Waiting for connection with actionDataInputPort..."
-        #    pass
         """
         #
         #Method to prepare the arrays to receive the RBG images from yarp
@@ -907,47 +867,6 @@ class SAMpy_actions:
             self.Y = {'Y':self.Yn}
             self.data_labels = self.L.copy()
 
-#""""""""""""""""
-#Method to train, store and load the learned model to be use for the action recognition task
-#Inputs:
-#    - modelNumInducing:
-#    - modelNumIterations:
-#    - modelInitIterations:
-#    - fname: file name to store/load the learned model
-#    - save_model: enable/disable to save the model
-#
-#Outputs: None
-#""""""""""""""""
-    def training(self, modelNumInducing, modelNumIterations, modelInitIterations, fname, save_model):
-        self.model_num_inducing = modelNumInducing
-        self.model_num_iterations = modelNumIterations
-        self.model_init_iterations = modelInitIterations
-    
-        if not os.path.isfile(fname + '.pickle'):
-            print "Training..."    
-            if self.X is not None:
-                Q = self.X.shape[1]
-            else:
-                Q=2
-
-            if Q > 100:
-                kernel = GPy.kern.RBF(Q, ARD=False) + GPy.kern.Bias(Q) + GPy.kern.White(Q)
-            else:
-                kernel = None
-            # Simulate the function of storing a collection of events
-            self.SAMObject.store(observed=self.Y, inputs=self.X, Q=Q, kernel=kernel, num_inducing=self.model_num_inducing)
-            # If data are associated with labels (e.g. action identities), associate them with the event collection
-            if self.data_labels is not None:
-                self.SAMObject.add_labels(self.data_labels)
-            # Simulate the function of learning from stored memories, e.g. while sleeping (consolidation).
-            self.SAMObject.learn(optimizer='scg',max_iters=self.model_num_iterations, init_iters=self.model_init_iterations, verbose=True)
-	
-            print "Saving SAMObject"
-            if save_model:
-                SAM.save_pruned_model(self.SAMObject, fname)
-        else:
-	        print "Loading SAMOBject"
-	        self.SAMObject = SAM.load_pruned_model(fname)
 
 #""""""""""""""""
 #Method to test the learned model with actions read from the iCub eyes in real-time
