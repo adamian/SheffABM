@@ -67,8 +67,8 @@ save_model=True
 visualise_output=True
 
 # Reading face data, preparation of data and training of the model
-mySAMpy.readFaceData(root_data_dir, participant_index, pose_index)
-mySAMpy.prepareFaceData(model_type, Ntr, pose_selection)
+mySAMpy.readData(root_data_dir, participant_index, pose_index)
+mySAMpy.prepareData(model_type, Ntr, pose_selection)
 mySAMpy.training(model_num_inducing, model_num_iterations, model_init_iterations, fname, save_model)
 
 while( not(yarp.Network.isConnected("/speechInteraction/behaviour:o","/sam/face/interaction:i")) ):
