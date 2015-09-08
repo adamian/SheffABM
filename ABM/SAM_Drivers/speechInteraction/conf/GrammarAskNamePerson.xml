@@ -1,0 +1,15 @@
+﻿<GRAMMAR  LANGID="409">
+
+
+  <DEFINE>
+    <ID  NAME="agent"  VAL="1"/>
+  </DEFINE>
+
+
+  <RULE  NAME="PERSON"  TOPLEVEL="ACTIVE"  EXPORT="1">
+    <O>
+		<P>who am I</P>
+	<O>
+  </RULE>
+
+</GRAMMAR>

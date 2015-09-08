@@ -4,6 +4,7 @@
 
 speechInteraction::speechInteraction()
 {
+    speechType = 0;
 }
 
 speechInteraction::~speechInteraction()
@@ -47,8 +48,30 @@ bool speechInteraction::matchVocab(string vocab, int *index)
 
 bool speechInteraction::updateModule()
 {
-    Bottle *inputBottle = inputPort.read();
-    string inputString = inputBottle->toString();
+    bool fGetaReply = false;
+    Bottle bSpeechRecognized, //recceived FROM speech recog with transfer information (1/0 (bAnswer) ACK/NACK)
+        bMessenger, //to be send TO speech recog
+        bAnswer, //response from speech recog without transfer information, including raw sentence
+        bSemantic, // semantic information of the content of the recognition
+        bSendReasoning, // send the information of recall to the abmReasoning
+        bSpeak, // bottle for tts
+        bTemp;
+
+    Bottle bOutput;
+    ostringstream osError;     // Error message
+    Bottle bRecognized;
+    string inputString;
+
+    if( speechType == 0 )
+    {
+        Bottle *inputBottle = inputPort.read();
+        inputString = inputBottle->toString();
+    }
+    else if( speechType == 1 )
+    {
+        bRecognized = iCub->getRecogClient()->recogFromGrammarLoop(grammarToString(GrammarAskNamePerson));
+        inputString = bAnswer.get(1).asList()->get(0).toString();
+    }
 
     cout << "RECEIVED TEXT: " << inputString << endl;
 
@@ -63,12 +86,6 @@ bool speechInteraction::updateModule()
             triggerBehaviour(index);
         else if( index == 19 )  // ID in C++ (-1 from config file = 20 )
             triggerBehaviour(index);
-/*        else if( index == 12 )
-        {
-            int status = system("iCubDemoY3 --positions /home/icub/script_movements/waving_normal/waving_normal_waving_full_body.txt");
-            cout << "STATUS WAVING: " << status << endl;
-        }
-*/        
         else
             sendSpeech(index);
 
@@ -85,7 +102,12 @@ bool speechInteraction::configure(ResourceFinder &rf)
 
     Bottle &nGeneral = config.findGroup("number_of_vocabs");
     nVocabs = nGeneral.find("nvocabs").asInt();
+
+    Bottle &speechGeneral = config.findGroup("speech_engine");
+    speechType = speechGeneral.find("engine").asInt();
     
+    cout << "Engine type: " << speechType << endl;
+
     Bottle &inputGeneral = config.findGroup("input_vocabs");
     
     string findVocab = "vocab_";
@@ -133,6 +155,34 @@ bool speechInteraction::configure(ResourceFinder &rf)
 		return false;
 	}
 
+
+    if( speechType == 1 )
+    {
+        string moduleName = rf.check("name", Value("speechInteraction")).asString().c_str();
+        setName(moduleName.c_str());
+
+        GrammarAskNamePerson = rf.findFileByName(rf.check("GrammarAskNamePerson", Value("GrammarAskNamePerson.xml")).toString());
+
+        yInfo() << moduleName << " : finding configuration files...";
+
+        //Create an iCub Client and check that all dependencies are here before starting
+        bool isRFVerbose = false;
+        iCub = new ICubClient("speechController");
+        iCub->opc->isVerbose = false;
+        if (!iCub->connect())
+        {
+            yInfo() << " iCubClient : Some dependencies are not running...";
+            Time::delay(1.0);
+        }
+
+        rpc.open(("/" + moduleName +"/rpc").c_str());
+        attach(rpc);
+
+        if (!iCub->getRecogClient())
+        {
+            yInfo() << " WARNING SPEECH RECOGNIZER NOT CONNECTED";
+        }
+    }
     return true;
 }
 
@@ -146,4 +196,34 @@ double speechInteraction::getPeriod()
     return 0.1;
 }
 
+string speechInteraction::grammarToString(string sPath)
+{
+    string sOutput = "";
+    ifstream isGrammar(sPath.c_str());
+
+    if (!isGrammar)
+    {
+        string sErrorMessage = " Error in qRM::grammarToString. Couldn't open file : " + sPath;
+        sErrorMessage += " .";
+        yInfo() << sErrorMessage;
+        return sErrorMessage;
+    }
+
+    string sLine;
+    while (getline(isGrammar, sLine))
+    {
+        sOutput += sLine;
+        sOutput += "\n";
+    }
+
+    return sOutput;
+}
+
+bool speechInteraction::close()
+{
+    iCub->close();
+    delete iCub;
+
+    return true;
+}
 

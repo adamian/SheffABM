@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <boost/algorithm/string.hpp>
+#include "wrdac/clients/icubClient.h"
 
 using namespace yarp::os;
 using namespace yarp::sig;
@@ -18,17 +19,21 @@ using namespace yarp::sig::draw;
 using namespace yarp::sig::file;
 using namespace yarp::dev;
 using namespace std;
+using namespace wysiwyd::wrdac;
 
 
 class speechInteraction: public RFModule
 {
     private:
+        ICubClient *iCub;
         vector<string> inputVocabs;
         vector<string> outputVocabs;
         
 	    BufferedPort<Bottle> outputPort;
 	    BufferedPort<Bottle> inputPort;
 	    BufferedPort<Bottle> triggerBehaviourPort;
+        Port rpc;
+        string GrammarAskNamePerson;
 
 	    string inputPortName;	   	    
 	    string outputPortName;	   	    
@@ -37,6 +42,7 @@ class speechInteraction: public RFModule
         bool inputOpen;
         bool behaviourPortOpen;
         int nVocabs;
+        int speechType;
 
     public:
         speechInteraction();
@@ -48,5 +54,7 @@ class speechInteraction: public RFModule
         bool matchVocab(string, int *);
         void sendSpeech(int);
         void triggerBehaviour(int);
+        bool close();
+        string grammarToString(string);
 };
 
