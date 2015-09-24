@@ -1,3 +1,40 @@
+// -*- mode:C++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
+
+/*
+* Copyright (C) 2015 WYSIWYD Consortium, European Commission FP7 Project ICT-612139
+* Authors: Luke Boorman, Uriel Martinez, Andreas Damianous
+* email:   uriel.martinez@sheffield.ac.uk
+* Permission is granted to copy, distribute, and/or modify this program
+* under the terms of the GNU General Public License, version 2 or any
+* later version published by the Free Software Foundation.
+*
+* A copy of the license can be found at
+* $WYSIWYD_ROOT/license/gpl.txt
+*
+* This program is distributed in the hope that it will be useful, but
+* WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+* Public License for more details
+*/
+
+#ifndef __VISION_DRIVER_H__
+#define __VISION_DRIVER_H__
+
+/*
+* @ingroup icub_module
+*
+* \defgroup modules visionDriver
+*
+* Detects and tracks a face using OpenCV function and the gaze controller.
+* The input image is from the left eye.
+*
+* \author Luke Boorman, Uriel Martinez
+*
+* Copyright (C) 2015 WYSIWYD Consortium\n
+* CopyPolicy: Released under the terms of the GNU GPL v2.0.\n
+*
+*/
+
 #include <opencv/cv.h>
 #include <opencv/cvaux.h>
 #include <opencv/highgui.h>
@@ -15,7 +52,6 @@
 #include <algorithm>
 
 #include "visionUtils.h"
-//#include "skinDetector.h"
 
 using namespace yarp::os;
 using namespace yarp::sig;
@@ -29,20 +65,18 @@ using namespace cv::gpu;
 
 #define faceLimit 20
 
-
 class visionDriver: public RFModule
 {
     private:
 	    string imageInPort;
 	    string vectorOutPort;
 	    string imageOutPort;
-	    //string skinMaskOutPort;
 	    string hardware;
 	    string format;
         string gazeOutPort;
-        //string syncPortConf;
         string faceCascadeFile;
         string bodyCascadeFile;
+        string moduleName;
         
 	    int format_int;
 	    int hardware_int;
@@ -53,8 +87,6 @@ class visionDriver: public RFModule
         bool addFrameRate;
         clock_t startTime;
         
-        // 12 value Vector of bodyPartLocations
-        // Face (x,y,z), Body (x,y,z), Left Arm (x,y,z), Right arm (x,y,z)...
         std::vector<double> bodyPartLocations;
         bool bodyPosFound; // flag if any body parts are found -> wont transmit if nothing
         
@@ -72,7 +104,6 @@ class visionDriver: public RFModule
         bool bodySegFlag;
 
 	    BufferedPort< ImageOf<PixelRgb> > faceTrack;	
-	    //BufferedPort< yarp::sig::Vector > targetPort;	//init output port
 	    BufferedPort< ImageOf<PixelRgb> > imageOut;
 
 	    Port gazePort;	//x and y position for gaze controller
@@ -90,8 +121,6 @@ class visionDriver: public RFModule
 	    bool gazeOut;
 
     	int inCount;
-    	//int outCount;
-
 
     	Mat vectFaceArr;
     	Mat vectBodyArr;
@@ -112,10 +141,7 @@ class visionDriver: public RFModule
         int noBodies;
         int faceSize;
         int bodySize;
-		//int centrex;
-        //int centrey;
-        //int centrex_old;
-        //int centrey_old;
+
         int d;
 		bool inStatus;
         int boxScaleFactor; //Additional pixels for box sizing
@@ -168,4 +194,8 @@ class visionDriver: public RFModule
         void CVtoYarp(Mat, ImageOf<PixelRgb> &);
         Mat addText(string, Mat, Point, Scalar);
 };
+
+#endif // __VISION_DRIVER_H__
+
+//----- end-of-file --- ( next line intentionally left blank ) ------------------
 

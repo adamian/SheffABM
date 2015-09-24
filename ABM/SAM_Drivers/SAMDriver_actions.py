@@ -31,12 +31,14 @@ import operator
 
 
 
+from ABM.SAM import SAMDriver
+
 
 #""""""""""""""""
 #Class developed for the implementation of the action recognition task in real-time mode.
 #""""""""""""""""
 
-class SAMDriver_actions:
+class SAMDriver_actions(SAMDriver):
 
 #""""""""""""""""
 #Initilization of the SAM class
@@ -113,7 +115,16 @@ class SAMDriver_actions:
         if( isYarpRunning == True ):
             yarp.Network.init()
             self.createPorts()
-            self.openPorts()
+            self.actionDataInputPort = yarp.BufferedPortBottle()#yarp.BufferedPortImageRgb()
+            self.outputActionPrediction = yarp.Port()
+            self.speakStatusPort = yarp.RpcClient()
+            self.speakStatusOutBottle = yarp.Bottle()
+            self.speakStatusInBottle = yarp.Bottle()
+            self.actionDataInputPort.open("/sam/actions/actionData:i");
+            self.outputActionPrediction.open("/sam/actions/actionPrediction:o")
+            self.speakStatusPort.open("/sam/actions/speakStatus:i")
+            self.speakStatusOutBottle.addString("stat")
+            #self.openPorts()
             #self.createImageArrays()
 
 
@@ -265,6 +276,10 @@ class SAMDriver_actions:
         
         sampleRate=1/numpy.mean(numpy.diff(tim))
         minActionSteps=int(sampleRate*self.minActionTime)
+
+        print "SampleRate: ", sampleRate
+        print "minActionTime: ", self.minActionTime
+
         newActionSteps=int(sampleRate*self.actionStopTime)
         maxLocalActionSteps=int(sampleRate*self.maxMovementTime)
         
@@ -537,6 +552,7 @@ class SAMDriver_actions:
                                 print "Log Data empty skipping"
                             else:
                                 dataFile.close();
+                                print "Mean: ",   numpy.mean(numpy.diff(logData[:,1]))
                                 print "Sample rate: " + str(1/numpy.mean(numpy.diff(logData[:,1])))
                                 if (self.preProcessDataFlag):
                                     dataProc, dataDiff, tim, diffTim = self.preProcessData(logData,self.indToProcess,self.indTim)

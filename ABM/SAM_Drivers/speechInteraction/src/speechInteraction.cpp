@@ -1,3 +1,22 @@
+// -*- mode:C++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
+
+/*
+* Copyright (C) 2015 WYSIWYD Consortium, European Commission FP7 Project ICT-612139
+* Authors: Uriel Martinez, Luke Boorman, Andreas Damianou
+* email:   uriel.martinez@sheffield.ac.uk
+* Permission is granted to copy, distribute, and/or modify this program
+* under the terms of the GNU General Public License, version 2 or any
+* later version published by the Free Software Foundation.
+*
+* A copy of the license can be found at
+* $WYSIWYD_ROOT/license/gpl.txt
+*
+* This program is distributed in the hope that it will be useful, but
+* WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+* Public License for more details
+*/
+
 
 #include "speechInteraction.h"
 
@@ -48,7 +67,7 @@ bool speechInteraction::matchVocab(string vocab, int *index)
 
 bool speechInteraction::updateModule()
 {
-    bool fGetaReply = false;
+    //bool fGetaReply = false;
     Bottle bSpeechRecognized, //recceived FROM speech recog with transfer information (1/0 (bAnswer) ACK/NACK)
         bMessenger, //to be send TO speech recog
         bAnswer, //response from speech recog without transfer information, including raw sentence
@@ -69,8 +88,13 @@ bool speechInteraction::updateModule()
     }
     else if( speechType == 1 )
     {
-        bRecognized = iCub->getRecogClient()->recogFromGrammarLoop(grammarToString(GrammarAskNamePerson));
-        inputString = bAnswer.get(1).asList()->get(0).toString();
+        bRecognized = iCub->getRecogClient()->recogFromGrammarLoop(grammarToString(GrammarAskNamePerson), 20);
+
+        if( bRecognized.get(0).asInt() != 0 )
+        {
+            bAnswer = *bRecognized.get(1).asList();
+            inputString = bAnswer.get(0).asString();
+        }
     }
 
     cout << "RECEIVED TEXT: " << inputString << endl;
@@ -96,9 +120,12 @@ bool speechInteraction::updateModule()
 
 bool speechInteraction::configure(ResourceFinder &rf)
 {
+    moduleName = rf.check("name", Value("speechInteraction"), "module name (string)").asString();
+    
+    setName(moduleName.c_str());
+
     Property config;
     config.fromConfigFile(rf.findFile("from").c_str());
-
 
     Bottle &nGeneral = config.findGroup("number_of_vocabs");
     nVocabs = nGeneral.find("nvocabs").asInt();
@@ -156,18 +183,21 @@ bool speechInteraction::configure(ResourceFinder &rf)
 	}
 
 
+
     if( speechType == 1 )
     {
-        string moduleName = rf.check("name", Value("speechInteraction")).asString().c_str();
-        setName(moduleName.c_str());
+        cout << "DEBUG!!!!" << endl;
+        //moduleName = rf.check("name", Value("speechInteraction"), "module name (string)").asString();  
+        //setName(moduleName.c_str());    
 
-        GrammarAskNamePerson = rf.findFileByName(rf.check("GrammarAskNamePerson", Value("GrammarAskNamePerson.xml")).toString());
+        GrammarAskNamePerson = rf.findFileByName("GrammarAskNamePerson.xml");
 
         yInfo() << moduleName << " : finding configuration files...";
+        cout << "Grammar file: " << GrammarAskNamePerson;
 
         //Create an iCub Client and check that all dependencies are here before starting
-        bool isRFVerbose = false;
-        iCub = new ICubClient("speechController");
+        //bool isRFVerbose = false;
+        iCub = new ICubClient(moduleName,"speechInteraction","client.ini",true);
         iCub->opc->isVerbose = false;
         if (!iCub->connect())
         {
@@ -183,6 +213,7 @@ bool speechInteraction::configure(ResourceFinder &rf)
             yInfo() << " WARNING SPEECH RECOGNIZER NOT CONNECTED";
         }
     }
+
     return true;
 }
 

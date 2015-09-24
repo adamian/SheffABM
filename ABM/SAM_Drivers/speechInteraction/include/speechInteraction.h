@@ -1,3 +1,40 @@
+// -*- mode:C++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
+
+/*
+* Copyright (C) 2015 WYSIWYD Consortium, European Commission FP7 Project ICT-612139
+* Authors: Uriel Martinez, Luke Boorman, Andreas Damianou
+* email:   uriel.martinez@sheffield.ac.uk
+* Permission is granted to copy, distribute, and/or modify this program
+* under the terms of the GNU General Public License, version 2 or any
+* later version published by the Free Software Foundation.
+*
+* A copy of the license can be found at
+* $WYSIWYD_ROOT/license/gpl.txt
+*
+* This program is distributed in the hope that it will be useful, but
+* WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+* Public License for more details
+*/
+
+#ifndef __SPEECHINTERACTION_H__
+#define __SPEECHINTERACTION_H__
+
+/*
+* @ingroup icub_module
+*
+* \defgroup modules speechInteraction
+*
+* Receives recognised words and triggers the corresponding behaviour
+*
+* \author Uriel Martinez, Luke Boorman
+*
+* Copyright (C) 2015 WYSIWYD Consortium\n
+* CopyPolicy: Released under the terms of the GNU GPL v2.0.\n
+*
+*/
+
+
 #include <opencv/cv.h>
 #include <opencv/cvaux.h>
 #include <opencv/highgui.h>
@@ -34,6 +71,7 @@ class speechInteraction: public RFModule
 	    BufferedPort<Bottle> triggerBehaviourPort;
         Port rpc;
         string GrammarAskNamePerson;
+        string moduleName;
 
 	    string inputPortName;	   	    
 	    string outputPortName;	   	    
@@ -57,4 +95,8 @@ class speechInteraction: public RFModule
         bool close();
         string grammarToString(string);
 };
+
+#endif // __SPEECHINTERACTION_H__
+
+//----- end-of-file --- ( next line intentionally left blank ) ------------------
 

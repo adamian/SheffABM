@@ -1,10 +1,27 @@
+// -*- mode:C++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
+
+/*
+* Copyright (C) 2015 WYSIWYD Consortium, European Commission FP7 Project ICT-612139
+* Authors: Luke Boorman, Uriel Martinez, Andreas Damianou
+* email:   uriel.martinez@sheffield.ac.uk
+* Permission is granted to copy, distribute, and/or modify this program
+* under the terms of the GNU General Public License, version 2 or any
+* later version published by the Free Software Foundation.
+*
+* A copy of the license can be found at
+* $WYSIWYD_ROOT/license/gpl.txt
+*
+* This program is distributed in the hope that it will be useful, but
+* WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+* Public License for more details
+*/
 
 #include "visionUtils.h"
 
 visionUtils::visionUtils()
 {
-    // Not much difference
-    useGPU=true; //false;
+    useGPU = true;
 }
 
 visionUtils::~visionUtils()
@@ -40,29 +57,21 @@ Rect visionUtils::checkRoiInImage(Mat src, Rect roi)
     
     if (roi.x<0)
     {
-        //cout << "Trimming x from: " << roi.x << " to: 0" << endl;
-        //roi.x=0;
         roi=Rect(0,roi.y,roi.width,roi.height);
     }
     if (roi.y<0)
     {
-        //cout << "Trimming y from: " << roi.y << " to: 0" << endl;
-        //roi.y=0;
         roi=Rect(roi.x,0,roi.width,roi.height);        
     }
     if ((roi.width+roi.x)>width) 
     {
-        int temp=roi.width;
-        //roi.width=width-roi.x;
+        //int temp=roi.width;
         roi=Rect(roi.x,roi.y,width-roi.x,roi.height);         
-        //cout << "Trimming width from: " << temp << " to: " << roi.width << endl; 
     }
     if ((roi.height+roi.y)>height)
     {
-        int temp=roi.height;
-        //roi.height=height-roi.y;
+        //int temp=roi.height;
         roi=Rect(roi.x,roi.y,roi.width,height-roi.y); 
-        //cout << "Trimming height from: " << temp << " to: " << roi.height << endl; 
     }
     return roi;
 }
@@ -72,7 +81,6 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
 {
 
     // Check mask and original image are the same size
-    //cout << "ERROR IS IN HERE" << endl;
     Size srcS = srcImage.size();
     int heightS = srcS.height;
     int widthS = srcS.width;
@@ -96,7 +104,6 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
     vector<Vec4i> hierarchy;
 
     /// Detect edges using Threshold
-    //threshold( src_gray, src_gray, thresh, 255, THRESH_BINARY );
     /// Find contours
     findContours( src_gray, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
 
@@ -104,7 +111,7 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
     /// Find the convex hull object for each contour
     vector<vector<Point> >hull( contours.size() );
 
-    for( int i = 0; i < contours.size(); i++ )
+    for( int i = 0; i < (int)contours.size(); i++ )
     {  
         convexHull( Mat(contours[i]), hull[i], false );
     }
@@ -115,9 +122,9 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
     //Check minimum contour size and find largest....
     int largest_area=-1;
     int largest_contour_index=0;
-    for( int i = 0; i< contours.size(); i++ )
+    for( int i = 0; i< (int)contours.size(); i++ )
     {
-        if( contours[i].size() > minContourSize )
+        if( (int)contours[i].size() > minContourSize )
         { 
             double a=contourArea( contours[i],false);  //  Find the area of contour
             if(a>largest_area)
@@ -132,7 +139,7 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
     {
         RNG rng(12345); // for colour generation
         
-        for( int i = 0; i< contours.size(); i++ )
+        for( int i = 0; i< (int)contours.size(); i++ )
         {
             Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
             drawContours( drawingHull, contours, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
@@ -151,11 +158,9 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
     }
 
     // Check area of hull and abort if neded  
- //   double area0 = contourArea(hull[largest_contour_index]);
     vector<Point> approx;
     approxPolyDP(hull[largest_contour_index], approx, 5, true);
     double area1 = contourArea(approx);
-//    cout << "area0 =" << area0 << endl << "area1 =" << area1 << endl << "approx poly vertices: " << approx.size() << endl;
     if  (area1<4000)
     {
         cout << "Hull area too small > returning...." << endl;
@@ -168,7 +173,6 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
     boundRect=boundingRect(Mat(hull[largest_contour_index]));
     // Check bounding box fits inside image.... resize if needed
     boundRect=checkRoiInImage(srcImage, boundRect);
-    //cout << "Bd h: " << boundRect.height << " Bd w: " << boundRect.width << " Bd x: " << boundRect.x << " Bd y: " << boundRect.y << endl;
 
     // Check bounding box has greater dimensions than 5x5pix
     if (boundRect.height<=5 || boundRect.width<=5)
@@ -205,14 +209,12 @@ Mat visionUtils::segmentFace(Mat srcImage, Mat maskImage, bool displayFaces, Mat
 
         return(srcSegSkin);
     }
-    //cout << "ERROR IS Not IN HERE" << endl;
 }
 
 
 Mat visionUtils::skeletonDetect(Mat threshImage, int imgBlurPixels, bool displayFaces)
 {
     // Finds skeleton of white objects in black image, using erode / dilate morph operations
-
     threshold(threshImage, threshImage, 127, 255, THRESH_BINARY);
     if (displayFaces) imshow("Skel in",threshImage);
     Mat skel(threshImage.size(), CV_8UC1, Scalar(0));
@@ -225,11 +227,10 @@ Mat visionUtils::skeletonDetect(Mat threshImage, int imgBlurPixels, bool display
     do
     {
 	    erode(threshImage, eroded, element);
-	    dilate(eroded, temp, element); // temp = open(threshImage)
+	    dilate(eroded, temp, element);
 	    subtract(threshImage, temp, temp);
 	    bitwise_or(skel, temp, skel);
 	    eroded.copyTo(threshImage);
-	    //cout << "Zero count: " << countNonZero(threshImage) << endl;
 	    done = (countNonZero(threshImage) == 0);
     } while (!done);
     if (displayFaces) imshow("Skel raw",skel);
@@ -238,7 +239,6 @@ Mat visionUtils::skeletonDetect(Mat threshImage, int imgBlurPixels, bool display
     return skel;
 }
 
-//bool visionUtils::compareContourAreas(std::vector<cv::Point> contour1, std::vector<cv::Point> contour2 )
 bool compareContourAreas(std::vector<cv::Point> contour1, std::vector<cv::Point> contour2 )
 {
     double i = fabs( contourArea(cv::Mat(contour1)) );
@@ -255,10 +255,6 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
     RNG rng(12345);
 
     
-    // apply your filter
-    //Canny(img0, img1, 100, 200, 3); //100, 200, 3);
-    
-    // LB: Zero pad image to remove edge effects when getting regions....	
     int padPixels=15;
     // Rect border added at start...
     Rect tempRect;
@@ -278,8 +274,6 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
     // Mask for segmented region
     Mat mask = Mat::zeros(img1.rows, img1.cols, CV_8UC3);
 
-    //Mat returnMask = Mat::zeros(img1.rows, img1.cols, CV_8UC3);
-    
     vector<double> areas(contours.size());
 
     // Case for using minimum pixel size
@@ -290,10 +284,6 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
     std::sort(contours.begin(), contours.end(), compareContourAreas);
 
     // grab contours
-    //std::vector<cv::Point> firstContour = contours[contours.size()-1];
-    //std::vector<cv::Point> secondContour = contours[contours.size()-2];
-    
-//    cout << "No of contours =" << contours.size() << endl;
     vector<Rect> boundingBox;
     
     // LB testing
@@ -306,7 +296,7 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
     {
         if (maxSegments==0)// return all contours..
             maxIterations = contours.size();
-        else if(contours.size() >= maxSegments)
+        else if((int)contours.size() >= maxSegments)
             maxIterations = maxSegments;
         else
             maxIterations = 1;    // LB: need to check this is correct!
@@ -317,16 +307,6 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
             int i = contours.size()-j;
 	        if (contourArea(Mat(contours[i]))>minPixelSize)
 	        {
-		        // LB TEMP DISABLED FOR SPEED UP
-		        //color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
-		        //drawContours( mask, contours, i, color, 2, 8, hierarchy, 0, Point() );
-
-		        //fitLine(Mat(contours[i]),lines,2,0,0.01,0.01);
-		        
-		        //int lefty = (-lines[2]*lines[1]/lines[0])+lines[3];
-		        //int righty = ((mask.cols-lines[2])*lines[1]/lines[0])+lines[3];
-		        //line(mask,Point(mask.cols-1,righty),Point(0,lefty),color,2);
-
                 // Fit rotated rect to contour
                 tempRotatedBoundingBox.push_back(minAreaRect( Mat(contours[i]) ));
                 
@@ -336,15 +316,7 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
                 tempRotatedBoundingBox[contourCount].center=rectCentre;
                 
 		        // Find line limits....
-		        //x,y,w,h = cv2.boundingRect(cnt)
-		        //cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
-		        //padPixels
 		        boundingBox.push_back(boundingRect(Mat(contours[i])));
-
-		        // LB OPTIONAL LINE FITTING HERE...
-		        //int leftBoxy = ((boundingBox[contourCount].x-lines[2])*lines[1]/lines[0])+lines[3];
-		        //int rightBoxy = (((boundingBox[contourCount].x+boundingBox[contourCount].width)-lines[2])*lines[1]/lines[0])+lines[3];
-		        //line(mask,Point((boundingBox[contourCount].x+boundingBox[contourCount].width)-1,rightBoxy),Point(boundingBox[contourCount].x,leftBoxy),color,2);
 		        
 		        // Remove edge padding effects....
 		        boundingBox[contourCount].x=boundingBox[contourCount].x-padPixels;
@@ -367,17 +339,12 @@ vector<Rect> visionUtils::segmentLineBoxFit(Mat img0, int minPixelSize, int maxS
         normalize(mask.clone(), mask, 0.0, 255.0, CV_MINMAX, CV_8UC1);
         // To Remove border added at start...    
         *returnMask=mask(tempRect);
-        //mask(tempRect).copyTo(*returnMask);
         // show the images
         if (displayFaces)	imshow("Seg line utils: Img in", img0);
         if (displayFaces)	imshow("Seg line utils: Mask", *returnMask);
         if (displayFaces)	imshow("Seg line utils: Output", img1);
     }
     return boundingBox;
-
-    //vector<Vec2f> lines;
-    //HoughLines(dst, lines, 1, CV_PI/180, 100, 0, 0 );
-
 }
 
 bool visionUtils::isHandMoving(Point handPoints, Point previousHandPoints, int limit)
@@ -397,16 +364,6 @@ bool visionUtils::isHandMoving(Point handPoints, Point previousHandPoints, int l
  */
 int visionUtils::drawHist(std::vector<Mat> pixelPlanes, int histBlurPixels)//( int, char** argv )
 {
-    //Mat dst, src;
-    /// Load image
-    /*src = imread( argv[1], 1 );
-    if( !src.data )
-    { return -1; }
-    */
-    /// Separate the image in 3 places ( B, G and R )
-    //vector<Mat> pixelPlanes;
-    //split( src, pixelPlanes );
-
     /// Establish the number of bins
     int histSize = 256;
 
@@ -470,13 +427,7 @@ std::vector<int> visionUtils::updateHSVAdaptiveSkin(std::vector<Mat> pixelPlanes
         drawHist(pixelPlanes, 35);
     }
     
-    // Only need this bit
-    /* Using mean and std dev.... */
     Scalar b_mean, b_stdDev;
-    
-    // Data not very big ~1000 each not advantage to GPU
-    
-    //cout << pixelPlanes[0].total() << endl;
     
     meanStdDev(pixelPlanes[0], b_mean, b_stdDev);
     int b_min=b_mean[0] - b_stdDev[0]*3;
@@ -492,13 +443,6 @@ std::vector<int> visionUtils::updateHSVAdaptiveSkin(std::vector<Mat> pixelPlanes
     int r_min=r_mean[0] - r_stdDev[0]*3;
     int r_max=r_mean[0] + r_stdDev[0]*3;    
 
-    //cout << "H vals min: " << b_min << " max: " << b_max << endl;
-    //cout << "S vals min: " << g_min << " max: " << g_max << endl;
-    //cout << "V vals min: " << r_min << " max: " << r_max << endl;
-
-    //// Make new adaptive skin detector HSV vector.....
-    // Original values 0<H<0.25  -   0.15<S<0.9    -    0.2<V<0.95 
-    // and in 8bit (0 to 255) 5<H<17 - 38<S<250 - 51<V<242..................
     std::vector<int> hsvAdaptiveUpdated;
     hsvAdaptiveUpdated.push_back(b_min);
     hsvAdaptiveUpdated.push_back(g_min);
@@ -511,26 +455,11 @@ std::vector<int> visionUtils::updateHSVAdaptiveSkin(std::vector<Mat> pixelPlanes
 
 }
 
-// ############################################################################
-// ############################ Skin Detection ###################################
-
-
 Mat visionUtils::skinDetect(Mat captureframe, Mat3b *skinDetectHSV, Mat *skinMask, std::vector<int> adaptiveHSV, int minPixelSize, int imgBlurPixels, int imgMorphPixels, int singleRegionChoice, bool displayFaces)
 {
-// Select single largest region from image, if singleRegionChoice is selected (=1)
-//    adaptiveHSV = Optional 6x1 vector of ints  -> send in empty or of size!= 6 to use defaults.... 
-//    adaptiveHSV = use range as in H[0]S[1]V[2] min and H[3]S[4]V[5] max       
-//    singleRegionChoice = 0; On = Find single largest region of skin
-//    minPixelSize = 400; // Minimum pixel size for keeping skin regions!
-//    imgBlurPixels = 7;//7, 15; // Number of pixels to smooth over for final thresholding
-//    imgMorphPixels = 3; //7, 9; // Number pixels to do morphing over Erode dilate etc....
-
 
 if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 {
-    //cout << "Using default HSV values for skin detection" << endl;
-    // 0<H<0.25  -   0.15<S<0.9    -    0.2<V<0.95
-	// Original values in 8bit (0 to 255) 5<H<17 - 38<S<250 - 51<V<242..................
 	adaptiveHSV.clear();
     adaptiveHSV.push_back(5);
     adaptiveHSV.push_back(38);
@@ -541,10 +470,7 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 }
 
 
-//cout << "Using HSV vals: " << adaptiveHSV << endl;
-
-
-	int step = 0;
+	//int step = 0;
 	Mat3b frameTemp;
 	Mat3b frame;
 	// Forcing resize to 640x480 -> all thresholds / pixel filters configured for this size.....
@@ -559,37 +485,15 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 	
 	    gpu::GpuMat imgGPU, imgGPUHSV;
 	    imgGPU.upload(captureframe);
-	    /* THRESHOLD ON HSV*/
-	    // HSV data -> used to find skin
-	    //cvtColor(captureframe, frameTemp, CV_BGR2HSV);
 	    gpu::cvtColor(imgGPU, imgGPUHSV, CV_BGR2HSV);
-	    //cvtColor(captureframe, frame, CV_BGR2HLS);
-	    //GaussianBlur(frameTemp, frameTemp, Size(imgBlurPixels,imgBlurPixels), 1, 1);
 	    gpu::GaussianBlur(imgGPUHSV, imgGPUHSV, Size(imgBlurPixels,imgBlurPixels), 1, 1);
-	    //medianBlur(frame, frame, 15);
-	    // Threshold using skin values....
-        imgGPUHSV.download(frameTemp);
-	
+        imgGPUHSV.download(frameTemp);	
 	}
 	else
 	{
-
-	    // CHANGED HERE TO BGR
-	    //cvtColor(captureframe, captureframe, CV_RGB2BGR);
-
-	    /* THRESHOLD ON HSV*/
-	    // HSV data -> used to find skin
 	    cvtColor(captureframe, frameTemp, CV_BGR2HSV);
-	    //cvtColor(captureframe, frame, CV_BGR2HLS);
 	    GaussianBlur(frameTemp, frameTemp, Size(imgBlurPixels,imgBlurPixels), 1, 1);
-	    //medianBlur(frame, frame, 15);
-	
 	}
-	
-	//if (displayFaces)	imshow("Raw Image (A)",captureframe);
-	
-	
-	// Threshold using skin values....
 	
 	// Potential FASTER VERSION using inRange
     Mat frameThreshold = Mat::zeros(frameTemp.rows,frameTemp.cols, CV_8UC1);
@@ -597,34 +501,13 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 	Mat hsvMax = (Mat_<int>(1,3) << adaptiveHSV[3], adaptiveHSV[4],adaptiveHSV[5] );
 	inRange(frameTemp,hsvMin ,hsvMax, frameThreshold);
 	frameTemp.copyTo(frame,frameThreshold);
-    
-    /*
-	for(int r=0; r<frame.rows; ++r){
-		for(int c=0; c<frame.cols; ++c) 
-			// 0<H<0.25  -   0.15<S<0.9    -    0.2<V<0.95
-			// Original values in 8bit (0 to 255) 5<H<17 - 38<S<250 - 51<V<242..................
-			// LB: updated to be adaptive.... 
-			//if( (frame(r,c)[0]>5) && (frame(r,c)[0] < 17) && (frame(r,c)[1]>38) && (frame(r,c)[1]<250) && (frame(r,c)[2]>51) && (frame(r,c)[2]<242) ) // do nothing
-			if((frame(r,c)[0]>adaptiveHSV[0]) && (frame(r,c)[0]<adaptiveHSV[3])
-			&& (frame(r,c)[1]>adaptiveHSV[1]) && (frame(r,c)[1]<adaptiveHSV[4])
-			&& (frame(r,c)[2]>adaptiveHSV[2]) && (frame(r,c)[2]<adaptiveHSV[5]))
-			{
-			//cout << "Found skin!!!" << endl;
-			}// do nothing
-			else
-			{
-			for(int i=0; i<3; ++i) frame(r,c)[i] = 0;
-			}
-	}
-    */
-	
+    	
 	/* BGR CONVERSION AND THRESHOLD */
 	Mat1b frame_gray;
 	
 	// send HSV to skinDetectHSV for return
 	*skinDetectHSV=frame.clone();
 	
-	//cvtColor(frame, frame, CV_HSV2BGR);
 	cvtColor(frame, frame_gray, CV_BGR2GRAY);
 				
 				
@@ -638,9 +521,7 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 	    gpu::GpuMat imgGPU;
 	    imgGPU.upload(frame_gray);
 	    // 2. Fill in thresholded areas
-	    //morphologyEx(frame_gray, frame_gray, CV_MOP_CLOSE, Mat1b(imgMorphPixels,imgMorphPixels,1), Point(-1, -1), 2);
 	    gpu::morphologyEx(imgGPU, imgGPU, CV_MOP_CLOSE, Mat1b(imgMorphPixels,imgMorphPixels,1), Point(-1, -1), 2);
-	    //GaussianBlur(frame_gray, frame_gray, Size(imgBlurPixels,imgBlurPixels), 1, 1);	
 	    gpu::GaussianBlur(imgGPU, imgGPU, Size(imgBlurPixels,imgBlurPixels), 1, 1);
 	    imgGPU.download(frame_gray);
 	
@@ -649,7 +530,6 @@ if (adaptiveHSV.size()!=6 || adaptiveHSV.empty())
 	{
         // 2. Fill in thresholded areas
         morphologyEx(frame_gray, frame_gray, CV_MOP_CLOSE, Mat1b(imgMorphPixels,imgMorphPixels,1), Point(-1, -1), 2);
-        //GaussianBlur(frame_gray, frame_gray, Size((imgBlurPixels*2)+1,(imgBlurPixels*2)+1), 1, 1);
         GaussianBlur(frame_gray, frame_gray, Size(imgBlurPixels,imgBlurPixels), 1, 1);
         // Select single largest region from image, if singleRegionChoice is selected (1)
 	}
@@ -707,9 +587,6 @@ Mat visionUtils::cannySegmentation(Mat img0, int minPixelSize, bool displayFaces
     {
         gpu::GpuMat imgGPU;
         imgGPU.upload(img1);
-        //cout << "Got here" << endl;
-	    // apply your filter
-	    //Canny(img1, img1, 100, 200, 3); //100, 200, 3);
         gpu::Canny(imgGPU, imgGPU, 100, 200, 3); //100, 200, 3);
         imgGPU.download(img1);
     }
@@ -730,7 +607,7 @@ Mat visionUtils::cannySegmentation(Mat img0, int minPixelSize, bool displayFaces
 
 	if (minPixelSize==-1)
 	{ // Case of taking largest region
-		for(int i = 0; i < contours.size(); i++)
+		for(int i = 0; i < (int)contours.size(); i++)
 			areas[i] = contourArea(Mat(contours[i]));
 		double max;
 		Point maxPosition;
@@ -739,7 +616,7 @@ Mat visionUtils::cannySegmentation(Mat img0, int minPixelSize, bool displayFaces
 	}
 	else
 	{ // Case for using minimum pixel size
-		for (int i = 0; i < contours.size(); i++)
+		for (int i = 0; i < (int)contours.size(); i++)
 		{
 			if (contourArea(Mat(contours[i]))>minPixelSize)
 			drawContours(mask, contours, i, Scalar(1), CV_FILLED);
@@ -770,7 +647,6 @@ for (int i = 0; i < 4; i++)
 return image;
 }
 
-// Compares distance of current points vs previous single point and returns index to the closest (mode = 0) or longest (mode = 1)
 int visionUtils::updateArmPoints(Point2f previousPoint, Point2f *currentPoints, int mode)
 {
 
@@ -817,7 +693,6 @@ int visionUtils::updateArmPoints(Point2f previousPoint, Point2f *currentPoints, 
 }
 
 
-// Compares distance of current points vs previous single point and returns index to the closest (mode = 0) or longest (mode = 1)
 vector<Point2f> visionUtils::updateArmMiddlePoint(Point2f previousPoint, Point2f *currentPoints, int mode)
 {
     double global_mag;
@@ -841,7 +716,7 @@ vector<Point2f> visionUtils::updateArmMiddlePoint(Point2f previousPoint, Point2f
         for( int j = 0; j < 2; j++ )
         {
             temp_mag = global_mag;
-            for( int i = 0; i < tempCurrentPoints.size(); i++ )
+            for( int i = 0; i < (int)tempCurrentPoints.size(); i++ )
             {
                 magnitude = pow((tempCurrentPoints.at(i).x-previousPoint.x),2)+pow((tempCurrentPoints.at(i).y-previousPoint.y),2);
                 if (magnitude <= temp_mag )
@@ -862,7 +737,7 @@ vector<Point2f> visionUtils::updateArmMiddlePoint(Point2f previousPoint, Point2f
         for( int j = 0; j < 2; j++ )
         {
             temp_mag = global_mag;
-            for( int i = 0; i < tempCurrentPoints.size(); i++ )
+            for( int i = 0; i < (int)tempCurrentPoints.size(); i++ )
             {
                 magnitude = pow((tempCurrentPoints.at(i).x-previousPoint.x),2)+pow((tempCurrentPoints.at(i).y-previousPoint.y),2);
                 if (magnitude > temp_mag)

@@ -6,10 +6,29 @@
   </DEFINE>
 
 
-  <RULE  NAME="PERSON"  TOPLEVEL="ACTIVE"  EXPORT="1">
+  <RULE  NAME="SENTENCE1"  TOPLEVEL="ACTIVE"  EXPORT="1">
     <O>
-		<P>who am I</P>
-	<O>
+		<P>Who am I</P>
+	</O>
+  </RULE>
+
+  <RULE  NAME="SENTENCE2"  TOPLEVEL="ACTIVE"  EXPORT="1">
+    <O>
+		<P>What did I do</P>
+	</O>
+  </RULE>
+
+  <RULE  NAME="SENTENCE3"  TOPLEVEL="ACTIVE"  EXPORT="1">
+    <O>
+		<P>What is this</P>
+	</O>
+  </RULE>
+
+  <RULE  NAME="SENTENCE4"  TOPLEVEL="ACTIVE"  EXPORT="1">
+    <O>
+		<P>!SIL</P>
+	</O>
   </RULE>
 
 </GRAMMAR>
+

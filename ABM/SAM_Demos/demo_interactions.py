@@ -38,14 +38,14 @@ experiment_number = 1007#42
 
 # Location of face data
 #root_data_dir="/home/icub/dataDump/faceImageData_11062015"
-root_data_dir="/media/andreas/ANDREAS/dataDump/actionFilm"
+root_data_dir="/home/icub/dataDump/actionFilm"
 
 # Image format
 image_suffix=".ppm"
 # Array of participants to be recognised
 #participant_index=('Uriel','Andreas','Daniel')#=('Luke','Michael','Adriel','Emma','Uriel','Daniel','Andreas')
 #participant_index=('Andreas','Uriel','Tony','Daniel')
-participant_index=('Andreas','Jordi','Uriel') #participant_index=('Michael','Uriel','Tony', 'Luke')
+participant_index=('Andreas','Jordi','Gregoire','Uriel') #participant_index=('Michael','Uriel','Tony', 'Luke')
 
 # Poses used during the data collection
 pose_index=['Seg']
@@ -60,7 +60,7 @@ model_type = 'mrd'
 model_num_inducing = 30
 model_num_iterations = 150
 model_init_iterations = 400
-fname = '/media/andreas/ANDREAS/models/' + 'mActions_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
+fname = '/home/icub/models/' + 'mActions_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
 
 # Enable to save the model and visualise GP nearest neighbour matching
 save_model=True
@@ -101,13 +101,11 @@ else:
 
 while( True ):
     pass
-"""
+
     try:        
         choice = inputInteractionPort.read(True)
         testFace = mySAMpy.readImageFromCamera()
-        #subplt_input.imshow(testFace, cmap=plt.cm.Greys_r)
         pp = mySAMpy.testing(testFace, choice, visualiseInfo)
-        #pp = mySAMpy.testing(testFace, choice, visualiseInfo)
         #time.sleep(0.5)
         l = pp.pop()
         l.remove()
@@ -120,4 +118,4 @@ while( True ):
             sys.exit(0)
         except SystemExit:
             os._exit(0)
-"""
+

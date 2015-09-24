@@ -1,13 +1,13 @@
 <application>
-  <name>Vision Driver</name>
- <!-- <module>
-    <name>webcamToYarp</name>
-    <parameters>/webcamOut</parameters>
-    <node>localhost</node>
-  </module> //-->
+  <name>SAM</name>
   <module>
   <name>visionDriver</name>
-    <parameters>--from /home/icub/SheffABM/visionDriver/conf/config.ini</parameters>
+    <parameters></parameters>
+    <node>localhost</node>
+  </module>
+  <module>
+  <name>speechInteraction</name>
+    <parameters></parameters>
     <node>localhost</node>
   </module>
   <module>
@@ -15,31 +15,11 @@
     <parameters>--name /faceImgView:i</parameters>
     <node>localhost</node>
   </module>
-<!--  <module>
-  <name>yarp</name>
-    <parameters>read /readFaceInfo:i</parameters>
-    <node>localhost</node>
-  </module>//-->
   <module> 
   <name>iSpeak</name>
     <parameters>--package espeak --package_options "-ven+13 -p99 -s125"</parameters>
     <node>icubsrv</node>
   </module>
-<!--  <module>
-    <name>speechRecogniser</name>
-    <parameters></parameters>
-    <node>localhost</node>
-  </module>//-->
-  <module> 
-  <name>yarpdatadumper</name>
-    <parameters>--name /actionPosDump --type bottle --dir ./dataDump/actionData</parameters>
-    <node>localhost</node>
-  </module>
- <!-- <connection>
-    <from>/webcamOut</from>
-    <to>/inputPort</to>
-    <protocol>udp</protocol>
-  </connection> //-->
   <connection>
     <from>/icub/cam/left</from>
     <to>/visionDriver/image:i</to>
@@ -55,16 +35,6 @@
     <to>/sam/face/imageData:i</to>
     <protocol>udp</protocol>
   </connection>
-<!--  <connection>
-    <from>/visionDriver/vector:o</from>
-    <to>/readFaceInfo:i</to>
-    <protocol>udp</protocol>
-  </connection> //-->
-<!--    <connection>
-	<from>/faceTrackerImg:o</from>
-    <to>/faceImgDump</to>
-    <protocol>udp</protocol>
-  </connection> //-->
   <connection>
     <from>/visionDriver/gaze:o</from>
     <to>/iKinGazeCtrl/mono:i</to>
@@ -90,11 +60,6 @@
     <to>/iSpeak/rpc</to>
     <protocol>tcp</protocol>
   </connection>
- <!-- <connection>
-      <from>/sam/syncPort:o</from>
-    <to>/visionDriver/sync:i</to>
-    <protocol>tcp</protocol>
-  </connection> //-->>
   <connection>
     <from>/asr_write:o</from>
     <to>/speechInteraction:i</to>
@@ -118,11 +83,6 @@
   <connection>
     <from>/visionDriver/bodyPartPosition:o</from>
     <to>/sam/actions/actionData:i</to>
-    <protocol>tcp</protocol>
-  </connection>
-  <connection>
-    <from>/visionDriver/bodyPartPosition:o</from>
-    <to>/actionPosDump</to>
     <protocol>tcp</protocol>
   </connection>
   
