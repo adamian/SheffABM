@@ -5,7 +5,7 @@ import matplotlib as mp
 #mp.use('TkAgg')
 import numpy as np
 import pylab as pb
-from . import SAM
+from . import SAM_Core
 from . import SAM_Drivers
 from . import SAM_Demos
 

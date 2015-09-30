@@ -12,7 +12,7 @@
 #
 #""""""""""""""""""""""""""""""""""""""""""""""
 
-from ABM.SAM import SAMCore
+from SAM.SAM_Core import SAMCore
 import matplotlib.pyplot as plt
 #import matplotlib as mp
 import pylab as pb
@@ -20,7 +20,11 @@ import sys
 #import pickle
 import numpy
 import os
-import yarp
+try:
+    import yarp
+    isYarpRunningGlobal = True
+except ImportError:
+    isYarpRunningGlobal = False
 import cv2
 import GPy
 import time
@@ -31,7 +35,7 @@ import operator
 
 
 
-from ABM.SAM import SAMDriver
+from SAM.SAM_Core import SAMDriver
 
 
 #""""""""""""""""
@@ -50,7 +54,11 @@ class SAMDriver_actions(SAMDriver):
 #Outputs: None
 #""""""""""""""""
     def __init__(self, isYarpRunning = False, inputActionPort="/visionDriver/bodyPartPosition:o"):
-              
+        if not isYarpRunningGlobal and isYarpRunning:
+            isYarpRunning = False
+            print 'Warning! yarp was not found in the system.'
+
+        self.isYarpRunning = isYarpRunning
         self.plotFlag=False
         self.plotPreProcessedData = False # plot preprocessed data
         
@@ -112,7 +120,7 @@ class SAMDriver_actions(SAMDriver):
         
 
 
-        if( isYarpRunning == True ):
+        if( self.isYarpRunning == True ):
             yarp.Network.init()
             self.createPorts()
             self.actionDataInputPort = yarp.BufferedPortBottle()#yarp.BufferedPortImageRgb()

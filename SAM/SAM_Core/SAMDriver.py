@@ -1,5 +1,5 @@
 
-from ABM.SAM import SAMCore
+from SAM.SAM_Core import SAMCore
 import matplotlib.pyplot as plt
 #import matplotlib as mp
 import pylab as pb
@@ -7,7 +7,11 @@ import sys
 #import pickle
 import numpy
 import os
-import yarp
+try:
+    import yarp
+    isYarpRunningGlobal = True
+except ImportError:
+    isYarpRunningGlobal = False
 import cv2
 import GPy
 import time
@@ -38,7 +42,11 @@ class SAMDriver:
     #Outputs: None
     #""""""""""""""""
     def __init__(self, isYarpRunning = False):
-                
+        if not isYarpRunningGlobal and isYarpRunning:
+            isYarpRunning = False
+            print 'Warning! yarp was not found in the system.'
+
+        self.isYarpRunning = isYarpRunning
         self.SAMObject=SAMCore.LFM()        
 
         self.Y = None
@@ -68,12 +76,13 @@ class SAMDriver:
     #Outputs: None
     #""""""""""""""""
     def createPorts(self):
-        self.imageDataInputPort = yarp.BufferedPortImageRgb()
-        self.outputFacePrection = yarp.Port()
-        self.speakStatusPort = yarp.RpcClient();
-        self.speakStatusOutBottle = yarp.Bottle()
-        self.speakStatusInBottle = yarp.Bottle()
-        self.imageInputBottle = yarp.Bottle()
+        if self.isYarpRunning:
+            self.imageDataInputPort = yarp.BufferedPortImageRgb()
+            self.outputFacePrection = yarp.Port()
+            self.speakStatusPort = yarp.RpcClient();
+            self.speakStatusOutBottle = yarp.Bottle()
+            self.speakStatusInBottle = yarp.Bottle()
+            self.imageInputBottle = yarp.Bottle()
 
     #""""""""""""""""
     #Method to open the ports. It waits until the ports are connected
@@ -81,11 +90,12 @@ class SAMDriver:
     #Outputs: None
     #""""""""""""""""
     def openPorts(self):
-        print "open ports"
-        self.imageDataInputPort.open("/sam/face/imageData:i");
-        self.outputFacePrection.open("/sam/face/facePrediction:o")
-        self.speakStatusPort.open("/sam/face/speakStatus:i")
-        self.speakStatusOutBottle.addString("stat")
+        if self.isYarpRunning:
+            print "open ports"
+            self.imageDataInputPort.open("/sam/face/imageData:i");
+            self.outputFacePrection.open("/sam/face/facePrediction:o")
+            self.speakStatusPort.open("/sam/face/speakStatus:i")
+            self.speakStatusOutBottle.addString("stat")
 
         #print "Waiting for connection with imageDataInputPort..."
 #        while( not(yarp.Network.isConnected(self.inputImagePort,"/sam/imageData:i")) ):
@@ -93,10 +103,11 @@ class SAMDriver:
 #            pass
 
     def closePorts(self):
-        print "open ports"
-        self.actionDataInputPort.close();
-        self.outputActionPrediction.close()
-        self.speakStatusPort.close()
+        if self.isYarpRunning:
+            print "open ports"
+            self.actionDataInputPort.close();
+            self.outputActionPrediction.close()
+            self.speakStatusPort.close()
         #self.speakStatusOutBottle.addString("stat")
         #print "Waiting for connection with actionDataInputPort..."
         #while( not(yarp.Network.isConnected(self.inputActionPort,"/sam/actionData:i")) ):
