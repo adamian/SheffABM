@@ -478,6 +478,7 @@ class SAMDriver_actions(SAMDriver):
         self.hand_index = hand_index
         self.action_splitting_index = action_splitting_index
         
+
         # Max action time -> 5s will be used to generate fixed array for each action
         #self.maxActionTime = 5 # maximum action time in s 
         
@@ -539,10 +540,16 @@ class SAMDriver_actions(SAMDriver):
                 actionsbyHandNeg=[]
                 actionsbyHandLabelNeg=[]
                 minHands = 10000 # find min number of hands
+
                 for handInd in range(len(self.hand_index)):
                     # Check if root dir exists
                     dir_string=os.path.join(root_data_dir,(self.participant_index[partInd] + "_" + self.hand_index[handInd]\
                     + "_" + self.action_index[actionInd]))
+                    
+                    print dir_string
+                    print self.participant_index[partInd]
+                    print self.hand_index[handInd]
+
                     if not os.path.exists(dir_string):
                         print "CANNOT FIND: " + dir_string
                     else:

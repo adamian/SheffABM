@@ -21,6 +21,45 @@ import os
 import numpy
 import time
 import operator
+from ConfigParser import SafeConfigParser
+
+
+# Check configuration file
+parser = SafeConfigParser()
+
+file_candidates = ["config_faces.ini"]
+section_candidates = ["config_options"]
+
+configData = False
+
+for loc in os.curdir, os.path.expanduser("~"), os.environ.get("WYSIWYD_DIR")+"/share/wysiwyd/contexts/visionDriver":
+    print loc
+    try: 
+        found = parser.read(os.path.join(loc,file_candidates[0]))
+        if not found:
+            pass
+        else:
+            print os.path.join(loc,file_candidates[0])
+            if( parser.has_section(section_candidates[0]) == True ):
+                dataPath = parser.get(section_candidates[0], 'data_path')
+                modelPath = parser.get(section_candidates[0], 'model_path')
+                participantList = parser.get(section_candidates[0], 'participants')
+                configData = True
+            else:
+                print 'config_options not found...'
+    except IOError:
+        pass
+
+if( configData == True ):
+    print "config paths ready"
+else:
+    print "config paths failed"
+    exit()
+
+
+print dataPath
+print modelPath
+print participantList
 
 
 # Creates a SAMpy object
@@ -30,11 +69,13 @@ mySAMpy = SAMDriver_faces(True, imgH = 400, imgW = 400, imgHNew = 200, imgWNew =
 experiment_number = 45
 
 # Location of face data
-root_data_dir="/home/icub/dataDump/actionFilm" #"/home/icub/dataDump/faceImageData_11062015"
+#root_data_dir="/home/icub/dataDump/actionFilm"
+root_data_dir=dataPath
 # Image format
 image_suffix=".ppm"
 # Array of participants to be recognised
-participant_index=('Andreas','Uriel','Tony','Daniel')
+#participant_index=('Andreas','Uriel','Tony','Daniel')
+participant_index=participantList
 # Poses used during the data collection
 pose_index=['Seg']
 # Use a subset of the data for training
@@ -49,7 +90,7 @@ model_num_inducing = 40
 model_num_iterations = 200
 model_init_iterations = 1100
 #fname = 'm_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
-fname = './models/' + 'm_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
+fname = modelPath + '/models/' + 'm_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
 
 
 # Enable to save the model and visualise GP nearest neighbour matching

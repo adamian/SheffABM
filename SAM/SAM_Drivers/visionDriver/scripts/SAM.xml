@@ -61,7 +61,7 @@
     <protocol>tcp</protocol>
   </connection>
   <connection>
-    <from>/asr_write:o</from>
+    <from>/SpeechRecognition/Sentence:o</from>
     <to>/speechInteraction:i</to>
     <protocol>tcp</protocol>
   </connection>

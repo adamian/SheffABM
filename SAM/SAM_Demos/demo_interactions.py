@@ -23,6 +23,52 @@ import time
 import operator
 import yarp
 
+from ConfigParser import SafeConfigParser
+
+
+# Check configuration file
+parser = SafeConfigParser()
+
+file_candidates = ["config_faces.ini"]
+section_candidates = ["config_options"]
+
+configData = False
+
+print 'Finding config file'
+print '-------------------'
+for loc in os.curdir, os.path.expanduser("~"), os.environ.get("WYSIWYD_DIR")+"/share/wysiwyd/contexts/visionDriver":
+    print loc
+    try:
+        found = parser.read(os.path.join(loc,file_candidates[0]))
+        if not found:
+            pass
+        else:
+            pathFound = found
+            print os.path.join(loc,file_candidates[0])
+            if( parser.has_section(section_candidates[0]) == True ):
+                dataPath = parser.get(section_candidates[0], 'data_path')
+                modelPath = parser.get(section_candidates[0], 'model_path')
+                participantList_val = parser.get(section_candidates[0], 'participants')
+                participantList = participantList_val.split(',')
+                configData = True
+            else:
+                print 'config_options not found...'
+    except IOError:
+        pass
+
+if( configData == True ):
+    print "config paths ready"
+else:
+    print "config paths failed"
+    exit()
+
+print '-------------------'
+print 'Config file found: ' + pathFound[0]
+print dataPath
+print modelPath
+print participantList
+print '-------------------'
+
 
 # Creates and opens ports for interaction with speech module
 yarp.Network.init()
@@ -37,15 +83,12 @@ mySAMpy = SAMDriver_interaction(True, imgH = 400, imgW = 400, imgHNew = 200, img
 experiment_number = 1007#42
 
 # Location of face data
-#root_data_dir="/home/icub/dataDump/faceImageData_11062015"
-root_data_dir="/home/icub/dataDump/actionFilm"
+root_data_dir=dataPath
 
 # Image format
 image_suffix=".ppm"
 # Array of participants to be recognised
-#participant_index=('Uriel','Andreas','Daniel')#=('Luke','Michael','Adriel','Emma','Uriel','Daniel','Andreas')
-#participant_index=('Andreas','Uriel','Tony','Daniel')
-participant_index=('Andreas','Jordi','Gregoire','Uriel') #participant_index=('Michael','Uriel','Tony', 'Luke')
+participant_index=participantList
 
 # Poses used during the data collection
 pose_index=['Seg']
@@ -60,7 +103,7 @@ model_type = 'mrd'
 model_num_inducing = 30
 model_num_iterations = 150
 model_init_iterations = 400
-fname = '/home/icub/models/' + 'mActions_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
+fname = modelPath + '/models/' + 'mActions_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
 
 # Enable to save the model and visualise GP nearest neighbour matching
 save_model=True

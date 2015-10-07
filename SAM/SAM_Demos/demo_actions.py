@@ -13,7 +13,6 @@
 #
 
 import matplotlib.pyplot as plt
-#from SAMDriver_actions import SAMDriver_actions
 #import ABM
 from SAM.SAM_Drivers import SAMDriver_actions
 from scipy.spatial import distance
@@ -25,6 +24,57 @@ import numpy
 import time
 import operator
 import yarp
+
+from ConfigParser import SafeConfigParser
+
+# Check configuration file
+parser = SafeConfigParser()
+
+file_candidates = ["config_actions.ini"]
+section_candidates = ["config_options"]
+
+configData = False
+
+print 'Finding config file'
+print '-------------------'
+for loc in os.curdir, os.path.expanduser("~"), os.environ.get("WYSIWYD_DIR")+"/share/wysiwyd/contexts/visionDriver":
+    print loc
+    try:
+        found = parser.read(os.path.join(loc,file_candidates[0]))
+        if not found:
+            pass
+        else:
+            pathFound = found
+            print os.path.join(loc,file_candidates[0])
+            if( parser.has_section(section_candidates[0]) == True ):
+                dataPath = parser.get(section_candidates[0], 'data_path')
+                modelPath = parser.get(section_candidates[0], 'model_path')
+                participantList_val = parser.get(section_candidates[0], 'participants')
+                participantList = participantList_val.split(',') 
+                handList_val = parser.get(section_candidates[0], 'hands')
+                handList = handList_val.split(',')
+                actionList_val = parser.get(section_candidates[0], 'actions')
+                actionList = actionList_val.split(',')
+                configData = True
+            else:
+                print 'config_options not found...'
+    except IOError:
+        pass
+
+if( configData == True ):
+    print "config paths ready"
+else:
+    print "config paths failed"
+    exit()
+
+print '-------------------'
+print 'Config file found: ' + pathFound[0]
+print dataPath
+print modelPath
+print participantList
+print handList
+print actionList
+print '-------------------'
 
 
 yarp.Network.init()
@@ -46,23 +96,19 @@ mySAMpy = SAMDriver_actions(True,inputActionPort="/visionDriver/image:o")
 experiment_number = 4044#1010
 
 # Location of face data
-#root_data_dir="/home/icub/dataDump/actionData"
-#root_data_dir="D:/robotology/SheffABM/actionData"
-#root_data_dir=r"//10.0.0.20/dataDump/actionData"
-#root_data_dir=r"//10.0.0.20/dataDump/actionDataNew"
-#root_data_dir=r"//10.0.0.20/dataDump/actionDataUpdated"
-root_data_dir="/home/icub/dataDump/actionDataUpdated"
+root_data_dir=dataPath
 
 # Image format
 #image_suffix=".ppm"
 
 # Based on directories where files are held
 # 1. Array of participants to be recognised
-participant_index=['Luke','Michael', 'Uriel'] # 'Michael','Luke'
+participant_index=participantList
 # 2. Poses used during the data collection
-hand_index=('left','right')
+hand_index=handList
+
 # 3. actions
-action_index=('LR','UD' ,'waving') # Based on directories where files are held
+action_index=actionList
 
 # Sub split training data -> e.g. left right into left and right
 # split done taking gradient of greatest movement
@@ -86,8 +132,7 @@ model_type = 'mrd'
 model_num_inducing = 35
 model_num_iterations = 100 #100
 model_init_iterations = 300 #800
-fname = '/home/icub/models/mActions_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
-#fname = './models/mActions_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
+fname = modelPath + '/models/mActions_' + model_type + '_exp' + str(experiment_number) #+ '.pickle'
 
 # Enable to save the model and visualise GP nearest neighbour matching
 save_model=True

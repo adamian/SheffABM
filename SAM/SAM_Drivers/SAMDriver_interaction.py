@@ -75,6 +75,30 @@ class SAMDriver_interaction(SAMDriver):
 
 #---- Extra methods for the specific driver.
 
+#""""""""""""""""
+#Methods to create the ports for reading images from iCub eyes
+#Inputs: None
+#Outputs: None
+#""""""""""""""""
+    def createPorts(self):
+        self.imageDataInputPort = yarp.BufferedPortImageRgb()
+        self.outputFacePrection = yarp.Port()
+        self.speakStatusPort = yarp.RpcClient();
+        self.speakStatusOutBottle = yarp.Bottle()
+        self.speakStatusInBottle = yarp.Bottle()
+        self.imageInputBottle = yarp.Bottle()
+
+#""""""""""""""""
+#Method to open the ports. It waits until the ports are connected
+#Inputs: None
+#Outputs: None
+#""""""""""""""""
+    def openPorts(self):
+        print "open ports"
+        self.imageDataInputPort.open("/sam/face/imageData:i");
+        self.outputFacePrection.open("/sam/face/facePrediction:o")
+        self.speakStatusPort.open("/sam/face/speakStatus:i")
+        self.speakStatusOutBottle.addString("stat")
 
 #""""""""""""""""
 #Method to test the learned model with faces read from the iCub eyes in real-time
