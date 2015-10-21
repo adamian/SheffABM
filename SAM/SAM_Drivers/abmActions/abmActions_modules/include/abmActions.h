@@ -27,7 +27,7 @@
 *
 * Receives recognised words and triggers the corresponding behaviour
 *
-* \author Uriel Martinez, Luke Boorman
+* \author Uriel Martinez
 *
 * Copyright (C) 2015 WYSIWYD Consortium\n
 * CopyPolicy: Released under the terms of the GNU GPL v2.0.\n
@@ -71,6 +71,7 @@ class abmActions: public RFModule
         SubSystem_ABM* SubABM;
 
         DataBase<PostgreSql>* ABMDataBase;
+        Port speakOutputPort;
         
         // connection to database
         std::string server;
@@ -96,6 +97,7 @@ class abmActions: public RFModule
         Bottle currentPersonsOPCID;
         string personName;
 
+        bool speak_actions;
         bool newActionProcess;
         int configNumberOfPersons;
 

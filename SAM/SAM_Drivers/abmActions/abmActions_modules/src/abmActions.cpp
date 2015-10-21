@@ -25,6 +25,7 @@ abmActions::abmActions()
     m_masterName = "abmActions";
     instance = 0;
     newActionProcess = false;
+    speak_actions = false;
 }
 
 abmActions::~abmActions()
@@ -136,12 +137,14 @@ bool abmActions::configure(ResourceFinder &rf)
     }
 
     bool rpcPortOpen = rpcPort.open(("/" + moduleName + "/rpc").c_str());
-    if( !rpcPortOpen )
+    bool speakOutputPortOpen = speakOutputPort.open(("/" + moduleName + "/speak:o").c_str());
+    if( !rpcPortOpen || !speakOutputPortOpen )
 	{
 		cout << "Could not open ports. Exiting" << endl;
 		return false;
 	}
 
+    Network::connect("/abmActions/speak:o","/iSpeak");
 
     if (!iCub->getABMClient())
     {
@@ -398,6 +401,7 @@ bool abmActions::getDataFromABM(Bottle v_data)
     int temp_personID = -1;
     int temp_personOPCID = 0;
     string v_person = v_data.get(1).asString();
+    speak_actions = v_data.get(2).asInt();
     
     cout << "V_PERSON: " << v_person << endl;
 
@@ -410,15 +414,16 @@ bool abmActions::getDataFromABM(Bottle v_data)
         }
     }
     
+
+    ostringstream osArg;
+    Bottle bRequest;
+    Bottle response;
+
     if( temp_personID >= 0 )
     {
         cout << "NAME: " << personsNames.get(temp_personID).asString() << ", OPCID: " << temp_personOPCID << endl;
-
-        ostringstream osArg;
-        
+        osArg.str("");
         osArg << "SELECT name, object, direction, argument FROM action WHERE opcid = " << temp_personOPCID << ";";
-        Bottle bRequest;
-        Bottle response;
         bRequest.addString("request");
         bRequest.addString(osArg.str());
         response = iCub->getABMClient()->rpcCommand(bRequest);
@@ -428,6 +433,57 @@ bool abmActions::getDataFromABM(Bottle v_data)
     {
         cout << "Person " << v_person << " not found in the database, no actions found." << endl;
         return false;
+    }
+    
+    
+    vector<string> connectors(4); // = {"to the","to your","using your","."};    
+    vector<string> sequenceConnectors(5); // = {"First","then,","after,","next,","finally,"}
+    
+    connectors.at(0) = "the ";
+    connectors.at(1) = "to your ";
+    connectors.at(2) = "using your ";
+    connectors.at(3) = ".";
+    
+    sequenceConnectors.at(0) = "First,";
+    sequenceConnectors.at(1) = "then,";
+    sequenceConnectors.at(2) = "after,";
+    sequenceConnectors.at(3) = "next,";
+    sequenceConnectors.at(4) = "finally,";
+    
+    if( !boost::iequals(response.toString(), "NULL") )
+    {    
+        for( int i = 0; i < response.size(); i++ )
+        {
+//            osArg << v_person << " ";
+            osArg.str("");
+            if( i == 0 )
+            {
+                cout << "INIT CONNECTOR: " << sequenceConnectors.at(0) << endl;
+                osArg << sequenceConnectors.at(0) << " you ";
+            }
+            else if( i == (response.size() - 1) )
+                osArg << sequenceConnectors.at(4) << " you ";
+            else
+            {
+                srand (time(NULL));                
+                osArg << sequenceConnectors.at((rand() % 3 + 1)) << " you ";
+            }
+            
+            for( int j = 0; j < response.get(i).asList()->size(); j++ )
+            {
+                  osArg << response.get(i).asList()->get(j).asString();
+                  osArg << " " << connectors[ j ];
+            }
+            if( speak_actions == true )
+            {
+                cout << "Sending output to /iSpeak: " << osArg.str() << endl;
+                Bottle botAction;
+                botAction.addString(osArg.str());
+                speakOutputPort.write(botAction);
+            }
+            else
+                cout << "Output to /iSpeak DISABLED" << endl;
+        }
     }
     
     return true;

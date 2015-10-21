@@ -1,5 +1,5 @@
 # Copyright: (C) 2015 WYSIWYD Consortium
-# Authors: Luke Boorman, Uriel Martinez
+# Authors: Uriel Martinez
 # CopyPolicy: Released under the terms of the GNU GPL v2.0.
 
 cmake_minimum_required(VERSION 2.8)
