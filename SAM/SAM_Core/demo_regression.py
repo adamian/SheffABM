@@ -1,7 +1,7 @@
 # Copyright (c) 2015, Andreas Damianou
 
 """ 
-This demo implements a supervised learnin scenario, where observations
+This demo implements a supervised learning scenario, where observations
 are accompanied by inputs. So, we have pairs of inputs-observations,
 eg. note C -> frequency 98 etc. 
 """
@@ -65,7 +65,7 @@ The only difference here is that we also give inputs X to the store functionp
 and that we don't have labels associated with our data.
 """
 Ydict = {'Y':Y}
-a=SAM.LFM()
+a=SAM.SAM_Core.LFM()
 a.store(observed=Ydict, inputs=X, Q=None, kernel=None, num_inducing=20)
 a.learn()
 ret = a.visualise()

@@ -77,7 +77,7 @@ Data = {'Y':Yn,'L':L}
 Q = 4
 
 # Instantiate object
-a=SAM.LFM()
+a=SAM.SAM_Core.LFM()
 
 # Store the events Y.
 # ARG: Y: A N x D matrix, where N is the number of points and D the number
@@ -106,14 +106,18 @@ a.learn(optimizer='bfgs',max_iters=2000, verbose=True)
 ret = a.visualise()
 
 # Only for images
-#ret2= a.visualise_interactive(dimensions=(20,28))
+#ret_in= a.visualise_interactive(dimensions=(20,28))
 
 # Pattern completion. In this case, we give a new set of test observables 
 # (i.e. events not experienced before) and we want to infer the internal/compressed
 # representation of those. We can then perform inference in this compressed representation.
 # pred_mean is the point estimates of the inernal representation adn pred_Var is the variance
 # (cenrtainty) with which they were predicted (low variance = high certainty)
-pred_mean, pred_var = a.pattern_completion(Ytest)
+predictions = a.pattern_completion(Ytest)
+pred_mean = predictions[0]
+pred_var = predictions[1]
 
-# Visualise the predictive point estimates for the test data
-pb.plot(pred_mean[:,0],pred_mean[:,1],'bx')
+# Visualise the predictive point estimates for the test data; plot them on top of the memory visualization
+ret2 = a.visualise()
+ret2.plot(pred_mean[:,0],pred_mean[:,1],'xm')
+pb.show()
